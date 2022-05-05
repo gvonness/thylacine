@@ -1,0 +1,41 @@
+package ai.entrolution
+package thylacine.model.components.posterior
+
+import thylacine.config.HmcmcConfig
+import thylacine.model.components.likelihood._
+import thylacine.model.components.prior._
+import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core._
+import thylacine.model.sampling.HmcmcEngine
+
+case class HmcmcSampledPosterior(
+    hmcmcConfig: HmcmcConfig,
+    priors: Set[Prior[_]],
+    likelihoods: Set[Likelihood[_, _]],
+    sampleRequestUpdateCallback: Int => ()
+) extends NonAnalyticPosterior(priors, likelihoods)
+    with HmcmcEngine[Prior[_], Likelihood[_, _]] {
+
+  override protected final val simulationsBetweenSamples: Int =
+    hmcmcConfig.stepsBetweenSamples
+
+  override protected final val stepsInSimulation: Int =
+    hmcmcConfig.stepsInDynamicsSimulation
+
+  override protected final val simulationEpsilon: Double =
+    hmcmcConfig.dynamicsSimulationStepSize
+
+  override protected final val warmUpSimulationCount: Int =
+    hmcmcConfig.warmupStepCount
+
+  override def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
+    getHmcmcSample
+
+  override protected def rawSampleModelParameters
+      : ResultOrErrIo[VectorContainer] =
+    for {
+      sample <- sampleModelParameters
+      result <- modelParameterCollectionToRawVector(sample)
+    } yield VectorContainer(result)
+}
