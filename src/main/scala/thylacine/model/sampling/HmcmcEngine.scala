@@ -18,16 +18,12 @@ package ai.entrolution
 package thylacine.model.sampling
 
 import bengal.stm._
-
-import thylacine.model.core._
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
-import thylacine.model.core.GenericIdentifier._
-import thylacine.model.components.forwardmodel._
-import thylacine.model.components.prior._
 import thylacine.model.components.likelihood._
 import thylacine.model.components.posterior._
-import thylacine.model.components.posterior.GaussianAnalyticPosterior._
+import thylacine.model.components.prior._
+import thylacine.model.core.Erratum._
+import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core._
 
 import cats.effect.unsafe.implicits.global
 import cats.effect.{Deferred, IO}
@@ -57,6 +53,7 @@ trait HmcmcEngine[T <: Prior[_], U <: Likelihood[_, _]]
   protected def warmUpSimulationCount: Int
 
   protected def sampleRequestUpdateCallback: Int => Unit
+  protected def sampleRequestSetCallback: Int => Unit
 
   /*
    * - - -- --- ----- -------- -------------
@@ -271,10 +268,11 @@ trait HmcmcEngine[T <: Prior[_], U <: Likelihood[_, _]]
     ResultOrErrIo.fromIo {
       for {
         deferred <- Deferred[IO, ModelParameterCollection]
-        _ <- (for {
+        newRequestSize <- (for {
                _                 <- sampleRequests.modify(_.enqueue(deferred))
                sampleRequestSize <- sampleRequests.get.map(_.size)
-             } yield ()).commit
+             } yield sampleRequestSize).commit
+        _ <- IO(sampleRequestSetCallback(newRequestSize)).start
         result <- deferred.get
       } yield result
     }

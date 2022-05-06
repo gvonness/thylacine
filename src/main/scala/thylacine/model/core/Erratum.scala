@@ -20,7 +20,7 @@ package thylacine.model.core
 import cats.data.EitherT
 import cats.effect._
 
-import scala.concurrent.{ExecutionContext, Future, TimeoutException}
+import scala.concurrent.{Future, TimeoutException}
 import scala.util.{Failure, Success, Try}
 
 sealed trait Erratum {
@@ -79,9 +79,7 @@ object Erratum {
     def fromResultOrErr[T](resultOrErr: ResultOrErr[T]): ResultOrErrIo[T] =
       fromResultOrErrorIo(IO.pure(resultOrErr))
 
-    def fromFuture[T](
-        future: => Future[T]
-    )(implicit ec: ExecutionContext): ResultOrErrIo[T] =
+    def fromFuture[T](future: => Future[T]): ResultOrErrIo[T] =
       fromResultOrErrorIo {
         IO.fromFuture(IO(future))
           .map(Right(_))

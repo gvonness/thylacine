@@ -17,19 +17,11 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core._
 import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
-import thylacine.model.core.GenericIdentifier._
-import thylacine.model.components.forwardmodel._
-import thylacine.model.components.prior._
-import thylacine.model.components.likelihood._
-import thylacine.model.components.posterior.GaussianAnalyticPosterior._
+import thylacine.model.core._
 import thylacine.util.MathOps
 
-import cats.effect.IO
 import cats.implicits._
-import ch.obermuhlner.math.big.BigDecimalMath
 
 case class PointInCubeCollection(
     pointsInCube: List[PointInCube],

@@ -53,5 +53,5 @@ case class Simplex(start: GraphPoint, end: GraphPoint) {
 object Simplex {
 
   def apply(input: (GraphPoint, GraphPoint)): Simplex =
-    visualisation.Simplex(input._1, input._2)
+    Simplex(input._1, input._2)
 }

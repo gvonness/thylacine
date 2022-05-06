@@ -29,7 +29,8 @@ case class HmcmcSampledPosterior(
     hmcmcConfig: HmcmcConfig,
     priors: Set[Prior[_]],
     likelihoods: Set[Likelihood[_, _]],
-    sampleRequestUpdateCallback: Int => ()
+    sampleRequestSetCallback: Int => Unit,
+    sampleRequestUpdateCallback: Int => Unit
 ) extends NonAnalyticPosterior(priors, likelihoods)
     with HmcmcEngine[Prior[_], Likelihood[_, _]] {
 

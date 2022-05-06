@@ -18,6 +18,7 @@ package ai.entrolution
 package thylacine.visualisation
 
 import bengal.stm._
+import thylacine.util.MathOps.trapezoidalQuadrature
 
 import cats.data.NonEmptyList
 import cats.effect.IO
@@ -52,22 +53,26 @@ case class CartesianSurface(
                    case h :: t =>
                      NonEmptyList(h, t).parTraverse { col =>
                        for {
-                         integration <- IO(
-                                          trapezoidalRule(col._2.values.toList,
-                                                          yAbscissa.differential
+                         integration <- trapezoidalQuadrature(
+                                            yAbscissa,
+                                            col._2.values.toList
                                           )
-                                        )
                        } yield
                          if (integration > 0) {
                            col._2.view.mapValues(v => v / integration).toSeq
                          } else {
                            col._2.toSeq
                          }
-                     }.map(_.reduce).unsafeRunSync()
+                     }.map(_.reduce).value.unsafeRunSync()
                    case _ =>
-                     Seq()
+                     Right(Seq())
                  }
-      _ <- scalarValues.set(groupMap.toMap)
+      _ <- groupMap match {
+        case Right(res) =>
+          scalarValues.set(res.toMap)
+        case Left(erratum) =>
+          stm.abort(new RuntimeException(erratum.message))
+      }
     } yield ()
   }
 
