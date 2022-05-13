@@ -15,15 +15,9 @@
  */
 
 package ai.entrolution
-package thylacine.model.support
+package thylacine.config
 
-case class SlqTelemetryUpdate(
-    negEntropyAvg: Double,
-    logPdf: Double,
-    samplePoolMinimumLogPdf: Double,
-    domainVolumeScaling: Double,
-    acceptancesSinceDomainRebuild: Int,
-    samplePoolSize: Int,
-    domainCubeCount: Int,
-    iterationCount: Int
+case class HookeAndJeevesConfig(
+    convergenceThreshold: Double,
+    numberOfPriorSamplesToSetScale: Option[Int]
 )

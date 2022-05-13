@@ -27,7 +27,7 @@ import thylacine.model.core.IndexedVectorCollection._
 // computations. However, the effectiveness of this caching will
 // be highly dependent on the inference itself (forward models,
 // sampling strategy, model parameter scaling, etc.)
-trait MemoizedForwardModel extends ForwardModel {
+private[thylacine] trait MemoizedForwardModel extends ForwardModel {
 
   protected def retrieveEvalFromStoreFor(
       input: ModelParameterCollection
@@ -55,7 +55,7 @@ trait MemoizedForwardModel extends ForwardModel {
       input: ModelParameterCollection
   ): ResultOrErrIo[IndexedMatrixCollection]
 
-  override final def evalAt(
+  private[thylacine] override final def evalAt(
       input: ModelParameterCollection
   ): ResultOrErrIo[VectorContainer] =
     for {
@@ -70,7 +70,7 @@ trait MemoizedForwardModel extends ForwardModel {
                 }
     } yield result
 
-  override final def jacobianAt(
+  private[thylacine] override final def jacobianAt(
       input: ModelParameterCollection
   ): ResultOrErrIo[IndexedMatrixCollection] =
     for {

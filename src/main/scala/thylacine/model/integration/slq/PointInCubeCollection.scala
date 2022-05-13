@@ -23,15 +23,15 @@ import thylacine.util.MathOps
 
 import cats.implicits._
 
-case class PointInCubeCollection(
-    pointsInCube: List[PointInCube],
+private[thylacine] case class PointInCubeCollection(
+    pointsInCube: Vector[PointInCube],
     validated: Boolean = false
 ) extends CanValidate[PointInCubeCollection] {
   if (!validated) {
     assert(pointsInCube.size > 1)
   }
 
-  val dimension: Int = pointsInCube.headOption.map(_.dimension).getOrElse(0)
+  private[thylacine] val dimension: Int = pointsInCube.headOption.map(_.dimension).getOrElse(0)
 
   if (!validated) {
     assert(
@@ -40,10 +40,10 @@ case class PointInCubeCollection(
     assert(validated || pointsInCube.tail.forall(_.dimension == dimension))
   }
 
-  lazy val pointsOnly: List[VectorContainer] =
+  private[thylacine] lazy val pointsOnly: Vector[VectorContainer] =
     pointsInCube.map(_.point)
 
-  override lazy val getValidated: PointInCubeCollection =
+  private[thylacine] override lazy val getValidated: PointInCubeCollection =
     if (validated) {
       this
     } else {
@@ -73,7 +73,7 @@ case class PointInCubeCollection(
               piiList <-
                 (1 to dimension)
                   .zip(pic.point.rawVector.toScalaVector().toList)
-                  .toList
+                  .toVector
                   .parTraverse { k =>
                     for {
                       maxDiff <- ResultOrErrIo.fromCalculation {
@@ -115,7 +115,7 @@ case class PointInCubeCollection(
       symmetrizedCubes <- pointsInCube.traverse(_.symmetrize)
     } yield PointInCubeCollection(symmetrizedCubes, validated = true)
 
-  lazy val readyForSampling: ResultOrErrIo[PointInCubeCollection] =
+  private[thylacine] lazy val readyForSampling: ResultOrErrIo[PointInCubeCollection] =
     for {
       init            <- getValidated.initialise
       initDisjoint    <- init.makeDisjoint
@@ -123,14 +123,14 @@ case class PointInCubeCollection(
     } yield initDisjointSym
 
   private lazy val sampleMapping
-      : ResultOrErrIo[List[((BigDecimal, BigDecimal), PointInCube)]] = {
+      : ResultOrErrIo[Vector[((BigDecimal, BigDecimal), PointInCube)]] = {
     for {
       cubeVolumes  <- pointsInCube.parTraverse(_.cubeVolume)
       cdfStaircase <- MathOps.cdfStaircase(cubeVolumes)
     } yield cdfStaircase.zip(pointsInCube)
   }
 
-  def getSample(scaleParameter: Double): ResultOrErrIo[VectorContainer] =
+  private[thylacine] def getSample(scaleParameter: Double): ResultOrErrIo[VectorContainer] =
     for {
       randomIndex <-
         ResultOrErrIo.fromCalculation(BigDecimal(Math.random().toString))
@@ -144,8 +144,8 @@ case class PointInCubeCollection(
                            else None
                          }
                        }.map(_.flatten)
-      result <- selectedCubes match {
-                  case cube :: Nil => cube.getSample(scaleParameter)
+      result <- selectedCubes.headOption match {
+                  case Some(head) => head.getSample(scaleParameter)
                   case _ =>
                     ResultOrErrIo.fromErratum(
                       UnexpectedErratum(
@@ -156,8 +156,8 @@ case class PointInCubeCollection(
     } yield result
 }
 
-object PointInCubeCollection {
+private[thylacine] object PointInCubeCollection {
 
-  val empty: PointInCubeCollection =
-    PointInCubeCollection(List(), validated = true)
+  private[thylacine] val empty: PointInCubeCollection =
+    PointInCubeCollection(Vector(), validated = true)
 }

@@ -18,14 +18,13 @@ package ai.entrolution
 package thylacine.model.integration.slq
 
 import bengal.stm._
-import thylacine.model.components.likelihood._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior._
 import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 import thylacine.model.integration.slq.SamplingSimulation._
-import thylacine.model.support.SlqTelemetryUpdate
+import thylacine.model.interface.SlqTelemetryUpdate
 
 import breeze.linalg.DenseVector
 import cats.effect.IO
@@ -35,16 +34,16 @@ import cats.implicits._
 /** Implementation of the SLQ (pronounced like "slick") algorithm
   * introduced in Appendix B of [3].
   *
-  * This is heavy artillery when handling high dimensional inferences
-  * (i.e. hundreds of dimensions). In this regime, all approaches have
-  * draw backs. This technique derives from Skilling's Nested Sampling
-  * technique (see chapter 9 in [1] for an introduction or the Appendix
-  * in [2] for a more mathematical analysis of the approach). The primary
-  * draw-back with this technique is that it focuses on parts of the
-  * solution space where density is known to be highest. However, it may
-  * miss areas of isolated density spikes. This can be alleviated to some
-  * extent with seeding that includes local maxima (found via global
-  * optimisers).
+  * While an evolution of Skilling's Nested Sampling technique
+  * (see chapter 9 in [1] for an introduction or the Appendix
+  * in [2] for a more mathematical analysis of the approach), this
+  * algorithm still generally suffers from excessively high rejection
+  * rates in high-dimensional inferences. Attempts to alleviate this issue
+  * result in posterior integrations and sample simulations that are
+  * typically far-too concentrated around the PDF maxima.
+  *
+  * TL;DR - Expect this algorithm to take a very long time to build its
+  * quadratures for high-dimensional problems.
   *
   * [1] Sivia D and Skilling J
   *     Data Analysis: A Bayesian Tutorial
@@ -58,13 +57,15 @@ import cats.implicits._
   *       equilibria and high-dimensional stochastic quadratures
   *     Plasma Phys. Control Fusion 56 (2014) 114011
   */
-trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
-    extends ModelParameterSampleGenerator {
-  this: Posterior[T, U] =>
+private[thylacine] trait SlqEngine
+    extends ModelParameterIntegrator
+    with ModelParameterSampler {
 
   private val stm = STM.runtime[IO].unsafeRunSync()
   import SlqEngine._
   import stm._
+
+  protected def posterior: Posterior[Prior[_], _]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -80,6 +81,8 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
   protected def seeds: Set[ModelParameterCollection]
 
   protected def slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit
+  protected def domainRebuildStartCallback: Unit => Unit
+  protected def domainRebuildFinishCallback: Unit => Unit
 
   /*
    * - - -- --- ----- -------- -------------
@@ -98,26 +101,30 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
     TxnVar.of(-Double.MaxValue).unsafeRunSync()
 
   //
-  private val logPdfResults: TxnVar[List[(Double, ModelParameterCollection)]] =
-    TxnVar.of(List[(Double, ModelParameterCollection)]()).unsafeRunSync()
+  private val logPdfResults
+      : TxnVar[Vector[(Double, ModelParameterCollection)]] =
+    TxnVar.of(Vector[(Double, ModelParameterCollection)]()).unsafeRunSync()
 
   //
-  private val sampleDomainScalingState: TxnVar[SampleDomainTelemetry] =
-    TxnVar.of(SampleDomainTelemetry.init).unsafeRunSync()
+  private val sampleDomainScalingState: TxnVar[QuadratureDomainTelemetry] =
+    TxnVar.of(QuadratureDomainTelemetry.init).unsafeRunSync()
 
   private val workTokenPool: TxnVar[Int] =
     TxnVar.of(0).unsafeRunSync()
 
   //
-  private val abscissas: TxnVar[SamplingAbscissaCollection] =
-    TxnVar.of(SamplingAbscissaCollection.init).unsafeRunSync()
+  private val abscissas: TxnVar[QuadratureAbscissaCollection] =
+    TxnVar.of(QuadratureAbscissaCollection.init).unsafeRunSync()
 
   //
-  private val samplingTelemetry: TxnVar[SamplingTelemetry] =
-    TxnVar.of(SamplingTelemetry.empty).unsafeRunSync()
+  private val quadratureIntegrations: TxnVar[QuadratureIntegrator] =
+    TxnVar.of(QuadratureIntegrator.empty).unsafeRunSync()
 
   private val samplingSimulation: TxnVar[SamplingSimulation] =
     TxnVar.of(SamplingSimulation.empty).unsafeRunSync()
+
+  private val isConverged: TxnVar[Boolean] =
+    TxnVar.of(false).unsafeRunSync()
 
   /*
    * - - -- --- ----- -------- -------------
@@ -153,7 +160,7 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
              case Some(value) =>
                for {
                  _ <- logPdfResults.modify {
-                        (currentMinimum, value) :: _
+                        (currentMinimum, value) +: _
                       }
                  _       <- samplePool.remove(currentMinimum)
                  samples <- samplePool.get
@@ -182,8 +189,8 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
                logPdfs <-
                  logPdfResults.get.map(_.map(_._1))
                _ <-
-                 samplingTelemetry.set(
-                   SamplingTelemetry(logPdfs, quadratures)
+                 quadratureIntegrations.set(
+                   QuadratureIntegrator(logPdfs, quadratures)
                  )
              } yield ()
            } else stm.unit
@@ -227,55 +234,45 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
         ResultOrErrIo.fromIo(sampleDomainScalingState.get.commit)
       sampleContainer <-
         domain.getSample(scalingFactorTelemetry.currentScaleFactor)
-      sample <- rawVectorToModelParameterCollection(sampleContainer.rawVector)
-      logPdf <- logPdfAt(sample)
+      sample <-
+        posterior.rawVectorToModelParameterCollection(sampleContainer.rawVector)
+      logPdf <- posterior.logPdfAt(sample)
       result <-
         ResultOrErrIo.fromIo(
           updateStateWithSampleCalculation(logPdf, sample).commit
         )
-      _ <- if (result) {
-             ResultOrErrIo.fromIo {
-               (for {
-                 samples   <- samplePool.get
-                 telemetry <- samplingTelemetry.get
-                 negEnt =
-                   telemetry.negativeEntropyStats.sum / telemetry.negativeEntropyStats.size
-                 iterationCount = telemetry.logPdfs.size
-               } yield (samples,
-                        scalingFactorTelemetry,
-                        negEnt,
-                        iterationCount
-               )).commit.map { r =>
-                 System.out.print(s"""
-                      |----------
-                      |System time: ${System.nanoTime}
-                      |NegEnt Average: ${r._3}
-                      |Current LogPDF: $logPdf
-                      |Sample Pool Minimum LogPDF: ${r._1.keySet.min}
-                      |Domain volume scaling: ${r._2.currentScaleFactor}
-                      |Acceptances since domain rebuild: ${r._2.acceptancesSinceLastRebuild}
-                      |Sample pool size: ${r._1.size}
-                      |Domain cube count: ${domain.pointsInCube.size}
-                      |Iteration count: ${r._4}
-                      |""".stripMargin)
-               }
-             }
-           } else if (
-             scalingFactorTelemetry.rejectionStreak > 0 && scalingFactorTelemetry.rejectionStreak % 100 == 0
-           ) {
-             ResultOrErrIo.fromCalculation {
-               System.out.print(s"""
-                    |----------
-                    |System time: ${System.nanoTime}
-                    |Domain volume scaling: ${scalingFactorTelemetry.currentScaleFactor}
-                    |Acceptances since domain rebuild: ${scalingFactorTelemetry.acceptancesSinceLastRebuild}
-                    |Domain cube count: ${domain.pointsInCube.size}
-                    |Rejection streak count: ${scalingFactorTelemetry.rejectionStreak}
-                    |""".stripMargin)
-             }
-           } else {
-             ResultOrErrIo.unit
-           }
+      _ <-
+        if (
+          result || (scalingFactorTelemetry.rejectionStreak > 0 && scalingFactorTelemetry.rejectionStreak % 100 == 0)
+        ) {
+          for {
+            _ <- if (result) setConverged() else ResultOrErrIo.unit
+            telemetry <- ResultOrErrIo.fromIo {
+                           (for {
+                             samples      <- samplePool.get
+                             integrations <- quadratureIntegrations.get
+                           } yield (samples,
+                                    scalingFactorTelemetry,
+                                    integrations
+                           )).commit
+                         }
+            negEntStats <- telemetry._3.negativeEntropyStats
+          } yield slqTelemetryUpdateCallback(
+            SlqTelemetryUpdate(
+              negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
+              logPdf = logPdf,
+              samplePoolMinimumLogPdf = telemetry._1.keySet.min,
+              domainVolumeScaling = telemetry._2.currentScaleFactor,
+              acceptancesSinceDomainRebuild =
+                telemetry._2.acceptancesSinceLastRebuild,
+              samplePoolSize = telemetry._1.size,
+              domainCubeCount = domain.pointsInCube.size,
+              iterationCount = telemetry._3.logPdfs.size
+            )
+          )
+        } else {
+          ResultOrErrIo.unit
+        }
     } yield ()
 
   private def sampleAndReplaceToken: ResultOrErrIo[Unit] =
@@ -293,20 +290,50 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
       _           <- workTokenPool.set(tokenAmount - 1)
     } yield ()
 
-  private def getConverged: Txn[Boolean] =
+  private def setConverged(): ResultOrErrIo[Unit] = {
+    def testConverged(
+        iterationCount: Int,
+        numberSamplePoints: Int,
+        negativeEntropyStats: Vector[BigDecimal]
+    ): Boolean =
+      if (negativeEntropyStats.nonEmpty) {
+        iterationCount > 1000 &&
+        iterationCount >= 10 * numberSamplePoints * negativeEntropyStats.max
+      } else {
+        false
+      }
+
     for {
-      telemetry       <- samplingTelemetry.get
-      iterationCount  <- logPdfResults.get.map(_.size)
-      domainExhausted <- sampleDomainScalingState.get.map(_.isConverged)
-    } yield telemetry.isConverged(iterationCount,
-                                  slqSamplePoolSize
-    ) || domainExhausted
+      telemetry <- ResultOrErrIo.fromIo {
+                     (for {
+                       quadratures    <- quadratureIntegrations.get
+                       iterationCount <- logPdfResults.get.map(_.size)
+                       domainExhausted <-
+                         sampleDomainScalingState.get.map(_.isConverged)
+                     } yield (quadratures,
+                              iterationCount,
+                              domainExhausted
+                     )).commit
+                   }
+      negEntStats <- telemetry._1.negativeEntropyStats
+      _ <- ResultOrErrIo.fromIo {
+             isConverged
+               .set(
+                 testConverged(telemetry._2,
+                               slqSamplePoolSize,
+                               negEntStats
+                 ) || telemetry._3
+               )
+               .commit
+           }
+    } yield ()
+  }
 
   private def initiateSampling: IO[Boolean] =
     for {
       _                 <- getWorkToken.commit
       _                 <- sampleAndReplaceToken.value.start
-      continueIteration <- getConverged.commit.map(!_)
+      continueIteration <- isConverged.get.map(!_).commit
     } yield continueIteration
 
   private def samplingRecursion: IO[Unit] =
@@ -335,7 +362,7 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
   private def getSamplesForDomainRebuild: ResultOrErrIo[Boolean] =
     ResultOrErrIo.fromIo((for {
       samplingDomainState <- sampleDomainScalingState.get
-      converged           <- getConverged
+      converged           <- isConverged.get
       _                   <- stm.waitFor(samplingDomainState.initiateRebuild || converged)
     } yield converged).commit)
 
@@ -344,41 +371,35 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
       converged <- getSamplesForDomainRebuild
       continueIteration <- if (!converged) {
                              for {
-                               _ <-
-                                 ResultOrErrIo.fromIo(
-                                   IO(
-                                     println(
-                                       s"!!!!!!! Initiating domain rebuild"
-                                     )
-                                   )
-                                 )
+                               _ <- ResultOrErrIo.fromCalculation(
+                                      domainRebuildStartCallback
+                                    )
                                samples <-
                                  ResultOrErrIo.fromIo(samplePool.get.commit)
                                picCollection <-
                                  getPointInCubeCollection(
-                                   samples.values.toList,
-                                   modelParameterCollectionToRawVector
+                                   samples.values.toVector,
+                                   posterior.modelParameterCollectionToRawVector
                                  )
-                               continueIteration <- ResultOrErrIo.fromIo {
-                                                      (for {
-                                                        _ <- sampleDomain.set(
-                                                               picCollection
-                                                             )
-                                                        _ <-
-                                                          sampleDomainScalingState
-                                                            .modify(
-                                                              _.resetForRebuild
-                                                            )
-                                                        innerResult <-
-                                                          getConverged
-                                                      } yield !innerResult).commit
-                                                    }
-                               _ <- ResultOrErrIo.fromIo(
-                                      IO(
-                                        println(
-                                          s"!!!!!!! Domain rebuild complete"
-                                        )
-                                      )
+                               _ <- ResultOrErrIo.fromIo {
+                                      (for {
+                                        _ <- sampleDomain.set(
+                                               picCollection
+                                             )
+                                        _ <-
+                                          sampleDomainScalingState
+                                            .modify(
+                                              _.resetForRebuild
+                                            )
+                                      } yield ()).commit
+                                    }
+                               _ <- setConverged()
+                               continueIteration <-
+                                 ResultOrErrIo.fromIo(
+                                   isConverged.get.map(!_).commit
+                                 )
+                               _ <- ResultOrErrIo.fromCalculation(
+                                      domainRebuildFinishCallback
                                     )
                              } yield continueIteration
                            } else {
@@ -398,18 +419,11 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
    * - - -- --- ----- -------- -------------
    */
 
-  private def samplePriors: ResultOrErrIo[ModelParameterCollection] =
-    for {
-      sampleCollection <- priors.toList.parTraverse(_.sampleModelParameters)
-      result <-
-        ResultOrErrIo.fromCalculation(sampleCollection.reduce(_ rawMergeWith _))
-    } yield result
-
   private lazy val initialiseTvars: ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
       (for {
         _ <- sampleDomainScalingState.set {
-               SampleDomainTelemetry(
+               QuadratureDomainTelemetry(
                  currentScaleFactor = 1.0,
                  acceptances = 0,
                  rejections = 0,
@@ -422,19 +436,20 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
         _ <- workTokenPool.set(slqSampleParallelism)
         _ <-
           abscissas.set(
-            SamplingAbscissaCollection(slqNumberOfAbscissa, slqSamplePoolSize)
+            QuadratureAbscissaCollection(slqNumberOfAbscissa, slqSamplePoolSize)
           )
-        _ <- logPdfResults.set(List())
-        _ <- samplingTelemetry.set(SamplingTelemetry.empty)
+        _ <- logPdfResults.set(Vector())
+        _ <- quadratureIntegrations.set(QuadratureIntegrator.empty)
         _ <- samplingSimulation.set(SamplingSimulation.empty)
+        _ <- isConverged.set(false)
       } yield ()).commit
     }
 
   private def analyseSeeds
       : ResultOrErrIo[Map[Double, ModelParameterCollection]] =
     for {
-      result <- seeds.toList.parTraverse { s =>
-                  logPdfAt(s).map(i => (i, s))
+      result <- seeds.toVector.parTraverse { s =>
+                  posterior.logPdfAt(s).map(i => (i, s))
                 }
     } yield result.toMap
 
@@ -442,8 +457,8 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
       logPdfs: Set[Double]
   ): ResultOrErrIo[(Double, ModelParameterCollection)] =
     (for {
-      sample <- samplePriors
-      logPdf <- logPdfAt(sample)
+      sample <- posterior.samplePriors
+      logPdf <- posterior.logPdfAt(sample)
     } yield (logPdf, sample)).flatMap { i =>
       if (logPdfs.contains(i._1)) {
         getInitialSample(logPdfs)
@@ -466,8 +481,8 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
           } yield prev + result
         }
       picCollection <- getPointInCubeCollection(
-                         logPdfPriorResults.values.toList,
-                         modelParameterCollectionToRawVector
+                         logPdfPriorResults.values.toVector,
+                         posterior.modelParameterCollectionToRawVector
                        )
       _ <- ResultOrErrIo.fromIo {
              (for {
@@ -481,11 +496,11 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
 
   /*
    * - - -- --- ----- -------- -------------
-   * Public Interfaces
+   * Framework Internal Interfaces
    * - - -- --- ----- -------- -------------
    */
 
-  def buildSampleSimulation: ResultOrErrIo[Unit] =
+  private[thylacine] def buildSampleSimulation: ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
       for {
         _ <- initialise.value
@@ -494,7 +509,7 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
       } yield ()
     }
 
-  def waitForSimulationConstruction: ResultOrErrIo[Unit] =
+  private[thylacine] def waitForSimulationConstruction: ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
       (for {
         samplingSimulationRaw <- samplingSimulation.get
@@ -502,6 +517,9 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
       } yield ()).commit
     }
 
+  // Run assuming the sample simulation has completed. It is possible to
+  // put a `waitForSimulationConstruction` in this call but it adds unnecessary
+  // overhead on the transaction runtime
   protected def getSimulatedSample: ResultOrErrIo[ModelParameterCollection] =
     for {
       sampleSimulationRaw <-
@@ -509,12 +527,34 @@ trait SlqEngine[T <: Prior[_], U <: Likelihood[_, _]]
       result <- sampleSimulationRaw.getSample
     } yield result
 
+  // Assumes the quadratures have been fully constructed (see above comment).
+  // We return the mean for the integrations, as SLQ produces inferences of these
+  // integrations.
+  protected override final def integrateOverModelParameters(
+      integrand: BigDecimal => BigDecimal
+  ): ResultOrErrIo[BigDecimal] =
+    for {
+      quadratureRaw <- ResultOrErrIo.fromIo(quadratureIntegrations.get.commit)
+      result        <- quadratureRaw.getIntegrationStats(integrand)
+    } yield result.sum / result.size
+
+  override protected def sampleModelParameters
+      : ResultOrErrIo[ModelParameterCollection] =
+    getSimulatedSample
+
+  override protected def rawSampleModelParameters
+      : ResultOrErrIo[VectorContainer] =
+    for {
+      sample <- sampleModelParameters
+      result <- posterior.modelParameterCollectionToRawVector(sample)
+    } yield VectorContainer(result)
+
 }
 
-object SlqEngine {
+private[thylacine] object SlqEngine {
 
-  def getPointInCubeCollection(
-      inputs: List[ModelParameterCollection],
+  private[thylacine] def getPointInCubeCollection(
+      inputs: Vector[ModelParameterCollection],
       toDenseVector: ModelParameterCollection => ResultOrErrIo[
         DenseVector[Double]
       ]
@@ -528,7 +568,7 @@ object SlqEngine {
       for {
         rawDenseVector <- toDenseVector(input)
       } yield PointInCube(
-        rawDenseVector.toScalaVector().toList.map(PointInInterval(_)),
+        rawDenseVector.toScalaVector().map(PointInInterval(_)),
         validated = true
       )
 

@@ -19,6 +19,6 @@ package thylacine.model.core
 
 import thylacine.model.core.GenericIdentifier._
 
-trait PosteriorTerm {
-  def posteriorTermIdentifier: TermIdentifier
+private[thylacine] trait PosteriorTerm {
+  private[thylacine] def posteriorTermIdentifier: TermIdentifier
 }

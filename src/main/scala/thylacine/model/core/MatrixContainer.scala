@@ -20,7 +20,9 @@ package thylacine.model.core
 import breeze.linalg._
 import cats.implicits._
 
-case class MatrixContainer(
+import scala.{Vector => ScalaVector}
+
+private[thylacine] case class MatrixContainer(
     values: Map[(Int, Int), Double],
     rowTotalNumber: Int,
     columnTotalNumber: Int,
@@ -34,12 +36,12 @@ case class MatrixContainer(
     assert(values.keys.map(_._2).min >= 1)
   }
 
-  override lazy val getValidated: MatrixContainer =
+  private[thylacine] override lazy val getValidated: MatrixContainer =
     if (validated) this else this.copy(validated = true)
 
   // Low-level API
   // ------------------------
-  lazy val rawMatrix: DenseMatrix[Double] = {
+  private[thylacine] lazy val rawMatrix: DenseMatrix[Double] = {
     val matResult: DenseMatrix[Double] =
       DenseMatrix.zeros[Double](rowTotalNumber, columnTotalNumber)
     values.foreach { i =>
@@ -51,7 +53,9 @@ case class MatrixContainer(
   // Extension of matrices with the input being used to increase
   // the number of columns, under the assumption that row numbers
   // are equal and have been checked outside of this
-  def rawRowExtendWith(input: MatrixContainer): MatrixContainer =
+  private[thylacine] def columnMergeWith(
+      input: MatrixContainer
+  ): MatrixContainer =
     MatrixContainer(
       values ++ input.getValidated.values.map(i =>
         (i._1._1, i._1._2 + columnTotalNumber) -> i._2
@@ -62,7 +66,7 @@ case class MatrixContainer(
     )
 
   // Analogous to the above for columns
-  def rawColumnExtendWith(input: MatrixContainer): MatrixContainer =
+  private[thylacine] def rowMergeWith(input: MatrixContainer): MatrixContainer =
     MatrixContainer(
       values ++ input.getValidated.values.map(i =>
         (i._1._1 + rowTotalNumber, i._1._2) -> i._2
@@ -72,9 +76,11 @@ case class MatrixContainer(
       validated = true
     )
 
-  // Diagonally combaines two matrices with zero'd upper-right
+  // Diagonally combines two matrices with zero'd upper-right
   // and lower-left submatrices
-  def rawDiagonalExtendWith(input: MatrixContainer): MatrixContainer =
+  private[thylacine] def diagonalMergeWith(
+      input: MatrixContainer
+  ): MatrixContainer =
     MatrixContainer(
       values ++ input.getValidated.values.map(i =>
         (i._1._1 + rowTotalNumber, i._1._2 + columnTotalNumber) -> i._2
@@ -85,9 +91,12 @@ case class MatrixContainer(
     )
 }
 
-object MatrixContainer {
+private[thylacine] object MatrixContainer {
 
-  def zeros(rowDimension: Int, columnDimension: Int): MatrixContainer =
+  private[thylacine] def zeros(
+      rowDimension: Int,
+      columnDimension: Int
+  ): MatrixContainer =
     MatrixContainer(
       values = Map(),
       rowTotalNumber = rowDimension,
@@ -95,7 +104,9 @@ object MatrixContainer {
       validated = true
     )
 
-  def apply(input: List[List[Double]]): MatrixContainer = {
+  private[thylacine] def apply(
+      input: ScalaVector[ScalaVector[Double]]
+  ): MatrixContainer = {
     val valueMap = input
       .foldLeft((1, Map[(Int, Int), Double]())) { (i, j) =>
         (i._1 + 1,

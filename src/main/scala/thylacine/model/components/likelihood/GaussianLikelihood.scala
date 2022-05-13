@@ -18,26 +18,29 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import thylacine.model.components.forwardmodel._
-import thylacine.model.components.prior._
+import thylacine.model.components.prior.Prior
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
 import java.util.UUID
 
-// Gaussian linear likelihoods are one of the few likelihoods that can lead to an analytic posterior.
-// Thus, it gets a dedicated case class that is leveraged to do an analytic check in the posterior
-// construction.
-case class GaussianLinearLikelihood(
+case class GaussianLikelihood(
     posteriorTermIdentifier: TermIdentifier,
     observations: BelievedData,
-    forwardModel: LinearForwardModel,
+    forwardModel: ForwardModel,
+    modelParameterGenerators: Set[ModelParameterGenerator],
     validated: Boolean = false
-) extends Likelihood[LinearForwardModel, GaussianBeliefModel] {
+) extends Likelihood[ForwardModel, GaussianBeliefModel] {
   if (!validated) {
+    assert(
+      modelParameterGenerators
+        .map(_.generatorDimension)
+        .sum == forwardModel.domainDimension
+    )
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: GaussianLinearLikelihood =
+  private[thylacine] override lazy val getValidated: GaussianLikelihood =
     if (validated) {
       this
     } else {
@@ -49,20 +52,23 @@ case class GaussianLinearLikelihood(
 
 }
 
-object GaussianLinearLikelihood {
+object GaussianLikelihood {
 
   def apply(
-      coefficients: Vector[Vector[Double]],
+      forwardModel: ForwardModel,
       measurements: Vector[Double],
       uncertainties: Vector[Double],
-      prior: Prior[_]
-  ): GaussianLinearLikelihood =
-    GaussianLinearLikelihood(
+      priors: Set[Prior[_]]
+  ): GaussianLikelihood =
+    GaussianLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = BelievedData(
         values = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
-      forwardModel = LinearForwardModel(prior.identifier, coefficients)
+      forwardModel = forwardModel,
+      modelParameterGenerators = priors.map(
+        _.asInstanceOf[ModelParameterGenerator]
+      ) // Can't avoid due to Sets not being covariant
     )
 }

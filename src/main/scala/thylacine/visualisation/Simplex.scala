@@ -19,13 +19,13 @@ package thylacine.visualisation
 
 import scala.annotation.tailrec
 
-case class Simplex(start: GraphPoint, end: GraphPoint) {
+private[thylacine] case class Simplex(start: GraphPoint, end: GraphPoint) {
   private lazy val differential = end.minus(start)
 
-  lazy val length: Double =
+  private[thylacine] lazy val length: Double =
     start.distanceTo(end)
 
-  def getInterp(t: Double): GraphPoint =
+  private[thylacine] def getInterp(t: Double): GraphPoint =
     if (t <= 0) {
       start
     } else if (t >= 1) {
@@ -35,7 +35,7 @@ case class Simplex(start: GraphPoint, end: GraphPoint) {
     }
 
   @tailrec
-  final def getInterpolationPoints(
+  private[thylacine] final def getInterpolationPoints(
       start: Double,
       ds: Double,
       prev: List[GraphPoint] = List()
@@ -50,8 +50,8 @@ case class Simplex(start: GraphPoint, end: GraphPoint) {
     }
 }
 
-object Simplex {
+private[thylacine] object Simplex {
 
-  def apply(input: (GraphPoint, GraphPoint)): Simplex =
+  private[thylacine] def apply(input: (GraphPoint, GraphPoint)): Simplex =
     Simplex(input._1, input._2)
 }

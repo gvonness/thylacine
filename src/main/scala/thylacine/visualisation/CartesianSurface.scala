@@ -20,17 +20,17 @@ package thylacine.visualisation
 import bengal.stm._
 import thylacine.util.MathOps.trapezoidalQuadrature
 
-import cats.data.NonEmptyList
+import cats.data.NonEmptyVector
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
 
 case class CartesianSurface(
-    xAbscissa: List[Double],
-    yAbscissa: List[Double]
+    xAbscissa: Vector[Double],
+    yAbscissa: Vector[Double]
 ) {
 
-  val stm: STM[IO] = STM.runtime[IO].unsafeRunSync()
+  private[thylacine] val stm: STM[IO] = STM.runtime[IO].unsafeRunSync()
   import stm._
 
   private val xScale = xAbscissa.max - xAbscissa.min
@@ -39,23 +39,23 @@ case class CartesianSurface(
   private val scalarValues =
     TxnVar.of(Map[GraphPoint, Double]()).unsafeRunSync()
 
-  private val keys: List[GraphPoint] =
+  private val keys: Vector[GraphPoint] =
     xAbscissa.flatMap { x =>
       yAbscissa.map { y =>
         GraphPoint(x, y)
       }
     }
 
-  val normaliseColumns: Txn[Unit] = {
+  private val normaliseColumns: Txn[Unit] = {
     for {
       values <- scalarValues.get
-      groupMap = values.groupBy(_._1.x).toList match {
-                   case h :: t =>
-                     NonEmptyList(h, t).parTraverse { col =>
+      groupMap = values.groupBy(_._1.x).toVector match {
+                   case h +: t =>
+                     NonEmptyVector(h, t).parTraverse { col =>
                        for {
                          integration <- trapezoidalQuadrature(
                                             yAbscissa,
-                                            col._2.values.toList
+                                            col._2.values.toVector
                                           )
                        } yield
                          if (integration > 0) {
@@ -81,26 +81,16 @@ case class CartesianSurface(
       scalarValues.modify(i => i + (p -> 0d)).commit.map(_ => ())
     }
 
-  def addSamples(
-      abcissa: List[Double],
-      samples: List[List[Double]],
-      ds: Double,
-      kernelVariance: Double
-  ): IO[Unit] =
-    samples match {
-      case h :: t =>
-        for {
-          _ <-
-            NonEmptyList(h, t)
-              .traverse(i => addValues(abcissa, i, ds, kernelVariance))
-        } yield ()
-      case _ =>
-        IO.unit
-    }
+  private def addSimplexChain(input: SimplexChain, kernelVariance: Double): IO[Unit] =
+    scalarValues.modify { pvs =>
+      Map(
+        concatenateMapping(pvs, input, kernelVariance).unsafeRunSync(): _*
+      )
+    }.commit
 
   private def addValues(
-      abcissa: List[Double],
-      values: List[Double],
+      abcissa: Vector[Double],
+      values: Vector[Double],
       ds: Double,
       kernelVariance: Double
   ): IO[Unit] =
@@ -113,24 +103,14 @@ case class CartesianSurface(
       _ <- addSimplexChain(chain, kernelVariance)
     } yield ()
 
-  private def addSimplexChain(
-      input: SimplexChain,
-      kernelVariance: Double
-  ): IO[Unit] =
-    scalarValues.modify { pvs =>
-      Map(
-        concatenateMapping(pvs, input, kernelVariance).unsafeRunSync(): _*
-      )
-    }.commit
-
   private def concatenateMapping(
       startMap: Map[GraphPoint, Double],
       chain: SimplexChain,
       kernelVariance: Double
-  ): IO[List[(GraphPoint, Double)]] =
-    startMap.toList match {
-      case h :: t =>
-        NonEmptyList(h, t).parTraverse { pv =>
+  ): IO[Vector[(GraphPoint, Double)]] =
+    startMap.toVector match {
+      case h +: t =>
+        NonEmptyVector(h, t).parTraverse { pv =>
           IO {
             pv._1 -> chain.getPoints.foldLeft(pv._2) { (i, j) =>
               i + Math.exp(
@@ -141,15 +121,27 @@ case class CartesianSurface(
               )
             }
           }
-        }.map(_.toList)
-      case _ => IO.pure(List[(GraphPoint, Double)]())
+        }.map(_.toVector)
+      case _ => IO.pure(Vector[(GraphPoint, Double)]())
     }
 
-  def getResults: IO[Map[GraphPoint, Double]] =
+  def addSamples(abcissa: Vector[Double], samples: Vector[Vector[Double]], ds: Double, kernelVariance: Double): IO[Unit] =
+    samples match {
+      case h +: t =>
+        for {
+          _ <-
+            NonEmptyVector(h, t)
+              .traverse(i => addValues(abcissa, i, ds, kernelVariance))
+        } yield ()
+      case _ =>
+        IO.unit
+    }
+
+  def getResults: IO[Map[(Double, Double), Double]] =
     (for {
       _        <- normaliseColumns
       plotData <- scalarValues.get
-    } yield plotData).commit
+    } yield plotData.map(i => i._1.primitiveValue -> i._2)).commit
 
   zeroValuesSpec.unsafeRunSync()
 }

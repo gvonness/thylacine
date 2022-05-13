@@ -20,7 +20,7 @@ package thylacine.model.integration.slq
 import thylacine.model.core.Erratum._
 import thylacine.model.core._
 
-case class PointInInterval(
+private[thylacine] case class PointInInterval(
     point: Double,
     lowerBound: Double,
     upperBound: Double,
@@ -35,12 +35,12 @@ case class PointInInterval(
   override lazy val getValidated: PointInInterval =
     this.copy(validated = true)
 
-  lazy val intervalLength: ResultOrErrIo[Double] =
+  private[thylacine] lazy val intervalLength: ResultOrErrIo[Double] =
     ResultOrErrIo.fromCalculation {
       Math.abs(upperBound - lowerBound)
     }
 
-  lazy val symmetrize: ResultOrErrIo[PointInInterval] = {
+  private[thylacine] lazy val symmetrize: ResultOrErrIo[PointInInterval] = {
     val length1 = upperBound - point
     val length2 = point - lowerBound
     ResultOrErrIo.fromCalculation {
@@ -54,7 +54,7 @@ case class PointInInterval(
     }
   }
 
-  def isIntersectingWith(input: PointInInterval): ResultOrErrIo[Boolean] =
+  private[thylacine] def isIntersectingWith(input: PointInInterval): ResultOrErrIo[Boolean] =
     ResultOrErrIo.fromCalculation {
       (upperBound > input.lowerBound &&
         lowerBound < input.upperBound) ||
@@ -62,22 +62,22 @@ case class PointInInterval(
         input.lowerBound < upperBound)
     }
 
-  def distanceSquaredFrom(input: PointInInterval): ResultOrErrIo[Double] =
+  private[thylacine] def distanceSquaredFrom(input: PointInInterval): ResultOrErrIo[Double] =
     ResultOrErrIo.fromCalculation(Math.pow(point - input.point, 2))
 
   // Sampling from a linearly scaled version of this interval (1 corresponding to
   // the original interval and 0 to the central point)
-  def getSample(scaleParameter: Double): ResultOrErrIo[Double] =
+  private[thylacine] def getSample(scaleParameter: Double): ResultOrErrIo[Double] =
     ResultOrErrIo.fromCalculation {
       (Math.random() - 0.5) * scaleParameter * (upperBound - lowerBound) + point
     }
 }
 
-object PointInInterval {
+private[thylacine] object PointInInterval {
 
   // Convenience method to generate a placeholder
   // interval (that's valid)
-  def apply(point: Double): PointInInterval =
+  private[thylacine] def apply(point: Double): PointInInterval =
     PointInInterval(
       point = point,
       lowerBound = point - 1,
@@ -85,7 +85,7 @@ object PointInInterval {
       validated = true
     )
 
-  def findDisjointBoundary(
+  private[thylacine] def findDisjointBoundary(
       pii1: PointInInterval,
       pii2: PointInInterval
   ): ResultOrErrIo[(PointInInterval, PointInInterval)] = {

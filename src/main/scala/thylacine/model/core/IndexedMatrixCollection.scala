@@ -19,13 +19,13 @@ package thylacine.model.core
 
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 
-case class IndexedMatrixCollection(
+private[thylacine] case class IndexedMatrixCollection(
     index: Map[ModelParameterIdentifier, MatrixContainer],
     validated: Boolean = false
 ) extends IndexedCollection[MatrixContainer]
     with CanValidate[IndexedMatrixCollection] {
 
-  override lazy val getValidated: IndexedMatrixCollection =
+  private[thylacine] override lazy val getValidated: IndexedMatrixCollection =
     if (validated) {
       this
     } else {
@@ -34,15 +34,24 @@ case class IndexedMatrixCollection(
         validated = true
       )
     }
+
+  private[thylacine] lazy val genericScalaRepresentation: Map[String, Map[(Int, Int), Double]] =
+    index.map(i => i._1.value -> i._2.values)
+
+  private[thylacine] def rawMergeWith(other: IndexedMatrixCollection): IndexedMatrixCollection =
+    IndexedMatrixCollection(index ++ other.index).getValidated
 }
 
-object IndexedMatrixCollection {
+private[thylacine] object IndexedMatrixCollection {
 
-  def apply(
+  private[thylacine] def apply(
       identifier: ModelParameterIdentifier,
-      values: List[List[Double]]
+      values: Vector[Vector[Double]]
   ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer(values))
     )
+
+  private[thylacine] def apply(identifierLabel: String, values: Vector[Vector[Double]]): IndexedMatrixCollection =
+    apply(ModelParameterIdentifier(identifierLabel), values)
 }

@@ -17,23 +17,19 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core._
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection}
 
-private[thylacine] trait ForwardModel
-    extends GenericMapping
-    with ModelParameterRawMappings
-    with CanValidate[ForwardModel] {
+private[thylacine] trait FiniteDifferenceForwardModel
+    extends ForwardModel
+    with FiniteDifferenceJacobian {
 
-  // Note that input validation should be done within
-  // the surrounding likelihood
-  private[thylacine] def evalAt(
+  // Finite difference calculation for the Jacobian is relatively intensive when compared to simple evaluation of
+  // the forward model. This combined with giving the freedom to split inference parameters across any number of
+  // identifiers requires us to parallelize very aggressively
+  private[thylacine] final def jacobianAt(
       input: IndexedVectorCollection
-  ): ResultOrErrIo[VectorContainer]
+  ): ResultOrErrIo[IndexedMatrixCollection] =
+    finiteDifferencejacobianAt(input)
 
-  // Note that input validation should be done within
-  // the surrounding likelihood
-  private[thylacine] def jacobianAt(
-      input: IndexedVectorCollection
-  ): ResultOrErrIo[IndexedMatrixCollection]
 }

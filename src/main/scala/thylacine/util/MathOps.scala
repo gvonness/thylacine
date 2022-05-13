@@ -19,11 +19,11 @@ package thylacine.util
 
 import thylacine.model.core.Erratum.{ResultOrErrIo, UnexpectedErratum}
 
-object MathOps {
+private[thylacine] object MathOps {
 
-  def trapezoidalQuadrature(
-      abscissa: List[Double],
-      values: List[Double]
+  private[thylacine] def trapezoidalQuadrature(
+      abscissa: Vector[Double],
+      values: Vector[Double]
   ): ResultOrErrIo[Double] =
     if (abscissa.size == values.size && abscissa.size > 1) {
       trapezoidalQuadrature(abscissa.zip(values))
@@ -33,8 +33,8 @@ object MathOps {
       )
     }
 
-  def trapezoidalQuadrature(
-      graphPoints: List[(Double, Double)]
+  private[thylacine] def trapezoidalQuadrature(
+      graphPoints: Vector[(Double, Double)]
   ): ResultOrErrIo[Double] =
     if (
       graphPoints.size > 1 && graphPoints
@@ -60,14 +60,14 @@ object MathOps {
 
   // Creates a discretised CDF that facilitates sampling over a
   // discrete set of outcomes via uniform sampling on [0, 1)
-  def cdfStaircase(
-      values: List[BigDecimal]
-  ): ResultOrErrIo[List[(BigDecimal, BigDecimal)]] =
+  private[thylacine] def cdfStaircase(
+      values: Vector[BigDecimal]
+  ): ResultOrErrIo[Vector[(BigDecimal, BigDecimal)]] =
     for {
       cdfReversed <- ResultOrErrIo.fromCalculation {
-                       values.foldLeft(List[BigDecimal](BigDecimal(0))) {
+                       values.foldLeft(Vector[BigDecimal](BigDecimal(0))) {
                          (i, j) =>
-                           (i.head + j) :: i
+                           (i.head + j) +: i
                        }
                      }
       normalisedCdf <- ResultOrErrIo.fromCalculation {

@@ -22,36 +22,36 @@ import scala.annotation.tailrec
 // Mutable structure, as our quadratures may contain a large number
 // of points. This should not be accessed outside of a transactional
 // variable
-case class SamplingAbscissa(
+private[thylacine] case class QuadratureAbscissa(
     samplePool: Set[Double],
-    abscissa: List[Double]
+    abscissa: Vector[Double]
 ) {
-  import SamplingAbscissa._
+  import QuadratureAbscissa._
 
-  lazy val maxSample: Double = samplePool.max
+  private[thylacine] lazy val maxSample: Double = samplePool.max
 
-  lazy val extendAbscissaByOne: SamplingAbscissa = {
+  private[thylacine] lazy val extendAbscissaByOne: QuadratureAbscissa = {
     val newSample: Double = getNext(maxSample, existing = samplePool)
 
-    SamplingAbscissa((samplePool - maxSample) + newSample,
-                     maxSample :: abscissa
+    QuadratureAbscissa((samplePool - maxSample) + newSample,
+                       maxSample +: abscissa
     )
   }
 
-  lazy val getTrapezoidalQuadrature: List[Double] = {
-    val differences: List[Double] =
-      List(-abscissa.take(2).reduce(_ - _)) :::
+  private[thylacine] lazy val getTrapezoidalQuadrature: Vector[Double] = {
+    val differences: Vector[Double] =
+      -abscissa.take(2).reduce(_ - _) +:
         abscissa
           .drop(2)
           .zip(abscissa.dropRight(2))
-          .map(i => i._1 - i._2) :::
-        List(-abscissa.takeRight(2).reduce(_ - _))
+          .map(i => i._1 - i._2) :+
+        -abscissa.takeRight(2).reduce(_ - _)
 
     differences.map(i => 0.5 * i)
   }
 }
 
-object SamplingAbscissa {
+private[thylacine] object QuadratureAbscissa {
 
   @tailrec
   private def getNext(max: Double, existing: Set[Double]): Double = {
@@ -63,14 +63,15 @@ object SamplingAbscissa {
     }
   }
 
-  def apply(numSamples: Int): SamplingAbscissa = {
-    val randomList = (1 until numSamples).foldLeft(Set[Double](1.0)) { (i, _) =>
-      i + getNext(max = 1.0, existing = i)
+  private[thylacine] def apply(numSamples: Int): QuadratureAbscissa = {
+    val randomVector = (1 until numSamples).foldLeft(Set[Double](1.0)) {
+      (i, _) =>
+        i + getNext(max = 1.0, existing = i)
     }
 
-    SamplingAbscissa(
-      samplePool = randomList,
-      abscissa = List()
+    QuadratureAbscissa(
+      samplePool = randomVector,
+      abscissa = Vector()
     )
   }
 }

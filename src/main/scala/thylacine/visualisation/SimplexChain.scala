@@ -17,13 +17,13 @@
 package ai.entrolution
 package thylacine.visualisation
 
-case class SimplexChain(chain: Seq[Simplex]) {
-  lazy val getPoints: List[GraphPoint] = chain.map(_.start).toList
+private[thylacine] case class SimplexChain(chain: Seq[Simplex]) {
+  private[thylacine] lazy val getPoints: Vector[GraphPoint] = chain.map(_.start).toVector
 
-  def reinterp(ds: Double): SimplexChain =
+  private[thylacine] def reinterp(ds: Double): SimplexChain =
     SimplexChain(
       chain
-        .foldLeft((0d, List[GraphPoint]())) { (i, j) =>
+        .foldLeft((0d, Vector[GraphPoint]())) { (i, j) =>
           val nextInterp = j.getInterpolationPoints(i._1, ds)
           (nextInterp._2, i._2 ++ nextInterp._1)
         }
@@ -31,12 +31,12 @@ case class SimplexChain(chain: Seq[Simplex]) {
     )
 }
 
-object SimplexChain {
+private[thylacine] object SimplexChain {
 
-  def apply(input: List[GraphPoint]): SimplexChain =
+  private[thylacine] def apply(input: Vector[GraphPoint]): SimplexChain =
     if (input.size >= 2) {
       SimplexChain(input.dropRight(1).zip(input.drop(1)).map(Simplex(_)))
     } else {
-      SimplexChain(List[Simplex]())
+      SimplexChain(Vector[Simplex]())
     }
 }

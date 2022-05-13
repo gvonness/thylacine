@@ -27,7 +27,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
 
-trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
+private[thylacine] trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
 
   private val stm = STM.runtime[IO].unsafeRunSync()
   import stm._
@@ -37,11 +37,11 @@ trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
   private val scalarClock: TxnVar[Int] =
     TxnVar.of(0).unsafeRunSync()
 
-  private val tick: ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo(scalarClock.modify(_ + 1).commit)
-
   private val getTime: ResultOrErrIo[Int] =
     ResultOrErrIo.fromIo(scalarClock.get.commit)
+
+  private val tickAndGet: ResultOrErrIo[Int] =
+    ResultOrErrIo.fromIo((scalarClock.modify(_ + 1) >> scalarClock.get).commit)
 
   private val evalCache: TxnVar[Map[Int, ComputationResult[VectorContainer]]] =
     TxnVar.of {
@@ -125,9 +125,8 @@ trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
       store: TxnVar[Map[Int, ComputationResult[T]]]
   ): ResultOrErrIo[Option[T]] =
     for {
-      _    <- tick
-      time <- getTime
-      key  <- getInMemoryKey(input)
+      time <- tickAndGet
+      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
       ec   <- retrieveKeyFromStore(key, store)
       _ <- ec match {
              case Some(_) =>
@@ -154,7 +153,7 @@ trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
   ): ResultOrErrIo[Unit] =
     for {
       time <- getTime
-      key  <- getInMemoryKey(input)
+      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
       _    <- upsertResultIntoStore(key, ComputationResult(eval, time), store)
       _    <- cleanStore(store)
     } yield ()
@@ -172,14 +171,14 @@ trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
     updateStoreWith(input, jacobian, jacobianCache)
 }
 
-object InMemoryMemoizedForwardModel {
+private[thylacine] object InMemoryMemoizedForwardModel {
 
-  def getInMemoryKey(input: ModelParameterCollection): ResultOrErrIo[Int] =
-    ResultOrErrIo.fromCalculation(input.hashCode())
+  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
+    input.hashCode()
 
-  case class ComputationResult[T](result: T, lastAccessed: Int) {
+  private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {
 
-    def updateLastAccess(accessedAt: Int): ComputationResult[T] =
+    private[thylacine] def updateLastAccess(accessedAt: Int): ComputationResult[T] =
       this.copy(lastAccessed = accessedAt)
   }
 }

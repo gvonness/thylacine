@@ -15,25 +15,22 @@
  */
 
 package ai.entrolution
-package thylacine.model.components.posterior
+package thylacine.model.integration.slq
 
 import thylacine.config.SlqConfig
-import thylacine.model.components.likelihood._
-import thylacine.model.components.prior._
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
-import thylacine.model.core._
-import thylacine.model.integration.slq.SlqEngine
-import thylacine.model.support.SlqTelemetryUpdate
+import thylacine.model.components.posterior.Posterior
+import thylacine.model.components.prior.Prior
+import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.interface.SlqTelemetryUpdate
 
 case class SlqIntegratedPosterior(
     slqConfig: SlqConfig,
-    priors: Set[Prior[_]],
-    likelihoods: Set[Likelihood[_, _]],
+    posterior: Posterior[Prior[_], _],
     seeds: Set[ModelParameterCollection] = Set(),
-    slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit
-) extends NonAnalyticPosterior(priors, likelihoods)
-    with SlqEngine[Prior[_], Likelihood[_, _]] {
+    slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit = _ => (),
+    domainRebuildStartCallback: Unit => Unit = _ => (),
+    domainRebuildFinishCallback: Unit => Unit = _ => ()
+) extends SlqEngine {
   override protected final val slqSamplePoolSize: Int = slqConfig.poolSize
 
   override protected final val slqNumberOfAbscissa: Int =
@@ -48,13 +45,4 @@ case class SlqIntegratedPosterior(
   override protected final val slqSampleParallelism: Int =
     slqConfig.sampleParallelism
 
-  override def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
-    getSimulatedSample
-
-  override protected def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
-    for {
-      sample <- sampleModelParameters
-      result <- modelParameterCollectionToRawVector(sample)
-    } yield VectorContainer(result)
 }

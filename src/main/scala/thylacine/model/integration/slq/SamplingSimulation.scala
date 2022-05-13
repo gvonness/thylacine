@@ -26,25 +26,25 @@ import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.util.Random
 
-sealed trait SamplingSimulation {
-  def getSample: ResultOrErrIo[ModelParameterCollection]
-  def isConstructed: Boolean
+private[thylacine] sealed trait SamplingSimulation {
+  private[thylacine] def getSample: ResultOrErrIo[ModelParameterCollection]
+  private[thylacine] def isConstructed: Boolean
 }
 
-object SamplingSimulation {
+private[thylacine] object SamplingSimulation {
 
-  case object SamplingSimulationUnconstructed extends SamplingSimulation {
-    override final val isConstructed: Boolean = false
+  private[thylacine] case object SamplingSimulationUnconstructed extends SamplingSimulation {
+    private[thylacine] override final val isConstructed: Boolean = false
 
-    override final def getSample: ResultOrErrIo[ModelParameterCollection] =
+    private[thylacine] override final def getSample: ResultOrErrIo[ModelParameterCollection] =
       ResultOrErrIo.fromErratum(
         UnexpectedErratum("Sampling simulation not constructed yet!")
       )
   }
 
-  case class SamplingSimulationConstructed(
-      logPdfResults: List[(Double, ModelParameterCollection)],
-      abscissas: List[List[Double]]
+  private[thylacine] case class SamplingSimulationConstructed(
+      logPdfResults: Vector[(Double, ModelParameterCollection)],
+      abscissas: Vector[Vector[Double]]
   ) extends SamplingSimulation {
     private val numberOfResults   = logPdfResults.size
     private val numberOfAbscissas = abscissas.size
@@ -56,11 +56,11 @@ object SamplingSimulation {
         )
       )
 
-    private val samplingWeights: List[List[BigDecimal]] =
+    private val samplingWeights: Vector[Vector[BigDecimal]] =
       abscissas
         .map(_.zip(pdfResults))
         .map { ig =>
-          ((0d, ig.head._2) :: ig.dropRight(1)).zip(ig).map { avs =>
+          ((0d, ig.head._2) +: ig.dropRight(1)).zip(ig).map { avs =>
             val ((x1, f1), (x2, f2)): (
                 (Double, BigDecimal),
                 (Double, BigDecimal)
@@ -73,11 +73,11 @@ object SamplingSimulation {
       (1 to numberOfResults).zip(logPdfResults.map(_._2)).toMap
 
     private val sampleStaircases
-        : ResultOrErrIo[List[List[(BigDecimal, BigDecimal)]]] =
+        : ResultOrErrIo[Vector[Vector[(BigDecimal, BigDecimal)]]] =
       samplingWeights.traverse(MathOps.cdfStaircase)
 
     private val indexedStaircase
-        : ResultOrErrIo[Map[Int, List[((BigDecimal, BigDecimal), Int)]]] =
+        : ResultOrErrIo[Map[Int, Vector[((BigDecimal, BigDecimal), Int)]]] =
       for {
         cdfStaircases <- sampleStaircases
       } yield (1 to numberOfAbscissas)
@@ -86,9 +86,9 @@ object SamplingSimulation {
 
     private val random = Random
 
-    override final val isConstructed: Boolean = true
+    private[thylacine] override final val isConstructed: Boolean = true
 
-    def getSample: ResultOrErrIo[ModelParameterCollection] =
+    private[thylacine] override def getSample: ResultOrErrIo[ModelParameterCollection] =
       indexedStaircase.flatMap { cdfStaircase =>
         ResultOrErrIo.fromResultOrErr {
           cdfStaircase
@@ -108,5 +108,5 @@ object SamplingSimulation {
       }
   }
 
-  val empty: SamplingSimulation = SamplingSimulationUnconstructed
+  private[thylacine] val empty: SamplingSimulation = SamplingSimulationUnconstructed
 }

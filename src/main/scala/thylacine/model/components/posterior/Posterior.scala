@@ -21,24 +21,26 @@ import thylacine.model.components.likelihood._
 import thylacine.model.components.prior._
 import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core._
 
-import breeze.linalg.DenseVector
+import cats.effect.implicits._
+import cats.implicits._
 
-trait Posterior[P <: Prior[_], L <: Likelihood[_, _]]
+private[thylacine] trait Posterior[P <: Prior[_], L <: Likelihood[_, _]]
     extends ModelParameterPdf
-    with ModelParameterSampleGenerator {
+    with ModelParameterRawMappings {
   def priors: Set[P]
   def likelihoods: Set[L]
-  def isAnalytic: Boolean
+  private[thylacine] def isAnalytic: Boolean
 
-  override final val domainDimension = priors.toList.map(_.domainDimension).sum
+  private[thylacine] override final val domainDimension =
+    priors.toVector.map(_.domainDimension).sum
 
-  final protected lazy val orderedParameterIdentifiersWithDimension
-      : ResultOrErrIo[List[(ModelParameterIdentifier, Int)]] =
+  protected override final lazy val orderedParameterIdentifiersWithDimension
+      : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
     ResultOrErrIo.fromCalculation {
-      priors.toList
+      priors.toVector
         .sortBy(_.posteriorTermIdentifier)
         .map(i =>
           ModelParameterIdentifier(
@@ -47,42 +49,29 @@ trait Posterior[P <: Prior[_], L <: Likelihood[_, _]]
         )
     }
 
-  final protected def rawVectorToModelParameterCollection(
-      input: DenseVector[Double]
-  ): ResultOrErrIo[ModelParameterCollection] =
-    listValuesToModelParameterCollection(input.toArray.toList)
-
-  final protected def listValuesToModelParameterCollection(
-      input: List[Double]
-  ): ResultOrErrIo[ModelParameterCollection] =
-    orderedParameterIdentifiersWithDimension.map {
-      _.foldLeft(
-        (input, IndexedVectorCollection.empty)
-      ) { (i, j) =>
-        val (vector, remainder) = i._1.splitAt(j._2)
-
-        (remainder,
-         i._2.rawMergeWith(
-           IndexedVectorCollection(j._1, VectorContainer(vector))
-         )
-        )
-      }
-    }.map(_._2)
-
-  final protected def modelParameterCollectionToRawVector(
+  private[thylacine] override final def logPdfGradientAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[DenseVector[Double]] =
-    orderedParameterIdentifiersWithDimension.flatMap { op =>
-      op.foldLeft(ResultOrErrIo.fromValue(List[List[Double]]())) { (i, j) =>
-        for {
-          current  <- i
-          toAppend <- input.retrieveIndex(j._1)
-        } yield toAppend.rawVector.toScalaVector().toList :: current
-      }.map(i => DenseVector(i.reverse.reduce(_ ::: _).toArray))
-    }
+  ): ResultOrErrIo[ModelParameterCollection] =
+    for {
+      priorLogPdfGradSumFib <-
+        priors.toList
+          .parTraverse(_.logPdfGradientAt(input))
+          .map(_.reduce(_ rawSumWith _))
+          .start
+      likelihoodLogPdfGradSumFib <-
+        likelihoods.toList
+          .parTraverse(_.logPdfGradientAt(input))
+          .map(_.reduce(_ rawSumWith _))
+          .start
+      priorSum      <- priorLogPdfGradSumFib.joinWithNever
+      likelihoodSum <- likelihoodLogPdfGradSumFib.joinWithNever
+    } yield priorSum rawSumWith likelihoodSum
 
-  final protected def modelParameterCollectionToListValues(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[List[Double]] =
-    modelParameterCollectionToRawVector(input).map(_.toArray.toList)
+  private[thylacine] def samplePriors: ResultOrErrIo[ModelParameterCollection] =
+    for {
+      sampleCollection <-
+        priors.toVector.parTraverse(_.sampleModelParameters)
+      result <-
+        ResultOrErrIo.fromCalculation(sampleCollection.reduce(_ rawMergeWith _))
+    } yield result
 }

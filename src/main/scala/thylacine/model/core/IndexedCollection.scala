@@ -20,10 +20,10 @@ package thylacine.model.core
 import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 
-trait IndexedCollection[T <: Container] {
-  def index: Map[ModelParameterIdentifier, T]
+private[thylacine] trait IndexedCollection[T <: Container] {
+  private[thylacine] def index: Map[ModelParameterIdentifier, T]
 
-  def retrieveIndex(identifier: ModelParameterIdentifier): ResultOrErrIo[T] =
+  private[thylacine] def retrieveIndex(identifier: ModelParameterIdentifier): ResultOrErrIo[T] =
     ResultOrErrIo.fromResultOrErr {
       index
         .get(identifier)
@@ -37,6 +37,6 @@ trait IndexedCollection[T <: Container] {
         )
     }
 
-  def getSortedValues: ResultOrErrIo[List[T]] =
+  private[thylacine] def getSortedValues: ResultOrErrIo[List[T]] =
     ResultOrErrIo.fromCalculation(index.toList.sortBy(_._1).map(_._2))
 }

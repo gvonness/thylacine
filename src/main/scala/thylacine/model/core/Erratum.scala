@@ -23,25 +23,25 @@ import cats.effect._
 import scala.concurrent.{Future, TimeoutException}
 import scala.util.{Failure, Success, Try}
 
-sealed trait Erratum {
-  def message: String
+private[thylacine] sealed trait Erratum {
+  private[thylacine] def message: String
 
   override def toString: String =
     message
 
-  def toSingleLineString: String =
+  private[thylacine] def toSingleLineString: String =
     message.filter(_ >= ' ')
 }
 
-object Erratum {
-  type ResultOrErr[T]   = Either[Erratum, T]
-  type ResultOrErrIo[T] = EitherT[IO, Erratum, T]
+private[thylacine] object Erratum {
+  private[thylacine] type ResultOrErr[T]   = Either[Erratum, T]
+  private[thylacine] type ResultOrErrIo[T] = EitherT[IO, Erratum, T]
 
-  case class TransientErratum(message: String) extends Erratum
+  private[thylacine] case class TransientErratum(message: String) extends Erratum
 
-  object TransientErratum {
+  private[thylacine] object TransientErratum {
 
-    def apply(ex: Throwable): TransientErratum =
+    private[thylacine] def apply(ex: Throwable): TransientErratum =
       TransientErratum(s"""Unexpected transient exception encountered
                           |Exception message: ${ex.getMessage}
                           |Exception cause: ${ex.getCause}
@@ -49,13 +49,13 @@ object Erratum {
         .mkString("Array(", ", ", ")")}""".stripMargin)
   }
 
-  sealed trait PersistentErratum extends Erratum
+  private[thylacine] sealed trait PersistentErratum extends Erratum
 
-  case class UnexpectedErratum(message: String) extends PersistentErratum
+  private[thylacine] case class UnexpectedErratum(message: String) extends PersistentErratum
 
-  object UnexpectedErratum {
+  private[thylacine] object UnexpectedErratum {
 
-    def apply(ex: Throwable): UnexpectedErratum =
+    private[thylacine] def apply(ex: Throwable): UnexpectedErratum =
       UnexpectedErratum(s"""Unexpected persistent exception encountered
                            |Exception message: ${ex.getMessage}
                            |Exception cause: ${ex.getCause}
@@ -63,30 +63,30 @@ object Erratum {
         .mkString("Array(", ", ", ")")}""".stripMargin)
   }
 
-  case class MinorErratum(message: String) extends PersistentErratum
+  private[thylacine] case class MinorErratum(message: String) extends PersistentErratum
 
-  object ResultOrErrIo {
+  private[thylacine] object ResultOrErrIo {
 
-    def fromCalculation[T](calculation: => T): ResultOrErrIo[T] =
+    private[thylacine] def fromCalculation[T](calculation: => T): ResultOrErrIo[T] =
       fromIo(IO(calculation))
 
-    def fromValue[T](value: T): ResultOrErrIo[T] =
+    private[thylacine] def fromValue[T](value: T): ResultOrErrIo[T] =
       fromResultOrErrorIo(IO.pure[ResultOrErr[T]](Right(value)))
 
-    def fromErratum[T](erratum: Erratum): ResultOrErrIo[T] =
+    private[thylacine] def fromErratum[T](erratum: Erratum): ResultOrErrIo[T] =
       fromResultOrErrorIo(IO.pure[ResultOrErr[T]](Left(erratum)))
 
-    def fromResultOrErr[T](resultOrErr: ResultOrErr[T]): ResultOrErrIo[T] =
+    private[thylacine] def fromResultOrErr[T](resultOrErr: ResultOrErr[T]): ResultOrErrIo[T] =
       fromResultOrErrorIo(IO.pure(resultOrErr))
 
-    def fromFuture[T](future: => Future[T]): ResultOrErrIo[T] =
+    private[thylacine] def fromFuture[T](future: => Future[T]): ResultOrErrIo[T] =
       fromResultOrErrorIo {
         IO.fromFuture(IO(future))
           .map(Right(_))
           .handleErrorWith(fromThrowable(_).value)
       }
 
-    def fromThrowable[T](ex: Throwable): ResultOrErrIo[T] =
+    private[thylacine] def fromThrowable[T](ex: Throwable): ResultOrErrIo[T] =
       ex match {
         case ex: TimeoutException =>
           fromErratum(TransientErratum(ex))
@@ -94,14 +94,14 @@ object Erratum {
           fromErratum(UnexpectedErratum(e))
       }
 
-    def fromIo[T](spec: IO[T]): ResultOrErrIo[T] =
+    private[thylacine] def fromIo[T](spec: IO[T]): ResultOrErrIo[T] =
       fromResultOrErrorIo {
         spec
           .map(Right(_))
           .handleErrorWith(fromThrowable(_).value)
       }
 
-    def fromTryIo[T](spec: IO[Try[T]]): ResultOrErrIo[T] =
+    private[thylacine] def fromTryIo[T](spec: IO[Try[T]]): ResultOrErrIo[T] =
       fromResultOrErrorIo {
         spec.flatMap {
           case Success(value)     => fromValue(value).value
@@ -109,12 +109,12 @@ object Erratum {
         }
       }
 
-    def fromResultOrErrorIo[T](
+    private[thylacine] def fromResultOrErrorIo[T](
         resultOrErrorIo: IO[ResultOrErr[T]]
     ): ResultOrErrIo[T] =
       EitherT(resultOrErrorIo)
 
-    val unit: ResultOrErrIo[Unit] =
+    private[thylacine] val unit: ResultOrErrIo[Unit] =
       ResultOrErrIo.fromValue(())
   }
 }

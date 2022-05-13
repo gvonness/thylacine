@@ -17,53 +17,77 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-case class SampleDomainTelemetry(
+// This class enables components of the cubical cover of the domain
+// to be scaled down to drive a higher acceptance rate in the integration.
+// Unfortunately, this de-syncs the quadrature from the abscissa construction
+// leading to overly resolved distributions. However, without scaling the
+// whole algorithm's efficiency drops off significantly for higher-dimensional
+// problems. There may be ways to re-introduce the scaling, but it will probably
+// only be reasonable in very specific scenarios.
+private[thylacine] case class QuadratureDomainTelemetry(
     currentScaleFactor: Double,
     acceptances: Int,
     rejections: Int,
     nominalAcceptance: Double,
     minValue: Double,
     acceptancesSinceLastRebuild: Int,
-    rejectionStreak: Int
+    rejectionStreak: Int,
+    rescalingEnabled: Boolean = false // Do not enable (see comment above)
 ) {
   assert(
     currentScaleFactor >= Double.MinPositiveValue && currentScaleFactor <= 1.0
   )
 
   // TODO: Is there a way to rigorously define this?
-  lazy val isConverged: Boolean = rejectionStreak >= 100000
+  private[thylacine] lazy val isConverged: Boolean = rejectionStreak >= 100000
 
-  lazy val resetForRebuild: SampleDomainTelemetry =
+  private[thylacine] lazy val resetForRebuild: QuadratureDomainTelemetry =
     this.copy(currentScaleFactor = 1.0,
               acceptances = 0,
               rejections = 0,
               acceptancesSinceLastRebuild = 0
     )
 
-  lazy val initiateRebuild: Boolean =
+  private[thylacine] lazy val initiateRebuild: Boolean =
     (rejectionStreak >= 1000 && acceptancesSinceLastRebuild >= 1) || currentScaleFactor == Double.MinPositiveValue
 
-  lazy val addAcceptance: SampleDomainTelemetry = {
+  private[thylacine] lazy val addAcceptance: QuadratureDomainTelemetry = {
     val newAcceptance             = acceptances + 1
     val newAcceptanceSinceRebuild = acceptancesSinceLastRebuild + 1
     val newAcceptanceRatio =
       newAcceptance.toDouble / (newAcceptance + rejections)
     if (newAcceptanceRatio > nominalAcceptance) {
-      this.copy(
-//        currentScaleFactor =
-//          Math.min(currentScaleFactor + (1.0 - currentScaleFactor) / 2.0, 1.0),
-        acceptances = newAcceptance,
-        acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-        rejectionStreak = 0
-      )
+      if (rescalingEnabled) {
+        this.copy(
+          currentScaleFactor = Math
+            .min(currentScaleFactor + (1.0 - currentScaleFactor) / 2.0, 1.0),
+          acceptances = newAcceptance,
+          acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
+          rejectionStreak = 0
+        )
+      } else {
+        this.copy(
+          acceptances = newAcceptance,
+          acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
+          rejectionStreak = 0
+        )
+      }
     } else if (newAcceptanceRatio < nominalAcceptance) {
-      this.copy(
-//        currentScaleFactor =
-//          Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
-        acceptances = newAcceptance,
-        acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-        rejectionStreak = 0
-      )
+      if (rescalingEnabled) {
+        this.copy(
+          currentScaleFactor =
+            Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
+          acceptances = newAcceptance,
+          acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
+          rejectionStreak = 0
+        )
+      } else {
+        this.copy(
+          acceptances = newAcceptance,
+          acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
+          rejectionStreak = 0
+        )
+      }
     } else {
       this.copy(acceptances = newAcceptance,
                 acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
@@ -72,7 +96,7 @@ case class SampleDomainTelemetry(
     }
   }
 
-  lazy val addRejection: SampleDomainTelemetry = {
+  private[thylacine] lazy val addRejection: QuadratureDomainTelemetry = {
     val newRejection = rejections + 1
     val newAcceptanceRatio =
       acceptances.toDouble / (acceptances + newRejection)
@@ -97,15 +121,16 @@ case class SampleDomainTelemetry(
   }
 }
 
-object SampleDomainTelemetry {
+private[thylacine] object QuadratureDomainTelemetry {
 
-  val init: SampleDomainTelemetry = SampleDomainTelemetry(
-    currentScaleFactor = 1.0,
-    acceptances = 0,
-    rejections = 0,
-    nominalAcceptance = 0,
-    minValue = 0.0001,
-    acceptancesSinceLastRebuild = 0,
-    rejectionStreak = 0
-  )
+  private[thylacine] val init: QuadratureDomainTelemetry =
+    QuadratureDomainTelemetry(
+      currentScaleFactor = 1.0,
+      acceptances = 0,
+      rejections = 0,
+      nominalAcceptance = 0,
+      minValue = 0.0001,
+      acceptancesSinceLastRebuild = 0,
+      rejectionStreak = 0
+    )
 }

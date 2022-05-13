@@ -15,14 +15,15 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.interface
 
-import thylacine.model.core.Erratum._
-
-private[thylacine] trait BeliefModel extends GenericScalarValuedMapping {
-  private[thylacine] def logPdfAt(input: VectorContainer): ResultOrErrIo[Double]
-
-  private[thylacine] def logPdfGradientAt(
-      input: VectorContainer
-  ): ResultOrErrIo[VectorContainer]
-}
+case class SlqTelemetryUpdate(
+    negEntropyAvg: Double,
+    logPdf: Double,
+    samplePoolMinimumLogPdf: Double,
+    domainVolumeScaling: Double,
+    acceptancesSinceDomainRebuild: Int,
+    samplePoolSize: Int,
+    domainCubeCount: Int,
+    iterationCount: Int
+)

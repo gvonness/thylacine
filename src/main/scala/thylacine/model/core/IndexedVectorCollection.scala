@@ -20,13 +20,13 @@ package thylacine.model.core
 import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 
-case class IndexedVectorCollection(
+private[thylacine] case class IndexedVectorCollection(
     index: Map[ModelParameterIdentifier, VectorContainer],
     validated: Boolean = false
 ) extends IndexedCollection[VectorContainer]
     with CanValidate[IndexedVectorCollection] {
 
-  override lazy val getValidated: IndexedVectorCollection =
+  private[thylacine] override lazy val getValidated: IndexedVectorCollection =
     if (validated) {
       this
     } else {
@@ -36,9 +36,12 @@ case class IndexedVectorCollection(
       )
     }
 
+  private[thylacine] lazy val genericScalaRepresentation: Map[String, Vector[Double]] =
+    index.map(i => i._1.value -> i._2.rawVector.toScalaVector())
+
   // Low-level API
   // -------------
-  def rawMergeWith(
+  private[thylacine] def rawMergeWith(
       other: IndexedVectorCollection
   ): IndexedVectorCollection = {
     val keyIntersection = index.keySet.intersect(other.index.keySet)
@@ -53,7 +56,7 @@ case class IndexedVectorCollection(
     }
   }
 
-  def rawSumWith(other: IndexedVectorCollection): IndexedVectorCollection = {
+  private[thylacine] def rawSumWith(other: IndexedVectorCollection): IndexedVectorCollection = {
     val keySet = getValidated.index.keySet ++ other.getValidated.index.keySet
 
     val newIndex =
@@ -73,28 +76,41 @@ case class IndexedVectorCollection(
     IndexedVectorCollection(index = newIndex.toMap, validated = true)
   }
 
-  def rawScalarMultiplyWith(input: Double): IndexedVectorCollection =
+  private[thylacine] def rawScalarMultiplyWith(input: Double): IndexedVectorCollection =
     this.copy(
       index = index.view.mapValues(_.rawScalarProductWith(input)).toMap
     )
 
-  def rawSubtract(other: IndexedVectorCollection): IndexedVectorCollection =
+  private[thylacine] def rawSubtract(other: IndexedVectorCollection): IndexedVectorCollection =
     rawSumWith(other.rawScalarMultiplyWith(-1.0))
+
+  private[thylacine] def rawNudgeComponents(diff: Double): Map[ModelParameterIdentifier, List[IndexedVectorCollection]] = {
+    val differentials: Map[GenericIdentifier, List[VectorContainer]] = index.map { i =>
+      i._1 -> i._2.rawNudgeComponents(diff)
+    }
+
+    index.collect { k =>
+      differentials.get(k._1) match {
+        case Some(vs) =>
+          k._1 -> vs.map(v => IndexedVectorCollection(index + (k._1 -> v)))
+      }
+    }
+  }
 }
 
-object IndexedVectorCollection {
+private[thylacine] object IndexedVectorCollection {
 
   // A particular type of this collection is of the model
   // parameters directly.
-  type ModelParameterCollection = IndexedVectorCollection
+  private[thylacine] type ModelParameterCollection = IndexedVectorCollection
 
-  val empty: IndexedVectorCollection =
+  private[thylacine] val empty: IndexedVectorCollection =
     IndexedVectorCollection(
       index = Map(),
       validated = true
     )
 
-  def apply(
+  private[thylacine] def apply(
       identifier: ModelParameterIdentifier,
       vector: VectorContainer
   ): IndexedVectorCollection =
@@ -103,7 +119,13 @@ object IndexedVectorCollection {
       validated = true
     )
 
-  def merge(
+  private[thylacine] def apply(identifierLabel: String, values: Vector[Double]): IndexedVectorCollection =
+    apply(ModelParameterIdentifier(identifierLabel), VectorContainer(values))
+
+  private[thylacine] def apply(labeledLists: Map[String, Vector[Double]]): IndexedVectorCollection =
+    labeledLists.map(i => apply(i._1, i._2)).reduce(_ rawMergeWith _)
+
+  private[thylacine] def merge(
       modelParameters: Seq[IndexedVectorCollection]
   ): ResultOrErrIo[IndexedVectorCollection] =
     ResultOrErrIo.fromCalculation(modelParameters.reduce(_ rawMergeWith _))

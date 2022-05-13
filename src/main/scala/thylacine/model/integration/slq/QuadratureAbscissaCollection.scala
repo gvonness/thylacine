@@ -17,37 +17,38 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-case class SamplingAbscissaCollection(
-    abscissas: List[SamplingAbscissa]
+private[thylacine] case class QuadratureAbscissaCollection(
+    abscissas: Vector[QuadratureAbscissa]
 ) {
   assert(abscissas.map(_.abscissa.size).toSet.size <= 1)
 
-  val size: Int =
+  private[thylacine] val size: Int =
     if (abscissas.nonEmpty) abscissas.head.abscissa.size else 0
 
-  lazy val extendAllAbscissaByOne: SamplingAbscissaCollection =
-    SamplingAbscissaCollection(abscissas.map(_.extendAbscissaByOne))
+  private[thylacine] lazy val extendAllAbscissaByOne
+      : QuadratureAbscissaCollection =
+    QuadratureAbscissaCollection(abscissas.map(_.extendAbscissaByOne))
 
-  lazy val getQuadratures: List[List[Double]] =
+  private[thylacine] lazy val getQuadratures: Vector[Vector[Double]] =
     abscissas.map(_.getTrapezoidalQuadrature)
 
-  lazy val getAbscissas: List[List[Double]] =
+  private[thylacine] lazy val getAbscissas: Vector[Vector[Double]] =
     abscissas.map(_.abscissa)
 }
 
-object SamplingAbscissaCollection {
+private[thylacine] object QuadratureAbscissaCollection {
 
-  def apply(
+  private[thylacine] def apply(
       numberOfAbscissas: Int,
       numberOfSamplesPerAbscissa: Int
-  ): SamplingAbscissaCollection = {
-    val abscissas: List[SamplingAbscissa] =
+  ): QuadratureAbscissaCollection = {
+    val abscissas: Vector[QuadratureAbscissa] =
       (1 to numberOfAbscissas)
-        .map(_ => SamplingAbscissa(numberOfSamplesPerAbscissa))
-        .toList
+        .map(_ => QuadratureAbscissa(numberOfSamplesPerAbscissa))
+        .toVector
 
-    SamplingAbscissaCollection(abscissas = abscissas)
+    QuadratureAbscissaCollection(abscissas = abscissas)
   }
 
-  val init: SamplingAbscissaCollection = apply(0, 0)
+  private[thylacine] val init: QuadratureAbscissaCollection = apply(0, 0)
 }

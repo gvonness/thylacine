@@ -22,7 +22,7 @@ import thylacine.model.core.Erratum._
 import breeze.linalg._
 import breeze.stats.distributions._
 
-case class GaussianBeliefModel(
+private[thylacine] case class GaussianBeliefModel(
     mean: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
@@ -33,7 +33,7 @@ case class GaussianBeliefModel(
     assert(covariance.rowTotalNumber == mean.dimension)
   }
 
-  override lazy val getValidated: GaussianBeliefModel =
+  private[thylacine] override lazy val getValidated: GaussianBeliefModel =
     if (validated) {
       this
     } else {
@@ -43,19 +43,19 @@ case class GaussianBeliefModel(
       )
     }
 
-  override val domainDimension: Int = mean.dimension
+  private[thylacine] override val domainDimension: Int = mean.dimension
 
   // Low-level API
-  lazy val rawDistribution: MultivariateGaussian =
+  private[thylacine] lazy val rawDistribution: MultivariateGaussian =
     MultivariateGaussian(mean.rawVector, covariance.rawMatrix)
 
   private lazy val rawInverseCovariance: DenseMatrix[Double] =
     inv(covariance.rawMatrix)
 
-  override def logPdfAt(input: VectorContainer): ResultOrErrIo[Double] =
+  private[thylacine] override def logPdfAt(input: VectorContainer): ResultOrErrIo[Double] =
     ResultOrErrIo.fromCalculation(rawDistribution.logPdf(input.rawVector))
 
-  override def logPdfGradientAt(
+  private[thylacine] override def logPdfGradientAt(
       input: VectorContainer
   ): ResultOrErrIo[VectorContainer] =
     ResultOrErrIo.fromCalculation(
@@ -66,9 +66,9 @@ case class GaussianBeliefModel(
 
 }
 
-object GaussianBeliefModel {
+private[thylacine] object GaussianBeliefModel {
 
-  def apply(input: BelievedData): GaussianBeliefModel = {
+  private[thylacine] def apply(input: BelievedData): GaussianBeliefModel = {
     val validatedData = input.getValidated
 
     GaussianBeliefModel(

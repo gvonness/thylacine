@@ -21,38 +21,33 @@ import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
-import breeze.stats.distributions.MultivariateGaussian
-
-private[thylacine] case class GaussianPrior(
+private[thylacine] case class CauchyPrior(
     identifier: ModelParameterIdentifier,
     priorData: BelievedData,
     validated: Boolean = false
-) extends Prior[GaussianBeliefModel] {
+) extends Prior[CauchyBeliefModel] {
 
-  protected override lazy val priorModel: GaussianBeliefModel =
-    GaussianBeliefModel(priorData)
+  protected override lazy val priorModel: CauchyBeliefModel =
+    CauchyBeliefModel(priorData)
 
-  private lazy val rawDistribution: MultivariateGaussian =
-    priorModel.rawDistribution
-
-  private[thylacine] override lazy val getValidated: GaussianPrior =
+  private[thylacine] override lazy val getValidated: CauchyPrior =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
   protected override def rawSampleModelParameters
       : ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation(VectorContainer(rawDistribution.sample()))
+    ResultOrErrIo.fromCalculation(priorModel.getRawSample)
 }
 
-object GaussianPrior {
+object CauchyPrior {
 
   def apply(
       label: String,
       values: Vector[Double],
       confidenceIntervals: Vector[Double]
-  ): GaussianPrior = {
+  ): CauchyPrior = {
     assert(values.size == confidenceIntervals.size)
-    GaussianPrior(
+    CauchyPrior(
       identifier = ModelParameterIdentifier(label),
       priorData = BelievedData(
         values = VectorContainer(values),

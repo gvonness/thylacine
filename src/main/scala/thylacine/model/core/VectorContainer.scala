@@ -19,7 +19,9 @@ package thylacine.model.core
 
 import breeze.linalg._
 
-case class VectorContainer(
+import scala.{Vector => ScalaVector}
+
+private[thylacine] case class VectorContainer(
     values: Map[Int, Double],
     dimension: Int,
     validated: Boolean = false,
@@ -27,15 +29,15 @@ case class VectorContainer(
 ) extends Container
     with CanValidate[VectorContainer] {
   if (!validated) {
-    assert(values.keys.max <= dimension)
-    assert(values.keys.min >= 1)
+    assert(values.isEmpty || values.keys.max <= dimension)
+    assert(values.isEmpty || values.keys.min >= 1)
   }
 
-  override val getValidated: VectorContainer =
+  private[thylacine] override val getValidated: VectorContainer =
     if (validated) this else this.copy(validated = true)
 
   // Low-level API
-  lazy val rawVector: DenseVector[Double] = {
+  private[thylacine] lazy val rawVector: DenseVector[Double] = {
     val vecResult =
       DenseVector.zeros[Double](dimension)
     values.foreach { i =>
@@ -44,11 +46,13 @@ case class VectorContainer(
     vecResult
   }
 
-  lazy val valueSum: Double = values.values.sum
+  private[thylacine] lazy val valueSum: Double = values.values.sum
 
   // Low-level API
   // Disjoint concatenation of vectors
-  def rawConcatenateWith(input: VectorContainer): VectorContainer =
+  private[thylacine] def rawConcatenateWith(
+      input: VectorContainer
+  ): VectorContainer =
     VectorContainer(
       values ++ input.getValidated.values.map(i => i._1 + dimension -> i._2),
       dimension = dimension + input.dimension,
@@ -58,7 +62,7 @@ case class VectorContainer(
   // Low-level API
   // Sum of vectors. Dimension check needs to be done outside
   // of this call
-  def rawSumWith(input: VectorContainer): VectorContainer =
+  private[thylacine] def rawSumWith(input: VectorContainer): VectorContainer =
     VectorContainer(
       values = (values.keySet ++ input.values.keySet).map { k =>
         k -> (values.getOrElse(k, 0d) + input.values.getOrElse(k, 0d))
@@ -67,17 +71,19 @@ case class VectorContainer(
       validated = true
     )
 
-  def rawScalarProductWith(input: Double): VectorContainer =
+  private[thylacine] def rawScalarProductWith(input: Double): VectorContainer =
     VectorContainer(
       values = values.view.mapValues(_ * input).toMap,
       dimension = dimension,
       validated = true
     )
 
-  def rawSubtract(input: VectorContainer): VectorContainer =
+  private[thylacine] def rawSubtract(input: VectorContainer): VectorContainer =
     rawSumWith(input.rawScalarProductWith(-1.0))
 
-  def rawProductWith(input: VectorContainer): VectorContainer =
+  private[thylacine] def rawProductWith(
+      input: VectorContainer
+  ): VectorContainer =
     VectorContainer(
       values = (values.keySet ++ input.values.keySet).map { k =>
         k -> (values.getOrElse(k, 0d) * input.values.getOrElse(k, 0d))
@@ -86,20 +92,34 @@ case class VectorContainer(
       validated = true
     )
 
-  def rawDotProductWith(input: VectorContainer): Double =
+  private[thylacine] def rawDotProductWith(input: VectorContainer): Double =
     rawProductWith(input).valueSum
 
-  lazy val rawAbsoluteValueOfComponents: VectorContainer =
+  private[thylacine] lazy val rawAbsoluteValueOfComponents: VectorContainer =
     this.copy(values = values.map(i => i._1 -> Math.abs(i._2)))
+
+  // Minimal checks for performance, as this is only intended to be used in
+  // finite differences for gradient calculation
+  private def rawNudgeComponent(diff: Double, index: Int): VectorContainer =
+    values.get(index) match {
+      case None =>
+        this.copy(values = values + (index -> diff))
+      case Some(v) if v + diff != 0 =>
+        this.copy(values = values + (index -> (v + diff)))
+      case _ =>
+        this.copy(values = values - index)
+    }
+
+  private[thylacine] def rawNudgeComponents(
+      diff: Double
+  ): List[VectorContainer] =
+    (1 to dimension).map(rawNudgeComponent(diff, _)).toList
 
 }
 
-object VectorContainer {
+private[thylacine] object VectorContainer {
 
-  def apply(vector: DenseVector[Double]): VectorContainer =
-    VectorContainer(vector.toScalaVector().toList)
-
-  def apply(vector: List[Double]): VectorContainer = {
+  private[thylacine] def apply(vector: ScalaVector[Double]): VectorContainer = {
     val resultMap = vector.foldLeft((1, Map[Int, Double]())) { (i, j) =>
       if (j != 0) {
         (i._1 + 1, i._2 + (i._1 -> j))
@@ -115,6 +135,12 @@ object VectorContainer {
     )
   }
 
-  def random(dimension: Int): VectorContainer =
-    VectorContainer((1 to dimension).map(_ => Math.random()).toList)
+  private[thylacine] def apply(vector: DenseVector[Double]): VectorContainer =
+    VectorContainer(vector.toScalaVector())
+
+  private[thylacine] def zeros(dimension: Int): VectorContainer =
+    VectorContainer((1 to dimension).map(_ => 0d).toVector)
+
+  private[thylacine] def random(dimension: Int): VectorContainer =
+    VectorContainer((1 to dimension).map(_ => Math.random()).toVector)
 }

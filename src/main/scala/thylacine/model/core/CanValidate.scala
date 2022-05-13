@@ -30,7 +30,7 @@ package thylacine.model.core
   * guarantees, but violations will fail the model quickly
   * at runtime
   */
-trait CanValidate[+T <: CanValidate[_]] {
-  def validated: Boolean
-  def getValidated: T
+private[thylacine] trait CanValidate[+T <: CanValidate[_]] {
+  private[thylacine] def validated: Boolean
+  private[thylacine] def getValidated: T
 }

@@ -17,33 +17,35 @@
 package ai.entrolution
 package thylacine.visualisation
 
-case class GraphPoint(x: Double, y: Double) {
+private[thylacine] case class GraphPoint(x: Double, y: Double) {
 
-  def distSquaredTo(point: GraphPoint): Double =
+  private[thylacine] lazy val primitiveValue: (Double, Double) = (x, y)
+
+  private[thylacine] def distSquaredTo(point: GraphPoint): Double =
     Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2)
 
-  def scaledDistSquaredTo(
+  private[thylacine] def scaledDistSquaredTo(
       point: GraphPoint,
       xScale: Double,
       yScale: Double
   ): Double =
     Math.pow((x - point.x) / xScale, 2) + Math.pow((y - point.y) / yScale, 2)
 
-  def distanceTo(point: GraphPoint): Double =
+  private[thylacine] def distanceTo(point: GraphPoint): Double =
     Math.sqrt(distSquaredTo(point))
 
-  def add(point: GraphPoint): GraphPoint =
+  private[thylacine] def add(point: GraphPoint): GraphPoint =
     GraphPoint(x + point.x, y + point.y)
 
-  def minus(point: GraphPoint): GraphPoint =
+  private[thylacine] def minus(point: GraphPoint): GraphPoint =
     GraphPoint(x - point.x, y - point.y)
 
-  def scalarMultiply(multiplier: Double): GraphPoint =
+  private[thylacine] def scalarMultiply(multiplier: Double): GraphPoint =
     GraphPoint(multiplier * x, multiplier * y)
 }
 
-object GraphPoint {
+private[thylacine] object GraphPoint {
 
-  def apply(input: (Double, Double)): GraphPoint =
+  private[thylacine] def apply(input: (Double, Double)): GraphPoint =
     GraphPoint(input._1, input._2)
 }

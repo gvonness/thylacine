@@ -17,4 +17,4 @@
 package ai.entrolution
 package thylacine.model.core
 
-trait Container
+private[thylacine] trait Container

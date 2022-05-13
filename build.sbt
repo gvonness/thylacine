@@ -29,6 +29,7 @@ Global / excludeLintKeys += idePackagePrefix
 libraryDependencies += "org.scalanlp"           %% "breeze"                     % "1.2"
 libraryDependencies += "org.scalanlp"           %% "breeze-natives"             % "1.2"
 libraryDependencies += "ch.obermuhlner"          % "big-math"                   % "2.3.0"
+libraryDependencies += "org.apache.commons" % "commons-math3" % "3.6.1"
 libraryDependencies += "ai.entrolution"         %% "bengal-stm"                 % "0.3.7"
 libraryDependencies += "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4"
 libraryDependencies += "org.typelevel"          %% "cats-free"                  % "2.7.0"

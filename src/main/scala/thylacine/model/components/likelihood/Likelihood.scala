@@ -22,19 +22,19 @@ import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
-trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
+private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
     extends ModelParameterPdf
     with PosteriorTerm
     with CanValidate[Likelihood[_, _]] {
 
-  def observations: BelievedData
-  def observationModel: BM
-  def forwardModel: FM
-  protected def modelParameterGenerators: Set[ModelParameterGenerator]
+  private[thylacine] def observations: BelievedData
+  private[thylacine] def observationModel: BM
+  private[thylacine] def forwardModel: FM
 
-  override final val domainDimension: Int = forwardModel.domainDimension
+  private[thylacine] override final val domainDimension: Int =
+    forwardModel.domainDimension
 
-  override final def logPdfAt(
+  private[thylacine] override final def logPdfAt(
       input: ModelParameterCollection
   ): ResultOrErrIo[Double] =
     for {
@@ -42,7 +42,7 @@ trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
       res       <- observationModel.logPdfAt(mappedVec)
     } yield res
 
-  override final def logPdfGradientAt(
+  private[thylacine] override final def logPdfGradientAt(
       input: ModelParameterCollection
   ): ResultOrErrIo[ModelParameterCollection] =
     for {

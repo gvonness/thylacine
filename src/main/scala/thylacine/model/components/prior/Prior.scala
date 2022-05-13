@@ -22,14 +22,14 @@ import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
-trait Prior[+BM <: BeliefModel]
+private[thylacine] trait Prior[+BM <: BeliefModel]
     extends ModelParameterPdf
     with PosteriorTerm
-    with ModelParameterSampleGenerator
+    with ModelParameterSampler
     with ModelParameterGenerator
     with CanValidate[Prior[_]] {
 
-  def priorModel: BM
+  protected def priorModel: BM
 
   override final val posteriorTermIdentifier: TermIdentifier = TermIdentifier(
     identifier.value

@@ -22,27 +22,27 @@ import thylacine.model.core._
 
 import cats.implicits._
 
-case class PointInCube(
-    pointInIntervals: List[PointInInterval],
+private[thylacine] case class PointInCube(
+    pointInIntervals: Vector[PointInInterval],
     validated: Boolean = false
 ) extends CanValidate[PointInCube] {
 
-  val dimension: Int = pointInIntervals.size
+  private[thylacine] val dimension: Int = pointInIntervals.size
 
-  lazy val cubeVolume: ResultOrErrIo[BigDecimal] =
+  private[thylacine] lazy val cubeVolume: ResultOrErrIo[BigDecimal] =
     pointInIntervals.parTraverse {
       _.intervalLength.map(l => BigDecimal(l.toString))
     }.map(_.sum)
 
-  lazy val symmetrize: ResultOrErrIo[PointInCube] =
+  private[thylacine] lazy val symmetrize: ResultOrErrIo[PointInCube] =
     for {
       symmetrizedIntervals <- pointInIntervals.parTraverse(_.symmetrize)
     } yield PointInCube(symmetrizedIntervals, validated = true)
 
-  lazy val point: VectorContainer =
+  private[thylacine] lazy val point: VectorContainer =
     VectorContainer(pointInIntervals.map(_.point))
 
-  override lazy val getValidated: PointInCube =
+  private[thylacine] override lazy val getValidated: PointInCube =
     PointInCube(pointInIntervals.map(_.getValidated), validated = true)
 
   private lazy val dimensionIndex: ResultOrErrIo[Map[Int, PointInInterval]] =
@@ -50,7 +50,7 @@ case class PointInCube(
       (1 to pointInIntervals.size).zip(pointInIntervals).toMap
     )
 
-  def retrieveIndex(index: Int): ResultOrErrIo[PointInInterval] =
+  private[thylacine] def retrieveIndex(index: Int): ResultOrErrIo[PointInInterval] =
     for {
       dimIndex <- dimensionIndex
       result <- dimIndex.get(index) match {
@@ -64,7 +64,7 @@ case class PointInCube(
                 }
     } yield result
 
-  def replaceIndex(
+  private[thylacine] def replaceIndex(
       index: Int,
       newInput: PointInInterval
   ): ResultOrErrIo[PointInCube] =
@@ -83,7 +83,7 @@ case class PointInCube(
       )
     }
 
-  def getSample(scalingParameter: Double): ResultOrErrIo[VectorContainer] =
+  private[thylacine] def getSample(scalingParameter: Double): ResultOrErrIo[VectorContainer] =
     for {
       dimensionSamples <-
         pointInIntervals.parTraverse(_.getSample(scalingParameter))
@@ -97,7 +97,7 @@ case class PointInCube(
       .parTraverse(i => i._1.isIntersectingWith(i._2).map(!_))
       .map(_.exists(i => i))
 
-  def dimensionOfLargestSeparation(input: PointInCube): ResultOrErrIo[Int] =
+  private[thylacine] def dimensionOfLargestSeparation(input: PointInCube): ResultOrErrIo[Int] =
     for {
       distances <- pointInIntervals
                      .zip(input.pointInIntervals)
@@ -105,9 +105,9 @@ case class PointInCube(
     } yield (1 to pointInIntervals.size).zip(distances).maxBy(_._2)._1
 }
 
-object PointInCube {
+private[thylacine] object PointInCube {
 
-  def makeDisjoint(
+  private[thylacine] def makeDisjoint(
       pic1: PointInCube,
       pic2: PointInCube
   ): ResultOrErrIo[(PointInCube, PointInCube)] =
@@ -138,25 +138,25 @@ object PointInCube {
                 }
     } yield result
 
-  def makeDisjoint(
-      cubes: List[PointInCube]
-  ): ResultOrErrIo[List[PointInCube]] = {
+  private[thylacine] def makeDisjoint(
+      cubes: Vector[PointInCube]
+  ): ResultOrErrIo[Vector[PointInCube]] = {
     def makeNewCubeDisjoint(
         newCube: PointInCube,
-        disjointCubes: List[PointInCube]
-    ): ResultOrErrIo[List[PointInCube]] =
-      disjointCubes.foldLeft(ResultOrErrIo.fromValue(List(newCube))) { (i, j) =>
+        disjointCubes: Vector[PointInCube]
+    ): ResultOrErrIo[Vector[PointInCube]] =
+      disjointCubes.foldLeft(ResultOrErrIo.fromValue(Vector(newCube))) { (i, j) =>
         for {
           prev   <- i
           result <- PointInCube.makeDisjoint(prev.head, j)
-        } yield result._1 :: result._2 :: prev.tail
+        } yield Vector(result._1, result._2) ++ prev.tail
       }
 
-    cubes.foldLeft(ResultOrErrIo.fromValue(List[PointInCube]())) { (i, j) =>
+    cubes.foldLeft(ResultOrErrIo.fromValue(Vector[PointInCube]())) { (i, j) =>
       for {
         prev   <- i
         result <- makeNewCubeDisjoint(j, prev)
-      } yield result
+      } yield result.toVector
     }
   }
 }

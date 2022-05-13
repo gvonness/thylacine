@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core
 
-case class BelievedData(
+private[thylacine] case class BelievedData(
     data: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
@@ -27,9 +27,9 @@ case class BelievedData(
     assert(data.dimension == covariance.rowTotalNumber)
   }
 
-  val dimension: Int = data.dimension
+  private[thylacine] val dimension: Int = data.dimension
 
-  override lazy val getValidated: BelievedData =
+  private[thylacine] override lazy val getValidated: BelievedData =
     if (validated) {
       this
     } else {
@@ -41,9 +41,9 @@ case class BelievedData(
     }
 }
 
-object BelievedData {
+private[thylacine] object BelievedData {
 
-  def apply(
+  private[thylacine] def apply(
       values: VectorContainer,
       symmetricConfidenceIntervals: VectorContainer
   ): BelievedData = {
@@ -67,4 +67,7 @@ object BelievedData {
       validated = true
     )
   }
+
+  def apply(values: Vector[Double], symmetricConfidenceIntervals: Vector[Double]): BelievedData =
+    apply(VectorContainer(values), VectorContainer(symmetricConfidenceIntervals))
 }
