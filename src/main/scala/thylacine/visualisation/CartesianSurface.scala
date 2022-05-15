@@ -27,11 +27,16 @@ import cats.implicits._
 
 case class CartesianSurface(
     xAbscissa: Vector[Double],
-    yAbscissa: Vector[Double]
+    yAbscissa: Vector[Double],
+    progressSetCallback: Int => Unit,
+    progressIncrementCallback: Unit => Unit,
+    progressFinishCallback: Unit => Unit
 ) {
 
   private[thylacine] val stm: STM[IO] = STM.runtime[IO].unsafeRunSync()
   import stm._
+
+  progressSetCallback(0)
 
   private val xScale = xAbscissa.max - xAbscissa.min
   private val yScale = yAbscissa.max - yAbscissa.min
@@ -54,9 +59,9 @@ case class CartesianSurface(
                      NonEmptyVector(h, t).parTraverse { col =>
                        for {
                          integration <- trapezoidalQuadrature(
-                                            yAbscissa,
-                                            col._2.values.toVector
-                                          )
+                                          yAbscissa,
+                                          col._2.values.toVector
+                                        )
                        } yield
                          if (integration > 0) {
                            col._2.view.mapValues(v => v / integration).toSeq
@@ -68,11 +73,11 @@ case class CartesianSurface(
                      Right(Seq())
                  }
       _ <- groupMap match {
-        case Right(res) =>
-          scalarValues.set(res.toMap)
-        case Left(erratum) =>
-          stm.abort(new RuntimeException(erratum.message))
-      }
+             case Right(res) =>
+               scalarValues.set(res.toMap)
+             case Left(erratum) =>
+               stm.abort(new RuntimeException(erratum.message))
+           }
     } yield ()
   }
 
@@ -81,7 +86,10 @@ case class CartesianSurface(
       scalarValues.modify(i => i + (p -> 0d)).commit.map(_ => ())
     }
 
-  private def addSimplexChain(input: SimplexChain, kernelVariance: Double): IO[Unit] =
+  private def addSimplexChain(
+      input: SimplexChain,
+      kernelVariance: Double
+  ): IO[Unit] =
     scalarValues.modify { pvs =>
       Map(
         concatenateMapping(pvs, input, kernelVariance).unsafeRunSync(): _*
@@ -95,6 +103,7 @@ case class CartesianSurface(
       kernelVariance: Double
   ): IO[Unit] =
     for {
+      _ <- IO(progressIncrementCallback())
       chain <- IO(
                  SimplexChain(
                    abcissa.zip(values).map(GraphPoint(_))
@@ -125,13 +134,21 @@ case class CartesianSurface(
       case _ => IO.pure(Vector[(GraphPoint, Double)]())
     }
 
-  def addSamples(abcissa: Vector[Double], samples: Vector[Vector[Double]], ds: Double, kernelVariance: Double): IO[Unit] =
+  def addSamples(
+      abcissa: Vector[Double],
+      samples: Vector[Vector[Double]],
+      ds: Double,
+      kernelVariance: Double
+  ): IO[Unit] =
     samples match {
       case h +: t =>
         for {
+          _ <- IO(progressSetCallback(samples.size))
           _ <-
             NonEmptyVector(h, t)
               .traverse(i => addValues(abcissa, i, ds, kernelVariance))
+          _ <- IO(progressIncrementCallback())
+          _ <- IO(progressFinishCallback())
         } yield ()
       case _ =>
         IO.unit

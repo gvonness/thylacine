@@ -21,6 +21,7 @@ import thylacine.model.core.Erratum._
 
 import breeze.linalg._
 import breeze.stats.distributions._
+import org.apache.commons.math3.random.MersenneTwister
 
 private[thylacine] case class GaussianBeliefModel(
     mean: VectorContainer,
@@ -32,6 +33,10 @@ private[thylacine] case class GaussianBeliefModel(
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
     assert(covariance.rowTotalNumber == mean.dimension)
   }
+
+  implicit private val randBasis: RandBasis = new RandBasis(
+    new ThreadLocalRandomGenerator(new MersenneTwister(this.hashCode()))
+  )
 
   private[thylacine] override lazy val getValidated: GaussianBeliefModel =
     if (validated) {
@@ -52,7 +57,9 @@ private[thylacine] case class GaussianBeliefModel(
   private lazy val rawInverseCovariance: DenseMatrix[Double] =
     inv(covariance.rawMatrix)
 
-  private[thylacine] override def logPdfAt(input: VectorContainer): ResultOrErrIo[Double] =
+  private[thylacine] override def logPdfAt(
+      input: VectorContainer
+  ): ResultOrErrIo[Double] =
     ResultOrErrIo.fromCalculation(rawDistribution.logPdf(input.rawVector))
 
   private[thylacine] override def logPdfGradientAt(

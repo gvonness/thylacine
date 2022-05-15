@@ -30,7 +30,7 @@ private[thylacine] case class UniformBeliefModel(
     with CanValidate[UniformBeliefModel] {
 
   private lazy val zippedBounds: ScalaVector[(Double, Double)] =
-    minBounds.rawVector.toScalaVector().zip(maxBounds.rawVector.toScalaVector())
+    minBounds.scalaVector.zip(maxBounds.scalaVector)
 
   if (!validated) {
     assert(maxBounds.dimension == minBounds.dimension)
@@ -61,9 +61,8 @@ private[thylacine] case class UniformBeliefModel(
     ResultOrErrIo.fromValue(VectorContainer.zeros(domainDimension))
 
   private[thylacine] def insideBounds(input: VectorContainer): Boolean =
-    !zippedBounds.zip(input.rawVector.toScalaVector()).exists {
-      boundingVolumeTest =>
-        boundingVolumeTest._2 < boundingVolumeTest._1._1 || boundingVolumeTest._2 >= boundingVolumeTest._1._2
+    !zippedBounds.zip(input.scalaVector).exists { boundingVolumeTest =>
+      boundingVolumeTest._2 < boundingVolumeTest._1._1 || boundingVolumeTest._2 >= boundingVolumeTest._1._2
     }
 
   private[thylacine] override def logPdfAt(

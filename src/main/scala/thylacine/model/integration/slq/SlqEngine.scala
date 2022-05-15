@@ -568,7 +568,7 @@ private[thylacine] object SlqEngine {
       for {
         rawDenseVector <- toDenseVector(input)
       } yield PointInCube(
-        rawDenseVector.toScalaVector().map(PointInInterval(_)),
+        rawDenseVector.toArray.toVector.map(PointInInterval(_)),
         validated = true
       )
 

@@ -51,7 +51,7 @@ case class NonLinearForwardModel(
     ResultOrErrIo.fromCalculation {
       VectorContainer(
         evaluation(
-          input.index.map(i => i._1.value -> i._2.rawVector.toScalaVector())
+          input.index.map(i => i._1.value -> i._2.scalaVector)
         )
       )
     }
@@ -61,7 +61,7 @@ case class NonLinearForwardModel(
   ): ResultOrErrIo[IndexedMatrixCollection] =
     ResultOrErrIo.fromCalculation {
       jacobian(
-        input.index.map(i => i._1.value -> i._2.rawVector.toScalaVector())
+        input.index.map(i => i._1.value -> i._2.scalaVector)
       ).map(ms => IndexedMatrixCollection(ms._1, ms._2))
         .reduce(_ rawMergeWith _)
     }

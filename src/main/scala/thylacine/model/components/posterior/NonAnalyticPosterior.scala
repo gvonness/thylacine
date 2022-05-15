@@ -19,11 +19,6 @@ package thylacine.model.components.posterior
 
 import thylacine.model.components.likelihood._
 import thylacine.model.components.prior._
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
-
-import cats.effect.implicits._
-import cats.implicits._
 
 private[thylacine] abstract class NonAnalyticPosterior(
     priors: Set[Prior[_]],

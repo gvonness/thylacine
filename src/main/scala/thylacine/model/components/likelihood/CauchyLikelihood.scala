@@ -21,11 +21,13 @@ import thylacine.model.components.forwardmodel._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import java.util.UUID
+
 case class CauchyLikelihood(
-    posteriorTermIdentifier: TermIdentifier,
-    observations: BelievedData,
-    forwardModel: ForwardModel,
-    validated: Boolean = false
+    private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+    private[thylacine] override val observations: BelievedData,
+    private[thylacine] override val forwardModel: ForwardModel,
+    private[thylacine] override val validated: Boolean = false
 ) extends Likelihood[ForwardModel, CauchyBeliefModel] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
@@ -44,4 +46,21 @@ case class CauchyLikelihood(
   private[thylacine] override lazy val observationModel: CauchyBeliefModel =
     CauchyBeliefModel(observations)
 
+}
+
+object CauchyLikelihood {
+
+  def apply(
+      forwardModel: ForwardModel,
+      measurements: Vector[Double],
+      uncertainties: Vector[Double]
+  ): CauchyLikelihood =
+    CauchyLikelihood(
+      posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
+      observations = BelievedData(
+        values = VectorContainer(measurements),
+        symmetricConfidenceIntervals = VectorContainer(uncertainties)
+      ),
+      forwardModel = forwardModel
+    )
 }

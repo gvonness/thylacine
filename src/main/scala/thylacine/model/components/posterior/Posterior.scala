@@ -30,8 +30,8 @@ import cats.implicits._
 private[thylacine] trait Posterior[P <: Prior[_], L <: Likelihood[_, _]]
     extends ModelParameterPdf
     with ModelParameterRawMappings {
-  def priors: Set[P]
-  def likelihoods: Set[L]
+  private[thylacine] def priors: Set[P]
+  private[thylacine] def likelihoods: Set[L]
   private[thylacine] def isAnalytic: Boolean
 
   private[thylacine] override final val domainDimension =

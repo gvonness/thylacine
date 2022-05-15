@@ -54,12 +54,12 @@ private[thylacine] trait ModelParameterRawMappings {
       input: ModelParameterCollection
   ): ResultOrErrIo[DenseVector[Double]] =
     orderedParameterIdentifiersWithDimension.flatMap { op =>
-      op.foldLeft(ResultOrErrIo.fromValue(List[List[Double]]())) { (i, j) =>
+      op.foldLeft(ResultOrErrIo.fromValue(Vector[Vector[Double]]())) { (i, j) =>
         for {
           current  <- i
           toAppend <- input.retrieveIndex(j._1)
-        } yield toAppend.rawVector.toScalaVector().toList :: current
-      }.map(i => DenseVector(i.reverse.reduce(_ ::: _).toArray))
+        } yield toAppend.scalaVector +: current
+      }.map(i => DenseVector(i.reverse.reduce(_ ++ _).toArray))
     }
 
   private[thylacine] final def modelParameterCollectionToVectorValues(

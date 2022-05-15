@@ -28,10 +28,10 @@ import java.util.UUID
 // Thus, it gets a dedicated case class that is leveraged to do an analytic check in the posterior
 // construction.
 case class GaussianLinearLikelihood(
-    posteriorTermIdentifier: TermIdentifier,
-    observations: BelievedData,
-    forwardModel: LinearForwardModel,
-    validated: Boolean = false
+    private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+    private[thylacine] override val observations: BelievedData,
+    private[thylacine] override val forwardModel: LinearForwardModel,
+    private[thylacine] override val validated: Boolean = false
 ) extends Likelihood[LinearForwardModel, GaussianBeliefModel] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)

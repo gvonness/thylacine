@@ -31,7 +31,8 @@ private[thylacine] case class PointInCubeCollection(
     assert(pointsInCube.size > 1)
   }
 
-  private[thylacine] val dimension: Int = pointsInCube.headOption.map(_.dimension).getOrElse(0)
+  private[thylacine] val dimension: Int =
+    pointsInCube.headOption.map(_.dimension).getOrElse(0)
 
   if (!validated) {
     assert(
@@ -72,7 +73,7 @@ private[thylacine] case class PointInCubeCollection(
                 }
               piiList <-
                 (1 to dimension)
-                  .zip(pic.point.rawVector.toScalaVector().toList)
+                  .zip(pic.point.scalaVector.toList)
                   .toVector
                   .parTraverse { k =>
                     for {
@@ -115,7 +116,8 @@ private[thylacine] case class PointInCubeCollection(
       symmetrizedCubes <- pointsInCube.traverse(_.symmetrize)
     } yield PointInCubeCollection(symmetrizedCubes, validated = true)
 
-  private[thylacine] lazy val readyForSampling: ResultOrErrIo[PointInCubeCollection] =
+  private[thylacine] lazy val readyForSampling
+      : ResultOrErrIo[PointInCubeCollection] =
     for {
       init            <- getValidated.initialise
       initDisjoint    <- init.makeDisjoint
@@ -130,7 +132,9 @@ private[thylacine] case class PointInCubeCollection(
     } yield cdfStaircase.zip(pointsInCube)
   }
 
-  private[thylacine] def getSample(scaleParameter: Double): ResultOrErrIo[VectorContainer] =
+  private[thylacine] def getSample(
+      scaleParameter: Double
+  ): ResultOrErrIo[VectorContainer] =
     for {
       randomIndex <-
         ResultOrErrIo.fromCalculation(BigDecimal(Math.random().toString))

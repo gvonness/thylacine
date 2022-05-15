@@ -21,10 +21,10 @@ import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
-private[thylacine] case class CauchyPrior(
-    identifier: ModelParameterIdentifier,
-    priorData: BelievedData,
-    validated: Boolean = false
+case class CauchyPrior(
+    private[thylacine] override val identifier: ModelParameterIdentifier,
+    private[thylacine] val priorData: BelievedData,
+    private[thylacine] override val validated: Boolean = false
 ) extends Prior[CauchyBeliefModel] {
 
   protected override lazy val priorModel: CauchyBeliefModel =

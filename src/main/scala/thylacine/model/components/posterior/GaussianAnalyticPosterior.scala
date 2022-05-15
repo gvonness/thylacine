@@ -26,15 +26,20 @@ import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
 import breeze.linalg._
-import breeze.stats.distributions.MultivariateGaussian
+import breeze.stats.distributions.{
+  MultivariateGaussian,
+  RandBasis,
+  ThreadLocalRandomGenerator
+}
 import cats.effect.unsafe.implicits.global
+import org.apache.commons.math3.random.MersenneTwister
 
 import scala.{Vector => ScalaVector}
 
 case class GaussianAnalyticPosterior(
-    priors: Set[GaussianPrior],
-    likelihoods: Set[GaussianLinearLikelihood],
-    validated: Boolean = false
+    private[thylacine] override val priors: Set[GaussianPrior],
+    private[thylacine] override val likelihoods: Set[GaussianLinearLikelihood],
+    private[thylacine] override val validated: Boolean
 ) extends Posterior[GaussianPrior, GaussianLinearLikelihood]
     with ModelParameterSampler
     with CanValidate[GaussianAnalyticPosterior] {
@@ -112,7 +117,16 @@ case class GaussianAnalyticPosterior(
     ResultOrErrIo.fromCalculation(VectorContainer(rawDistribution.sample()))
 }
 
-private[thylacine] object GaussianAnalyticPosterior {
+object GaussianAnalyticPosterior {
+
+  def apply(
+      priors: Set[GaussianPrior],
+      likelihoods: Set[GaussianLinearLikelihood]
+  ): GaussianAnalyticPosterior =
+    GaussianAnalyticPosterior(priors = priors,
+                              likelihoods = likelihoods,
+                              validated = false
+    )
 
   // Contains the logic for merging and ordered set of
   // Gaussian Priors and Linear Likelihoods to produce a single
@@ -135,6 +149,11 @@ private[thylacine] object GaussianAnalyticPosterior {
         val newCovariance         = inv(inverseCovarianceTerm)
         val symmetrizedCovariance = (newCovariance + newCovariance.t) * 0.5
         val newMean               = symmetrizedCovariance * vectorTerm
+        implicit val randBasis: RandBasis = new RandBasis(
+          new ThreadLocalRandomGenerator(
+            new MersenneTwister((symmetrizedCovariance, newMean).hashCode())
+          )
+        )
         ResultOrErrIo.fromValue(
           MultivariateGaussian(newMean, symmetrizedCovariance)
         )

@@ -23,10 +23,10 @@ import thylacine.model.core._
 
 import breeze.stats.distributions.MultivariateGaussian
 
-private[thylacine] case class GaussianPrior(
-    identifier: ModelParameterIdentifier,
-    priorData: BelievedData,
-    validated: Boolean = false
+case class GaussianPrior(
+    private[thylacine] override val identifier: ModelParameterIdentifier,
+    private[thylacine] val priorData: BelievedData,
+    private[thylacine] override val validated: Boolean = false
 ) extends Prior[GaussianBeliefModel] {
 
   protected override lazy val priorModel: GaussianBeliefModel =

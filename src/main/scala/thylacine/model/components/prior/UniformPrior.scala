@@ -22,11 +22,11 @@ import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core._
 
-private[thylacine] case class UniformPrior(
-    identifier: ModelParameterIdentifier,
-    maxBounds: Vector[Double],
-    minBounds: Vector[Double],
-    validated: Boolean = false
+case class UniformPrior(
+    private[thylacine] override val identifier: ModelParameterIdentifier,
+    private[thylacine] val maxBounds: Vector[Double],
+    private[thylacine] val minBounds: Vector[Double],
+    private[thylacine] override val validated: Boolean = false
 ) extends Prior[UniformBeliefModel] {
 
   protected override val priorModel: UniformBeliefModel =

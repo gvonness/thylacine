@@ -18,25 +18,18 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import thylacine.model.components.forwardmodel._
-import thylacine.model.components.prior.Prior
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
 import java.util.UUID
 
 case class GaussianLikelihood(
-    posteriorTermIdentifier: TermIdentifier,
-    observations: BelievedData,
-    forwardModel: ForwardModel,
-    modelParameterGenerators: Set[ModelParameterGenerator],
-    validated: Boolean = false
+    private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+    private[thylacine] override val observations: BelievedData,
+    private[thylacine] override val forwardModel: ForwardModel,
+    private[thylacine] override val validated: Boolean = false
 ) extends Likelihood[ForwardModel, GaussianBeliefModel] {
   if (!validated) {
-    assert(
-      modelParameterGenerators
-        .map(_.generatorDimension)
-        .sum == forwardModel.domainDimension
-    )
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
@@ -57,8 +50,7 @@ object GaussianLikelihood {
   def apply(
       forwardModel: ForwardModel,
       measurements: Vector[Double],
-      uncertainties: Vector[Double],
-      priors: Set[Prior[_]]
+      uncertainties: Vector[Double]
   ): GaussianLikelihood =
     GaussianLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
@@ -66,9 +58,6 @@ object GaussianLikelihood {
         values = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
-      forwardModel = forwardModel,
-      modelParameterGenerators = priors.map(
-        _.asInstanceOf[ModelParameterGenerator]
-      ) // Can't avoid due to Sets not being covariant
+      forwardModel = forwardModel
     )
 }

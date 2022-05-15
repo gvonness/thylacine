@@ -46,6 +46,9 @@ private[thylacine] case class VectorContainer(
     vecResult
   }
 
+  private[thylacine] lazy val scalaVector: ScalaVector[Double] =
+    rawVector.toScalaVector
+
   private[thylacine] lazy val valueSum: Double = values.values.sum
 
   // Low-level API
@@ -136,7 +139,7 @@ private[thylacine] object VectorContainer {
   }
 
   private[thylacine] def apply(vector: DenseVector[Double]): VectorContainer =
-    VectorContainer(vector.toScalaVector())
+    VectorContainer(vector.toArray.toVector)
 
   private[thylacine] def zeros(dimension: Int): VectorContainer =
     VectorContainer((1 to dimension).map(_ => 0d).toVector)

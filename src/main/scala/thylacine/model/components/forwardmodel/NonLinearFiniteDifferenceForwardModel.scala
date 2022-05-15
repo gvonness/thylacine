@@ -45,7 +45,7 @@ case class NonLinearFiniteDifferenceForwardModel(
     ResultOrErrIo.fromCalculation {
       VectorContainer(
         evaluation(
-          input.index.map(i => i._1.value -> i._2.rawVector.toScalaVector())
+          input.index.map(i => i._1.value -> i._2.rawVector.toScalaVector)
         )
       )
     }
