@@ -7,8 +7,7 @@ import bayken.model.ValueStatistics
 import bayken.model.measurement.{BalanceExperimentMeasurement, MeasurementRow}
 import bayken.numerical.LegendreQuadrature
 import bayken.util.DataWriter.writeDatFile
-import bayken.util.{DataWriter, MathOps, ProgressBar}
-import bengal.stm._
+import bayken.util._
 import thylacine.model.components.likelihood.GaussianLinearLikelihood
 import thylacine.model.components.posterior.GaussianAnalyticPosterior
 import thylacine.model.components.prior.GaussianPrior
@@ -28,9 +27,6 @@ object AnalyticInference {
       visualisationDefault: => VisualisationConfig,
       resultPath: Path
   )(implicit ior: IORuntime): Unit = {
-    val stm: STM[IO] = STM.runtime[IO].unsafeRunSync()
-    import stm._
-
     println(
       s"Performing inference of mass density profile - ${kenConfig.label}"
     )
@@ -139,10 +135,6 @@ object AnalyticInference {
     val valueStats: List[ValueStatistics] =
       samples.map(ValueStatistics(legendreQuadrature, _))
 
-    // Prep for creating visualisations and outputs
-    val progressBar =
-      TxnVar.of(new ProgressBar(0)).unsafeRunSync()
-
     val sampleGraph = CartesianSurface(
       UniformAbscissa(visualisationParams.xAbscissa.min,
                       visualisationParams.xAbscissa.max,
@@ -152,17 +144,9 @@ object AnalyticInference {
                       visualisationParams.yAbscissa.max,
                       visualisationParams.yAbscissa.size
       ).abscissaPoints.toVector,
-      i => progressBar.set(new ProgressBar(i)).commit.unsafeRunSync(),
-      _ =>
-        progressBar.modify { i =>
-          i.add(1)
-          i
-        }.commit.unsafeRunSync(),
-      _ =>
-        progressBar.modify { i =>
-          i.finish()
-          i
-        }.commit.unsafeRunSync()
+      ProgressBarOps.set,
+      _ => ProgressBarOps.increment(),
+      _ => ProgressBarOps.increment()
     )
 
     val cdfGraph = CartesianSurface(
@@ -174,17 +158,9 @@ object AnalyticInference {
                       1,
                       visualisationParams.yAbscissa.size
       ).abscissaPoints.toVector,
-      i => progressBar.set(new ProgressBar(i)).commit.unsafeRunSync(),
-      _ =>
-        progressBar.modify { i =>
-          i.add(1)
-          i
-        }.commit.unsafeRunSync(),
-      _ =>
-        progressBar.modify { i =>
-          i.finish()
-          i
-        }.commit.unsafeRunSync()
+      ProgressBarOps.set,
+      _ => ProgressBarOps.increment(),
+      _ => ProgressBarOps.increment()
     )
 
     val csvHeaders = List(
