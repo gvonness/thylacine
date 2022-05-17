@@ -1,10 +1,10 @@
 package ai.entrolution
 package bayken.model
 
-import bayken.numerical.LegendreQuadrature
+import bayken.numerical.LegendreQuadratureBuilder
 
 case class ValueStatistics(
-    quadrature: LegendreQuadrature,
+    quadrature: LegendreQuadratureBuilder,
     values: List[Double]
 ) {
   assert(quadrature.order == values.size)

@@ -8,12 +8,8 @@ import breeze.linalg.{DenseMatrix, DenseVector}
 sealed trait PolynomialF {
   val coefficients: List[Double]
   val derivative: PolynomialF
-  val indefiniteIntegralWithZeroC: PolynomialF
   final lazy val order = coefficients.size - 1
   def evalAt(x: Double): Double
-
-  // No need for numerical quadratures
-  def integrate(lowerBound: Double, upperBound: Double): Double
 }
 
 object PolynomialF {
@@ -59,33 +55,17 @@ object PolynomialF {
         case _ => TrivialPolynomial
       }
 
-    override lazy val indefiniteIntegralWithZeroC: NonTrivialPolynomial =
-      NonTrivialPolynomial(
-        List(0d) ++ (1 to (order + 1))
-          .zip(coefficients)
-          .map(i => i._2 / i._1)
-          .toList
-      )
-
     override def evalAt(x: Double): Double =
       (0 to (order + 1))
         .zip(coefficients)
         .map(i => i._2 * Math.pow(x, i._1.toDouble))
         .sum
-
-    override def integrate(lowerBound: Double, upperBound: Double): Double =
-      this.indefiniteIntegralWithZeroC.evalAt(
-        upperBound
-      ) - this.indefiniteIntegralWithZeroC.evalAt(lowerBound)
   }
 
   case object TrivialPolynomial extends PolynomialF {
-    override val coefficients: List[Double]               = List(0)
-    override val derivative: PolynomialF                  = TrivialPolynomial
-    override val indefiniteIntegralWithZeroC: PolynomialF = TrivialPolynomial
+    override val coefficients: List[Double] = List(0)
+    override val derivative: PolynomialF    = TrivialPolynomial
 
     override def evalAt(x: Double): Double = 0
-
-    override def integrate(lowerBound: Double, upperBound: Double): Double = 0
   }
 }

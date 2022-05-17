@@ -5,7 +5,6 @@ target
 /.project
 /.settings
 /.bsp
-/src/main/resources/dataDecrypted/
 /src/main/results/*.numbers
 /src/main/results/*.xlsx
 /src/main/results/*/*.png

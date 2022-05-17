@@ -4,28 +4,39 @@ package bayken.numerical
 import breeze.linalg.{DenseMatrix, DenseVector, eig}
 import breeze.linalg.eig.Eig
 
-sealed trait GaussQuadrature1d {
+sealed trait GaussQuadratureBuilder {
   def order: Int
-  def poles: List[Double]
-  def weights: List[Double]
+
+  def getPolesAndWeights(
+      lowerBound: Double,
+      upperBound: Double
+  ): (List[Double], List[Double])
 }
 
-case class LegendreQuadrature(order: Int, min: Double, max: Double)
-    extends GaussQuadrature1d {
+case class LegendreQuadratureBuilder(order: Int)
+    extends GaussQuadratureBuilder {
   private val a = List.fill(order)(0d)
 
   private val b =
     (1 until order).map(i => i / Math.sqrt(4.0 * Math.pow(i, 2d) - 1d)).toList
+
   private val mu0 = 2d
 
-  val (poles, weights) = GaussQuadrature1d.rescalePolesAndWeights(
-    GaussQuadrature1d.buildJacobi(a, b, mu0),
-    min,
-    max
-  )
+  private lazy val jacobi: (List[Double], List[Double]) =
+    GaussQuadratureBuilder.buildJacobi(a, b, mu0)
+
+  def getPolesAndWeights(
+      lowerBound: Double,
+      upperBound: Double
+  ): (List[Double], List[Double]) =
+    GaussQuadratureBuilder.rescalePolesAndWeights(
+      jacobi,
+      lowerBound,
+      upperBound
+    )
 }
 
-object GaussQuadrature1d {
+object GaussQuadratureBuilder {
 
   def buildJacobi(
       a: List[Double],

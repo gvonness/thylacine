@@ -5,7 +5,7 @@ import bayken.config._
 import bayken.model.Abscissa.{LegendreAbscissa, UniformAbscissa}
 import bayken.model.ValueStatistics
 import bayken.model.measurement.{BalanceExperimentMeasurement, MeasurementRow}
-import bayken.numerical.LegendreQuadrature
+import bayken.numerical.LegendreQuadratureBuilder
 import bayken.util.DataWriter.writeDatFile
 import bayken.util._
 import thylacine.model.components.likelihood.GaussianLinearLikelihood
@@ -297,7 +297,7 @@ object AnalyticInference {
   }
 
   def getIntegrationCoefficients(
-      quadrature: LegendreQuadrature,
+      quadrature: LegendreQuadratureBuilder,
       balancePointPosition: Double
   ): List[Double] =
     quadrature.poles.zip(quadrature.weights).map { i =>

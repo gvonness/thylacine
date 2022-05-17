@@ -1,7 +1,7 @@
 package ai.entrolution
 package bayken.model
 
-import bayken.numerical.LegendreQuadrature
+import bayken.numerical.LegendreQuadratureBuilder
 
 sealed trait Abscissa {
   def min: Double
@@ -13,7 +13,7 @@ sealed trait Abscissa {
 object Abscissa {
 
   case class LegendreAbscissa(
-      quadrature: LegendreQuadrature
+      quadrature: LegendreQuadratureBuilder
   ) extends Abscissa {
 
     lazy val abscissaPoints: List[Double] =
