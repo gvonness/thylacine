@@ -15,6 +15,15 @@
  */
 
 package ai.entrolution
-package bayken.numerical
+package bayken.config
 
-case class Quadrature(poles: Vector[Double], weights: Vector[Double])
+import thylacine.config.{HmcmcConfig, HookeAndJeevesConfig}
+
+case class MassInferenceConfig(
+    tangQuadratureSize: Int,
+    bladeQuadratureSize: Int,
+    tsubaQuadratureSize: Int = 2,
+    rotationalFitTolerance: Double,
+    hookesAndJeevesParams: HookeAndJeevesConfig,
+    hmcmcParams: HmcmcConfig
+)

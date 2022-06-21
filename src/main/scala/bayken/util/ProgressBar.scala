@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package bayken.util
 
@@ -24,7 +40,7 @@ object ProgressBar {
   private val Format = "[=>-]"
 
   def kbFmt(n: Double): String = {
-    var kb = 1024
+    val kb = 1024d
     n match {
       case x if x >= Math.pow(kb, 4) => "%.2f TB".format(x / Math.pow(kb, 4))
       case x if x >= Math.pow(kb, 3) => "%.2f GB".format(x / Math.pow(kb, 3))
@@ -41,7 +57,7 @@ object ProgressBar {
 class ProgressBar(_total: Int) extends Output {
   val total: Int                                                   = _total
   var current                                                      = 0
-  private var startTime                                            = DateTime.now()
+  private val startTime                                            = DateTime.now()
   private var units                                                = Units.Default
   private var barStart, barCurrent, barCurrentN, barRemain, barEnd = ""
   var isFinish                                                     = false
@@ -86,21 +102,21 @@ class ProgressBar(_total: Int) extends Output {
     var prefix, base, suffix = ""
     // percent box
     if (showPercent) {
-      var percent = current.toFloat / (total.toFloat / 100)
+      val percent = current.toDouble / (total.toDouble / 100)
       suffix += " %.2f %% ".format(percent)
     }
     // speed box
     if (showSpeed) {
-      val fromStart = (startTime to DateTime.now()).millis.toFloat
+      val fromStart = (startTime to DateTime.now()).millis.toDouble
       val speed     = current / (fromStart / 1.seconds.millis)
       suffix += (units match {
-        case Default => "%.0f/s ".format(speed)
-        case Bytes   => "%s/s ".format(ProgressBar.kbFmt(speed))
+        case Bytes => "%s/s ".format(ProgressBar.kbFmt(speed))
+        case _     => "%.0f/s ".format(speed)
       })
     }
     // time left box
     if (showTimeLeft) {
-      val fromStart = (startTime to DateTime.now()).millis.toFloat
+      val fromStart = (startTime to DateTime.now()).millis.toDouble
       val left      = (fromStart / current) * (total - current)
       val dur       = Duration.millis(Math.ceil(left).toLong)
       if (dur.seconds > 0) {
@@ -111,18 +127,18 @@ class ProgressBar(_total: Int) extends Output {
     // counter box
     if (showCounter) {
       prefix += (units match {
-        case Default => "%d / %d ".format(current, total)
         case Bytes =>
-          "%s / %s ".format(ProgressBar.kbFmt(current),
-                            ProgressBar.kbFmt(total)
+          "%s / %s ".format(ProgressBar.kbFmt(current.toDouble),
+                            ProgressBar.kbFmt(total.toDouble)
           )
+        case _ => "%d / %d ".format(current, total)
       })
     }
     // bar box
     if (showBar) {
       val size = width - (prefix + suffix).length - 3
       if (size > 0) {
-        val curCount = Math.ceil((current.toFloat / total) * size).toInt
+        val curCount = Math.ceil((current.toDouble / total) * size).toInt
         val remCount = size - curCount
         base = barStart
         if (remCount > 0) {

@@ -103,7 +103,7 @@ case class CartesianSurface(
       kernelVariance: Double
   ): IO[Unit] =
     for {
-      _ <- IO(progressIncrementCallback())
+      _ <- IO(progressIncrementCallback)
       chain <- IO(
                  SimplexChain(
                    abcissa.zip(values).map(GraphPoint(_))
@@ -147,8 +147,8 @@ case class CartesianSurface(
           _ <-
             NonEmptyVector(h, t)
               .traverse(i => addValues(abcissa, i, ds, kernelVariance))
-          _ <- IO(progressIncrementCallback())
-          _ <- IO(progressFinishCallback())
+          _ <- IO(progressIncrementCallback)
+          _ <- IO(progressFinishCallback)
         } yield ()
       case _ =>
         IO.unit

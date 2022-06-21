@@ -17,4 +17,9 @@
 package ai.entrolution
 package bayken.numerical
 
-case class Quadrature(poles: Vector[Double], weights: Vector[Double])
+trait RealValuedFunction { self =>
+  def evalAt(x: Double): Double
+
+  final def composeWith(f: RealValuedFunction): RealValuedFunction =
+    (x: Double) => self.evalAt(f.evalAt(x))
+}

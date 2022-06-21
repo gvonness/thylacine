@@ -1,20 +1,33 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package bayken.numerical
 
-import bayken.model.Point2D
-
 import breeze.linalg.{DenseMatrix, DenseVector}
 
-sealed trait PolynomialF {
+sealed trait Polynomial1D
+    extends DifferentiableRealValuedFunction[Polynomial1D] {
   val coefficients: List[Double]
-  val derivative: PolynomialF
   final lazy val order = coefficients.size - 1
-  def evalAt(x: Double): Double
 }
 
-object PolynomialF {
+object Polynomial1D {
 
-  def apply(coefficients: List[Double]): PolynomialF =
+  def apply(coefficients: List[Double]): Polynomial1D =
     if (coefficients.exists(i => i != 0)) {
       NonTrivialPolynomial(
         coefficients.reverse.dropWhile(i => i == 0).reverse
@@ -23,10 +36,11 @@ object PolynomialF {
       TrivialPolynomial
     }
 
-  def fit(points: List[Point2D], order: Int): PolynomialF = {
+  def fit(points: List[Point2D], order: Int): NonTrivialPolynomial = {
     // Test to ensure all x values are distinct. This ensures the
     // Vandermonde matrix is invertible
     assert(points.map(_.x).toSet.size == points.size)
+    assert(points.size > order)
 
     val xMat = DenseMatrix.zeros[Double](points.size, order + 1)
 
@@ -39,17 +53,18 @@ object PolynomialF {
 
     val y = DenseVector(points.map(_.y).toArray)
 
-    PolynomialF(((xMat.t * xMat) \ (xMat.t * y)).toArray.toList)
+    Polynomial1D(((xMat.t * xMat) \ (xMat.t * y)).toArray.toList)
+      .asInstanceOf[NonTrivialPolynomial]
   }
 
   case class NonTrivialPolynomial(coefficients: List[Double])
-      extends PolynomialF {
+      extends Polynomial1D {
     assert(coefficients.exists(i => i != 0))
 
-    override lazy val derivative: PolynomialF =
+    override lazy val derivative: Polynomial1D =
       coefficients match {
         case _ :: t =>
-          PolynomialF(
+          Polynomial1D(
             (1 to order).zip(t).map(i => i._1 * i._2).toList
           )
         case _ => TrivialPolynomial
@@ -62,9 +77,9 @@ object PolynomialF {
         .sum
   }
 
-  case object TrivialPolynomial extends PolynomialF {
+  case object TrivialPolynomial extends Polynomial1D {
     override val coefficients: List[Double] = List(0)
-    override val derivative: PolynomialF    = TrivialPolynomial
+    override val derivative: Polynomial1D   = TrivialPolynomial
 
     override def evalAt(x: Double): Double = 0
   }

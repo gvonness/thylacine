@@ -1,10 +1,37 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package bayken.config
+
+import bayken.config.measurements.KenMeasurements
+import bayken.config.visualisation.MassInferenceVisualisationConfig
 
 case class KenConfig(
     label: String,
     recalculateAnalyticOnNextRun: Boolean,
     measurements: KenMeasurements,
-    inferenceParameters: Option[InferenceConfig],
-    visualisationParameters: Option[VisualisationConfig]
-)
+    inferenceParameters: MassInferenceConfig,
+    visualisationParameters: MassInferenceVisualisationConfig
+) {
+
+  lazy val massInferenceOrder: Int =
+    (if (measurements.components.blade.hasTangPoint) {
+       0
+     } else {
+       inferenceParameters.tsubaQuadratureSize
+     }) + inferenceParameters.bladeQuadratureSize + inferenceParameters.tangQuadratureSize
+}

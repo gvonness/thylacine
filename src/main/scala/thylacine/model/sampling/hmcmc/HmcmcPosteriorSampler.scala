@@ -19,12 +19,17 @@ package thylacine.model.sampling.hmcmc
 
 import thylacine.config.HmcmcConfig
 import thylacine.model.components.posterior.NonAnalyticPosterior
+import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
+
+import cats.effect.IO
 
 case class HmcmcPosteriorSampler(
     hmcmcConfig: HmcmcConfig,
     posterior: NonAnalyticPosterior,
     sampleRequestSetCallback: Int => Unit,
-    sampleRequestUpdateCallback: Int => Unit
+    sampleRequestUpdateCallback: Int => Unit,
+    seedSpec: IO[Map[String, Vector[Double]]] = IO.pure(Map())
 ) extends HmcmcEngine {
 
   override protected final val simulationsBetweenSamples: Int =
@@ -39,4 +44,7 @@ case class HmcmcPosteriorSampler(
   override protected final val warmUpSimulationCount: Int =
     hmcmcConfig.warmupStepCount
 
+  override protected final val startingPoint
+      : ResultOrErrIo[ModelParameterCollection] =
+    ResultOrErrIo.fromIo(seedSpec)
 }

@@ -17,4 +17,21 @@
 package ai.entrolution
 package bayken.numerical
 
-case class Quadrature(poles: Vector[Double], weights: Vector[Double])
+import org.scalactic.Tolerance.convertNumericToPlusOrMinusWrapper
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
+
+class GaussQuadratureSpec extends AnyFlatSpec {
+
+  "integrate" should "correctly calculate definite integrals of polynomials up to theoretical order limits" in {
+    val quadrature = LegendreQuadrature(2)
+
+    quadrature.integrate(Polynomial1D(List(0, 0, 0, 2)),
+                         -2,
+                         3
+    ) shouldBe (32.5 +- .0000000001)
+  }
+
+}
+
+object GaussQuadratureSpec {}

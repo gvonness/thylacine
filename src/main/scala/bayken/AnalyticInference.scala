@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package bayken
 
@@ -5,7 +21,7 @@ import bayken.config._
 import bayken.model.Abscissa.{LegendreAbscissa, UniformAbscissa}
 import bayken.model.ValueStatistics
 import bayken.model.measurement.{BalanceExperimentMeasurement, MeasurementRow}
-import bayken.numerical.LegendreQuadratureBuilder
+import bayken.numerical.LegendreQuadrature
 import bayken.util.DataWriter.writeDatFile
 import bayken.util._
 import thylacine.model.components.likelihood.GaussianLinearLikelihood
@@ -13,6 +29,11 @@ import thylacine.model.components.posterior.GaussianAnalyticPosterior
 import thylacine.model.components.prior.GaussianPrior
 import thylacine.visualisation.CartesianSurface
 
+import ai.entrolution.bayken.config.measurements.{
+  KenMeasurements,
+  MeasurementUncertaintiesConfig
+}
+import ai.entrolution.bayken.config.visualisation.MassInferenceVisualisationConfig
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import cats.implicits._
@@ -23,8 +44,8 @@ object AnalyticInference {
   def runAndVisualize(
       kenConfig: KenConfig,
       uncertaintiesDefault: => MeasurementUncertaintiesConfig,
-      inferenceDefault: => InferenceConfig,
-      visualisationDefault: => VisualisationConfig,
+      inferenceDefault: => MassInferenceConfig,
+      visualisationDefault: => MassInferenceVisualisationConfig,
       resultPath: Path
   )(implicit ior: IORuntime): Unit = {
     println(
@@ -34,10 +55,10 @@ object AnalyticInference {
     val data: KenMeasurements = kenConfig.measurements
     val uncertainties: MeasurementUncertaintiesConfig =
       kenConfig.measurements.measurementUncertainties
-        .getOrElse(uncertaintiesDefault)
-    val inferenceParams: InferenceConfig =
+
+    val inferenceParams: MassInferenceConfig =
       kenConfig.inferenceParameters.getOrElse(inferenceDefault)
-    val visualisationParams: VisualisationConfig =
+    val visualisationParams: MassInferenceVisualisationConfig =
       kenConfig.visualisationParameters.getOrElse(visualisationDefault)
 
     val priorDimension = inferenceParams.quadratureSize + 1
@@ -46,7 +67,7 @@ object AnalyticInference {
     val priorUncertainty: Double = priorValue
 
     val legendreQuadrature =
-      LegendreQuadrature(inferenceParams.quadratureSize + 1, 0, data.kenLength)
+      LegendreQuadrature(inferenceParams.quadratureSize + 1)
 
     val massPerUnitLengthParameterLabel = "Mass per length"
 
@@ -72,9 +93,9 @@ object AnalyticInference {
       getLikelihood {
         List(
           MeasurementRow(
-            legendreQuadrature.weights,
+            legendreQuadrature.getPolesAndWeights(0, data.kenLength).map(_._2),
             data.kenMass,
-            uncertainties.massUncertaintyMultiplier * data.kenMass + uncertainties.massUncertaintyConstant
+            uncertainties.massUncertaintyMultiplier * data.kenMass + uncertainties.massUncertainty
           )
         )
       }
@@ -87,6 +108,8 @@ object AnalyticInference {
           MeasurementRow(
             getIntegrationCoefficients(
               legendreQuadrature,
+              0,
+              data.kenLength,
               measurement.fulcrumPosition
             ),
             measurement.solveConstant,
@@ -103,6 +126,8 @@ object AnalyticInference {
           MeasurementRow(
             getIntegrationCoefficients(
               legendreQuadrature,
+              0,
+              data.kenLength,
               measurement.counterWeightPosition
             ),
             measurement.dualSolveConstant,
@@ -133,7 +158,7 @@ object AnalyticInference {
     )
 
     val valueStats: List[ValueStatistics] =
-      samples.map(ValueStatistics(legendreQuadrature, _))
+      samples.map(ValueStatistics(legendreQuadrature, 0, data.kenLength, _))
 
     val sampleGraph = CartesianSurface(
       UniformAbscissa(visualisationParams.xAbscissa.min,
@@ -297,10 +322,12 @@ object AnalyticInference {
   }
 
   def getIntegrationCoefficients(
-      quadrature: LegendreQuadratureBuilder,
+      quadrature: LegendreQuadrature,
+      lowerBound: Double,
+      upperBound: Double,
       balancePointPosition: Double
   ): List[Double] =
-    quadrature.poles.zip(quadrature.weights).map { i =>
+    quadrature.getPolesAndWeights(lowerBound, upperBound).map { i =>
       i._2 * (i._1 - balancePointPosition)
     }
 

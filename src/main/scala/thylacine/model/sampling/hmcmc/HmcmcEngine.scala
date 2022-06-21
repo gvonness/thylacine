@@ -19,11 +19,11 @@ package thylacine.model.sampling.hmcmc
 
 import bengal.stm._
 import thylacine.model.components.posterior._
+import thylacine.model.components.prior.Prior
 import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
-import ai.entrolution.thylacine.model.components.prior.Prior
 import cats.effect.unsafe.implicits.global
 import cats.effect.{Deferred, IO}
 import cats.implicits._
@@ -50,6 +50,8 @@ private[thylacine] trait HmcmcEngine extends ModelParameterSampler {
   protected def stepsInSimulation: Int
   protected def simulationEpsilon: Double
   protected def warmUpSimulationCount: Int
+
+  protected def startingPoint: ResultOrErrIo[ModelParameterCollection]
 
   protected def sampleRequestUpdateCallback: Int => Unit
   protected def sampleRequestSetCallback: Int => Unit
@@ -214,7 +216,13 @@ private[thylacine] trait HmcmcEngine extends ModelParameterSampler {
              stm.unit
            } else {
              val startPosition: ResultOrErrIo[ModelParameterCollection] = for {
-               priorSample <- samplePriors
+               possibleStartingPoint <- startingPoint
+               priorSample <-
+                 if (possibleStartingPoint == IndexedVectorCollection.empty) {
+                   samplePriors
+                 } else {
+                   ResultOrErrIo.fromValue(possibleStartingPoint)
+                 }
                result <-
                  runDynamicSimulationFrom(priorSample, warmUpSimulationCount)
              } yield result

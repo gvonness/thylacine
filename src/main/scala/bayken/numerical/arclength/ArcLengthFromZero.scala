@@ -15,6 +15,23 @@
  */
 
 package ai.entrolution
-package bayken.numerical
+package bayken.numerical.arclength
 
-case class Quadrature(poles: Vector[Double], weights: Vector[Double])
+import bayken.numerical.{
+  PiecewisePolynomial1DSupport,
+  RealValuedFunction,
+  arclength
+}
+
+case class ArcLengthFromZero(piecewisePolynomial: PiecewisePolynomial1DSupport)
+    extends RealValuedFunction {
+
+  private val arcLengthCalculation: ArcLengthCalculation =
+    arclength.ArcLengthCalculation(piecewisePolynomial)
+
+  val arcLengthIntegrand: RealValuedFunction =
+    arcLengthCalculation.arcLengthIntegrand
+
+  override def evalAt(x: Double): Double =
+    arcLengthCalculation.arcLengthBetween(0d, x)
+}

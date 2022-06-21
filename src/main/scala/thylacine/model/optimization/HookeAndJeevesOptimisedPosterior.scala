@@ -27,7 +27,6 @@ case class HookeAndJeevesOptimisedPosterior(
     newMaximumCallback: Double => Unit = _ => (),
     newScaleCallback: Double => Unit = _ => (),
     isConvergedCallback: Unit => Unit = _ => ()
-)(
 ) extends HookeAndJeevesEngine {
 
   override protected val convergenceThreshold: Double =

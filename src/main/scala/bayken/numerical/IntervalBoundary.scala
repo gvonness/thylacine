@@ -17,4 +17,10 @@
 package ai.entrolution
 package bayken.numerical
 
-case class Quadrature(poles: Vector[Double], weights: Vector[Double])
+sealed trait IntervalBoundary {
+  def boundaryValue: Double
+}
+
+case class ClosedBoundary(boundaryValue: Double) extends IntervalBoundary
+
+case class OpenBoundary(boundaryValue: Double) extends IntervalBoundary

@@ -31,6 +31,8 @@ private[thylacine] trait Prior[+BM <: BeliefModel]
 
   protected def priorModel: BM
 
+  final val label: String = identifier.value
+
   override final val posteriorTermIdentifier: TermIdentifier = TermIdentifier(
     identifier.value
   )

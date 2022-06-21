@@ -23,17 +23,17 @@ import thylacine.model.core._
 
 import java.util.UUID
 
-case class GaussianLikelihood(
+case class GaussianLikelihood[T <: ForwardModel](
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
     private[thylacine] override val observations: BelievedData,
-    private[thylacine] override val forwardModel: ForwardModel,
+    private[thylacine] override val forwardModel: T,
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[ForwardModel, GaussianBeliefModel] {
+) extends Likelihood[T, GaussianBeliefModel] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: GaussianLikelihood =
+  private[thylacine] override lazy val getValidated: GaussianLikelihood[T] =
     if (validated) {
       this
     } else {
@@ -47,11 +47,11 @@ case class GaussianLikelihood(
 
 object GaussianLikelihood {
 
-  def apply(
-      forwardModel: ForwardModel,
+  def apply[T <: ForwardModel](
+      forwardModel: T,
       measurements: Vector[Double],
       uncertainties: Vector[Double]
-  ): GaussianLikelihood =
+  ): GaussianLikelihood[T] =
     GaussianLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = BelievedData(

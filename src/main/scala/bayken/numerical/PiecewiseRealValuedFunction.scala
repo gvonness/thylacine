@@ -17,4 +17,10 @@
 package ai.entrolution
 package bayken.numerical
 
-case class Quadrature(poles: Vector[Double], weights: Vector[Double])
+case class PiecewiseRealValuedFunction(
+    functionMapping: PairwiseDisjointDomainMapping[RealValuedFunction]
+) extends RealValuedFunction {
+
+  override def evalAt(x: Double): Double =
+    functionMapping.retrieveMappedEntity(x).map(_.evalAt(x)).getOrElse(0d)
+}

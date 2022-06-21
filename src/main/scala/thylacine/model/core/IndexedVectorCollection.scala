@@ -138,7 +138,10 @@ private[thylacine] object IndexedVectorCollection {
   private[thylacine] def apply(
       labeledLists: Map[String, Vector[Double]]
   ): IndexedVectorCollection =
-    labeledLists.map(i => apply(i._1, i._2)).reduce(_ rawMergeWith _)
+    if (labeledLists.nonEmpty)
+      labeledLists.map(i => apply(i._1, i._2)).reduce(_ rawMergeWith _)
+    else
+      empty
 
   private[thylacine] def merge(
       modelParameters: Seq[IndexedVectorCollection]

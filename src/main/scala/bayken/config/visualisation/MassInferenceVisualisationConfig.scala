@@ -1,7 +1,7 @@
 package ai.entrolution
-package bayken.config
+package bayken.config.visualisation
 
-case class VisualisationConfig(
+case class MassInferenceVisualisationConfig(
     sampleCount: Int,
     graphLineIncrement: Double,
     graphKernelVariance: Double,

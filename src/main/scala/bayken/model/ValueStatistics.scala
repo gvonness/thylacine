@@ -1,21 +1,42 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package bayken.model
 
-import bayken.numerical.LegendreQuadratureBuilder
+import bayken.numerical.LegendreQuadrature
 
 case class ValueStatistics(
-    quadrature: LegendreQuadratureBuilder,
+    quadrature: LegendreQuadrature,
+    lowerBound: Double,
+    upperBound: Double,
     values: List[Double]
 ) {
   assert(quadrature.order == values.size)
 
+  private val polesAndWeights =
+    quadrature.getPolesAndWeights(lowerBound, upperBound)
+
   lazy val definiteIntegral: Double =
-    quadrature.weights.zip(values).map(i => i._1 * i._2).sum
+    polesAndWeights.map(_._2).zip(values).map(i => i._1 * i._2).sum
 
   lazy val normalisedCdf: List[Double] = {
     val (total, unscaledAccumulation) =
       values
-        .zip(quadrature.weights)
+        .zip(polesAndWeights.map(_._2))
         .map(i => i._1 * i._2)
         .foldLeft((0d, List[Double]())) { (i, j) =>
           val currentSum = i._1 + j
@@ -27,13 +48,12 @@ case class ValueStatistics(
 
   lazy val median: Double =
     normalisedCdf
-      .zip(quadrature.poles)
+      .zip(polesAndWeights.map(_._1))
       .minBy(i => Math.abs(i._1 - .5))
       ._2
 
   lazy val integratedMean: Double = {
-    quadrature.weights
-      .zip(quadrature.poles)
+    polesAndWeights
       .map(i => i._1 * i._2)
       .zip(values)
       .map(i => i._1 * i._2)
@@ -42,18 +62,16 @@ case class ValueStatistics(
 
   lazy val standardDeviation: Double =
     Math.sqrt(
-      quadrature.weights
-        .zip(quadrature.poles)
-        .map(i => i._1 * Math.pow(i._2 - integratedMean, 2))
+      polesAndWeights
+        .map(i => i._2 * Math.pow(i._1 - integratedMean, 2))
         .zip(values)
         .map(i => i._1 * i._2)
         .sum / definiteIntegral
     )
 
   def centralNormalisedMoment(momentOrder: Int): Double =
-    quadrature.weights
-      .zip(quadrature.poles)
-      .map(i => i._1 * Math.pow(i._2 - integratedMean, momentOrder.toDouble))
+    polesAndWeights
+      .map(i => i._2 * Math.pow(i._1 - integratedMean, momentOrder.toDouble))
       .zip(values)
       .map(i => i._1 * i._2)
       .sum / Math.pow(integratedMean, momentOrder.toDouble)
