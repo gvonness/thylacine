@@ -1,40 +1,18 @@
 package ai.entrolution
 package bayken.model.measurement
 
-import bayken.config.MassInferenceConfig
-import bayken.model.ken.BladeGeometry
+import bayken.model.ken.ShinkenGeometry
 import bayken.numerical._
 
+// Should this just be merged into Blade Geometry?
 case class BalanceBeamExperimentProcessor(
-    bladeGeometry: BladeGeometry,
-    inferenceParameters: MassInferenceConfig
+    bladeGeometry: ShinkenGeometry
 ) {
 
-  private val bladePolesAndWeights: Seq[(Double, Double)] =
-    bladeGeometry.tangArcLength match {
-      case Some(tangArcLength) =>
-        LegendreQuadrature(inferenceParameters.tangQuadratureSize)
-          .getPolesAndWeights(0, tangArcLength) ++ LegendreQuadrature(
-          inferenceParameters.bladeQuadratureSize
-        ).getPolesAndWeights(tangArcLength, bladeGeometry.bladeArcLength)
-      case None =>
-        LegendreQuadrature(inferenceParameters.tangQuadratureSize)
-          .getPolesAndWeights(0, bladeGeometry.tsubaBoundaryArcLengths.head) ++
-          LegendreQuadrature(
-            2
-          ).getPolesAndWeights(bladeGeometry.tsubaBoundaryArcLengths.head,
-                               bladeGeometry.tsubaBoundaryArcLengths.last
-          ) ++ LegendreQuadrature(
-            inferenceParameters.bladeQuadratureSize
-          ).getPolesAndWeights(bladeGeometry.tsubaBoundaryArcLengths.last,
-                               bladeGeometry.bladeArcLength
-          )
-    }
-
-  private val rotationCalculator
-      : AxesRotationAndOffset[PiecewisePolynomial1DSupport] =
-    AxesRotationAndOffset(bladeGeometry.baseMuneModel,
-                          inferenceParameters.rotationalFitTolerance
+  private val rotationCalculator: AxesRotationAndOffset[PiecewisePolynomial1DSupport] =
+    AxesRotationAndOffset(bladeGeometry.backEdgeModel,
+                          bladeGeometry.kissakeSakiPoint.x,
+                          bladeGeometry.inferenceConfig.rotationalFitTolerance
     )
 
   def totalMassMeasurement(
@@ -42,9 +20,32 @@ case class BalanceBeamExperimentProcessor(
       massUncertainty: Double
   ): MeasurementRow =
     MeasurementRow(
-      bladePolesAndWeights.map(_._2).toList,
+      bladeGeometry.massInferencePolesAndWeights.map(_._2),
       kenMass,
-      massUncertainty
+      massUncertainty,
+      cs => bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues(cs)
+    )
+
+  // Tip is taken to have 0 mass per length
+  def zeroMassAtTipMeasurement(
+      massUncertainty: Double
+  ): MeasurementRow =
+    MeasurementRow(
+      List.fill(bladeGeometry.massInferencePolesAndWeights.size - 1)(0d) :+ 1d,
+      0d,
+      massUncertainty / 100.0,
+      cs => bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues(cs)
+    )
+
+  // Mass is continuous at Kissake
+  def massContinuousAroundKissake(
+      massUncertainty: Double
+  ): MeasurementRow =
+    MeasurementRow(
+      bladeGeometry.quadratureKissakeBoundaryIsolated,
+      0d,
+      massUncertainty / 100.0,
+      cs => bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues(cs)
     )
 
   def processExperiment(
@@ -52,36 +53,35 @@ case class BalanceBeamExperimentProcessor(
   ): Seq[MeasurementRow] = {
     val fulcrumPoint =
       Point2D(measurement.fulcrumPosition, measurement.fulcrumHeight)
-    val counterWeightPoint = Point2D(measurement.counterWeightPosition,
-                                     measurement.counterWeightHeight
-    )
+    val counterWeightPoint = Point2D(measurement.counterWeightPosition, measurement.counterWeightHeight)
 
-    val rotationAngle: Double = rotationCalculator.getRotationCorrectionFor(
-      fulcrumPoint,
-      counterWeightPoint
-    )
+    val (rotationAngle: Double, fulcrumOrigin: Point2D, counterWeightOrigin: Point2D) = rotationCalculator
+      .getRotationCorrectionFor(
+        fulcrumPoint,
+        counterWeightPoint,
+        measurement.kissakeSakiPosition
+      )
+      .get
 
-    val muneModel: PiecewisePolynomial1DSupport =
-      bladeGeometry.rotateMuneModel(rotationAngle)
-
-    def getCoefficients(fulcrumPos: Double): List[Double] = {
+    def getCoefficients(fulcrumPos: Point2D): List[Double] = {
       val torqueIntegrand: RealValuedFunction =
-        bladeGeometry.torqueIntegrand(fulcrumPosition = fulcrumPos, muneModel)
+        bladeGeometry.torqueIntegrand(fulcrumPosition = fulcrumPos, rotationAngle)
 
-      bladePolesAndWeights
+      bladeGeometry.massInferencePolesAndWeights
         .map(pw => torqueIntegrand.evalAt(pw._1) * pw._2)
-        .toList
     }
 
     Seq(MeasurementRow(
-          getCoefficients(fulcrumPoint.x),
+          getCoefficients(fulcrumOrigin),
           measurement.solveConstant,
-          measurement.uncertainty
+          measurement.uncertainty,
+          bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues
         ),
         MeasurementRow(
-          getCoefficients(counterWeightPoint.x),
+          getCoefficients(counterWeightOrigin),
           measurement.dualSolveConstant,
-          measurement.dualUncertainty
+          measurement.dualUncertainty,
+          bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues
         )
     )
   }

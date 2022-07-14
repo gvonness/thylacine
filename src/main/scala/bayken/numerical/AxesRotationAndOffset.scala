@@ -26,44 +26,42 @@ import scala.annotation.tailrec
 // holder placement
 case class AxesRotationAndOffset[+T <: RealValuedFunction](
     fn: DifferentiableRealValuedFunction[T],
+    xt: Double,
     tolerance: Double
 ) {
 
   private def getNextIteration(
       p1: Point2D,
       p2: Point2D,
+      xp: Double,
       guess: DenseVector[Double]
   ): DenseVector[Double] =
     guess.toScalaVector.toList match {
-      case theta :: y :: l1 :: l2 :: _ =>
+      case theta :: x :: y :: l1 :: l2 :: _ =>
         val cosT = Math.cos(theta)
         val sinT = Math.sin(theta)
         val fl1  = fn.evalAt(l1)
         val fl2  = fn.evalAt(l2)
         val dfl1 = fn.derivative.evalAt(l1)
         val dfl2 = fn.derivative.evalAt(l2)
+        val ft   = fn.evalAt(xt)
 
-        val Jacobian = DenseMatrix.zeros[Double](4, 4)
+        val Jacobian = DenseMatrix.zeros[Double](5, 5)
 
         Jacobian(0, ::) := DenseVector(
-          List[Double](-l1 * sinT - fl1 * cosT,
-                       0,
-                       cosT - dfl1 * sinT,
-                       0
-          ).toArray
+          List[Double](-l1 * sinT - fl1 * cosT, 1, 0, cosT - dfl1 * sinT, 0).toArray
         ).t
         Jacobian(1, ::) := DenseVector(
-          List[Double](l1 * cosT - fl1 * sinT, 1, sinT + dfl1 * sinT, 0).toArray
+          List[Double](l1 * cosT - fl1 * sinT, 0, 1, sinT + dfl1 * sinT, 0).toArray
         ).t
         Jacobian(2, ::) := DenseVector(
-          List[Double](-l2 * sinT - fl2 * cosT,
-                       0,
-                       0,
-                       cosT - dfl2 * sinT
-          ).toArray
+          List[Double](-l2 * sinT - fl2 * cosT, 1, 0, 0, cosT - dfl2 * sinT).toArray
         ).t
         Jacobian(3, ::) := DenseVector(
-          List[Double](l2 * cosT - fl2 * sinT, 1, 0, sinT + dfl2 * cosT).toArray
+          List[Double](l2 * cosT - fl2 * sinT, 0, 1, 0, sinT + dfl2 * cosT).toArray
+        ).t
+        Jacobian(4, ::) := DenseVector(
+          List[Double](-xt * sinT - ft * cosT, 1, 0, 0, 0).toArray
         ).t
 
         val inverseJacobian = inv(Jacobian)
@@ -71,37 +69,44 @@ case class AxesRotationAndOffset[+T <: RealValuedFunction](
         DenseVector(
           List(theta, y, l1, l2).toArray
         ) - inverseJacobian * DenseVector(
-          List(l1 * cosT - fl1 * sinT - p1.x,
+          List(l1 * cosT - fl1 * sinT + x - p1.x,
                l1 * sinT + fl1 * cosT + y - p1.y,
-               l2 * cosT - fl2 * sinT - p2.x,
-               l2 * sinT + fl2 * cosT + y - p2.y
+               l2 * cosT - fl2 * sinT + x - p2.x,
+               l2 * sinT + fl2 * cosT + y - p2.y,
+               xt * cosT - ft * sinT + x - xp
           ).toArray
         )
       case _ =>
-        DenseVector.zeros[Double](4)
+        DenseVector.zeros[Double](5)
     }
 
   @tailrec
   private def evalRecursion(
       p1: Point2D,
       p2: Point2D,
+      xp: Double,
       x: DenseVector[Double],
       currentIteration: Int
   ): DenseVector[Double] = {
-    val nextNewtonMethodStep: DenseVector[Double] = getNextIteration(p1, p2, x)
+    val nextNewtonMethodStep: DenseVector[Double] = getNextIteration(p1, p2, xp, x)
 
     if (norm(x - nextNewtonMethodStep) <= tolerance) {
       nextNewtonMethodStep
     } else {
-      evalRecursion(p1, p2, nextNewtonMethodStep, currentIteration + 1)
+      evalRecursion(p1, p2, xp, nextNewtonMethodStep, currentIteration + 1)
     }
   }
 
-  def getRotationCorrectionFor(p1: Point2D, p2: Point2D): Double = {
+  def getRotationCorrectionFor(p1: Point2D, p2: Point2D, xp: Double): Option[(Double, Point2D, Point2D)] = {
     val initialGuess = DenseVector(
-      List(0, (p1.y + p2.y) / 2.0, p1.x, p2.x).toArray
+      List(0, 0, (p1.y + p2.y) / 2.0, p1.x, p2.x).toArray
     )
 
-    evalRecursion(p1, p2, initialGuess, 0).toScalaVector.toList.head
+    evalRecursion(p1, p2, xp, initialGuess, 0).toScalaVector.toList match {
+      case theta :: _ :: _ :: l1 :: l2 :: _ =>
+        Some((theta, Point2D(l1, fn.evalAt(l1)), Point2D(l2, fn.evalAt(l2))))
+      case _ =>
+        None
+    }
   }
 }

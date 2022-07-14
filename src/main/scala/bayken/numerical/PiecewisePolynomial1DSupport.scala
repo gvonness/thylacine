@@ -17,14 +17,9 @@
 package ai.entrolution
 package bayken.numerical
 
+import bayken.numerical.Interval1D.{NegativeUnbounded, OrderedBoundedInterval1D, PositiveUnbounded}
+import bayken.numerical.Interval1DCollection.NontrivialInterval1DCollection
 import bayken.numerical.Polynomial1D.NonTrivialPolynomial
-
-import ai.entrolution.bayken.numerical.Interval1D.{
-  NegativeUnbounded,
-  OrderedBoundedInterval1D,
-  PositiveUnbounded
-}
-import ai.entrolution.bayken.numerical.Interval1DCollection.NontrivialInterval1DCollection
 
 // Piecewise polynomial support; i.e. it is only necessary to define the non-trivial
 // function (support). This class is closed under differentiation (i.e. derivatives
@@ -66,8 +61,7 @@ object PiecewisePolynomial1DSupport {
         Set(PositiveUnbounded(ClosedBoundary(boundaries.head)))
       )
 
-    val unboundedPolnomialFirst
-        : Map[NontrivialInterval1DCollection, NonTrivialPolynomial] = Map(
+    val unboundedPolnomialFirst: Map[NontrivialInterval1DCollection, NonTrivialPolynomial] = Map(
       lowerDomain -> Polynomial1D.fit(
         points.filter(p => lowerDomain.contains(p.x)).toList,
         polnomialOrders.head
@@ -93,14 +87,61 @@ object PiecewisePolynomial1DSupport {
             .map { i =>
               val domain = NontrivialInterval1DCollection(
                 Set(
-                  OrderedBoundedInterval1D(ClosedBoundary(i._1._1),
-                                           OpenBoundary(i._1._2)
-                  )
+                  OrderedBoundedInterval1D(ClosedBoundary(i._1._1), OpenBoundary(i._1._2))
                 )
               )
 
               domain -> Polynomial1D
                 .fit(points.filter(p => domain.contains(p.x)).toList, i._2)
+            }
+            .toMap
+        )
+      )
+    }
+  }
+
+  def constructPiecewisePolynomial(
+      boundaries: Seq[Double],
+      nonTrivialPolynomials: Seq[NonTrivialPolynomial]
+  ): PiecewisePolynomial1DSupport = {
+    assert(boundaries.size + 1 == nonTrivialPolynomials.size)
+    assert(boundaries.nonEmpty)
+
+    val lowerDomain: NontrivialInterval1DCollection =
+      NontrivialInterval1DCollection(
+        Set(NegativeUnbounded(OpenBoundary(boundaries.head)))
+      )
+
+    val upperDomain: NontrivialInterval1DCollection =
+      NontrivialInterval1DCollection(
+        Set(PositiveUnbounded(ClosedBoundary(boundaries.head)))
+      )
+
+    val unboundedPolnomialFirst: Map[NontrivialInterval1DCollection, NonTrivialPolynomial] = Map(
+      lowerDomain -> nonTrivialPolynomials.head,
+      upperDomain -> nonTrivialPolynomials.last
+    )
+
+    if (boundaries.size == 1) {
+      PiecewisePolynomial1DSupport(
+        PairwiseDisjointDomainMapping(
+          unboundedPolnomialFirst
+        )
+      )
+    } else {
+      PiecewisePolynomial1DSupport(
+        PairwiseDisjointDomainMapping[NonTrivialPolynomial](
+          unboundedPolnomialFirst ++ boundaries.init
+            .zip(boundaries.tail)
+            .zip(nonTrivialPolynomials.tail.init)
+            .map { i =>
+              val domain = NontrivialInterval1DCollection(
+                Set(
+                  OrderedBoundedInterval1D(ClosedBoundary(i._1._1), OpenBoundary(i._1._2))
+                )
+              )
+
+              domain -> i._2
             }
             .toMap
         )

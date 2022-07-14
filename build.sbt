@@ -35,9 +35,11 @@ libraryDependencies += "org.typelevel"          %% "cats-free"                  
 libraryDependencies += "org.typelevel"          %% "cats-effect"                % "3.3.4"
 libraryDependencies += "org.scalatest"          %% "scalatest"                  % "3.2.11" % "test"
 // Bayken dep
-libraryDependencies += "com.opencsv"            % "opencsv"    % "5.5.2"
-libraryDependencies += "com.lihaoyi"           %% "os-lib"     % "0.7.8"
-libraryDependencies += "com.github.pureconfig" %% "pureconfig" % "0.17.1"
+libraryDependencies += "com.opencsv"            % "opencsv"               % "5.5.2"
+libraryDependencies += "com.lihaoyi"           %% "os-lib"                % "0.7.8"
+libraryDependencies += "com.beachape"          %% "enumeratum"            % "1.7.0"
+libraryDependencies += "com.github.pureconfig" %% "pureconfig"            % "0.17.1"
+libraryDependencies += "com.github.pureconfig" %% "pureconfig-enumeratum" % "0.17.1"
 libraryDependencies ++= Seq(
   "com.github.nscala-time" %% "nscala-time" % "2.26.0",
   "jline"                   % "jline"       % "2.13"

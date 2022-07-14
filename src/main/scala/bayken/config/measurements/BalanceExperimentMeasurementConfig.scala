@@ -3,8 +3,10 @@ package bayken.config.measurements
 
 case class BalanceExperimentMeasurementConfig(
     fulcrumPosition: Double,
-    fulcrumHeight: Double,
+    fulcrumHeight: Option[Double],
     counterWeightPosition: Double,
-    counterWeightHeight: Double,
-    counterWeightMass: Double
+    counterWeightHeight: Option[Double],
+    counterWeightMass: Double,
+    kissakeSakiPosition: Option[Double],
+    kashiraPosition: Option[Double]
 )

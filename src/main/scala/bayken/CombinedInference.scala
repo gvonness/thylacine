@@ -19,7 +19,7 @@ package bayken
 
 import bayken.config._
 import bayken.config.measurements._
-import bayken.model.ken.BladeGeometry
+import bayken.model.ken.{ShinkenGeometry, ShinkenSectionLabel}
 import bayken.model.measurement.{BalanceBeamExperimentProcessor, MeasurementRow}
 import thylacine.model.components.forwardmodel.NonLinearFiniteDifferenceInMemoryMemoizedForwardModel
 import thylacine.model.components.likelihood.GaussianLikelihood
@@ -28,8 +28,9 @@ import thylacine.model.components.prior.{GaussianPrior, UniformPrior}
 import thylacine.model.optimization.HookeAndJeevesOptimisedPosterior
 import thylacine.model.sampling.hmcmc.HmcmcPosteriorSampler
 
-import breeze.linalg.{DenseMatrix, DenseVector}
+import cats.Parallel
 import cats.effect.IO
+import cats.effect.implicits._
 import cats.effect.unsafe.IORuntime
 import cats.implicits._
 import os.Path
@@ -37,7 +38,7 @@ import os.Path
 object CombinedInference {
 
   def runAndVisualize(
-      kenConfig: KenConfig,
+      kenConfig: ShinkenConfig,
       resultPath: Path
   )(implicit ior: IORuntime): Unit = {
     println(
@@ -48,10 +49,17 @@ object CombinedInference {
       s"Setting up inference..."
     )
 
-    val data: KenMeasurements               = kenConfig.measurements
-    val rawMunePoints: Seq[MunePointConfig] = data.components.blade.geometry
+    val data: ShinkenMeasurements               = kenConfig.measurements
+    val rawMunePoints: Seq[BackEdgePointConfig] = data.pointMeasurements
     val uncertainties: MeasurementUncertaintiesConfig =
       data.measurementUncertainties
+    val measuredSections: Seq[ShinkenSectionLabel] =
+      rawMunePoints.map(_.shinkenSection).distinct
+    val massPerLengthParametrisationDimension: Int = measuredSections.flatMap { bSec =>
+      kenConfig.inferenceParameters.bladeSectionParameters
+        .find(sec => bSec == sec.label)
+        .map(_.massPolynomialFitOrder)
+    }.sum
 
     // ------------- -------- ----- --- -- - -
     // Prior Construction
@@ -62,8 +70,7 @@ object CombinedInference {
         GaussianPrior(
           label = "mune-x-uncertainty",
           values = rawMunePoints.map(_.x).toVector,
-          confidenceIntervals =
-            List.fill(rawMunePoints.size)(xUncertainty).toVector
+          confidenceIntervals = List.fill(rawMunePoints.size)(xUncertainty).toVector
         )
       }
 
@@ -72,83 +79,132 @@ object CombinedInference {
         GaussianPrior(
           label = "mune-y-uncertainty",
           values = rawMunePoints.map(_.y).toVector,
-          confidenceIntervals =
-            List.fill(rawMunePoints.size)(yUncertainty).toVector
+          confidenceIntervals = List.fill(rawMunePoints.size)(yUncertainty).toVector
         )
       }
 
     val bladeWidthPrior: Option[GaussianPrior] =
       uncertainties.bladeWidthUncertainty.map { widthUncertainty =>
-        val widths: Seq[Double] = rawMunePoints.flatMap(_.width)
+        val widths: Seq[Double] = rawMunePoints.flatMap(_.haba)
 
         GaussianPrior(
           label = "blade-width-uncertainty",
           values = widths.toVector,
-          confidenceIntervals =
-            List.fill(widths.size)(widthUncertainty).toVector
+          confidenceIntervals = List.fill(widths.size)(widthUncertainty).toVector
         )
       }
 
-    // We use a maximum entropy prior with the constraints of
-    // mass-per-length is a physical quantity (i.e. non-negative)
-    // and taking into account that Tsuba can spike this value very
-    // high (can be 170g+ in .5cm for heavy Tsuba).
-    // More information on the importance of this prior can be found
-    // in the write-up in the `docs` directory
+    val useStaticGeometry: Boolean =
+      xPointMeasurementPrior.isEmpty && yPointMeasurementPrior.isEmpty && bladeWidthPrior.isEmpty
+
+    // We parameterise mass-per-length as piecewise polynomial coefficients
+    // corresponding to the measured geometry of the blade. This model enables
+    // us to account for expected jumps in mass density (due to the sword be
+    // constructed of heteroenous parts) while suppressing high-frequency, deconvolution
+    // noise. We use an 'effective' max-entropy (uniform) prior with bounds
+    // set to easily encompass any physically-realistic parametrisation
     val massPerLengthPrior: UniformPrior =
       UniformPrior(
-        label = "mass-per-length",
-        minBounds = Vector.fill(kenConfig.massInferenceOrder)(0d),
-        maxBounds = Vector.fill(kenConfig.massInferenceOrder)(500d)
+        label = "mass-per-length-parametrization",
+        minBounds = Vector.fill(massPerLengthParametrisationDimension)(-10000),
+        maxBounds = Vector.fill(massPerLengthParametrisationDimension)(10000)
       )
 
     // ------------- -------- ----- --- -- - -
     // Likelihood Construction
     // - - -- --- ----- -------- -------------
 
+    // While we generally try to avoid IO on this layer to keep the code
+    // as readable as possible (given the number of mathematical
+    // manipulations), here there is a canonical point to parallelise
+    // across experiment measurements, as each requires a new set
+    // of blade geometry calculations.
+
+    def getMeasurementRows(
+        input: Map[String, Vector[Double]]
+    ): (BalanceBeamExperimentProcessor, IO[Seq[MeasurementRow]]) = {
+      lazy val bladeGeometry: ShinkenGeometry = ShinkenGeometry(
+        rawMunePoints = rawMunePoints.toList,
+        inferenceConfig = kenConfig.inferenceParameters,
+        munePointXOverride = xPointMeasurementPrior.flatMap(p =>
+          input
+            .get(p.label)
+            .map(_.toList)
+        ),
+        munePointYOverride = yPointMeasurementPrior.flatMap(p =>
+          input
+            .get(p.label)
+            .map(_.toList)
+        ),
+        habaOverride = bladeWidthPrior.flatMap(p =>
+          input
+            .get(p.label)
+            .map(_.toList)
+        )
+      )
+
+      lazy val experimentProcessor: BalanceBeamExperimentProcessor =
+        BalanceBeamExperimentProcessor(bladeGeometry)
+
+      lazy val rows: IO[Seq[MeasurementRow]] =
+        Parallel
+          .parSequence(
+            kenConfig.measurements.measurementModels.map { mm =>
+              IO(experimentProcessor.processExperiment(mm))
+            } ++ Seq(
+              IO(
+                Seq(
+                  experimentProcessor.totalMassMeasurement(
+                    kenConfig.measurements.shinkenMass,
+                    kenConfig.measurements.measurementUncertainties.massUncertainty
+                  )
+                )
+              ),
+              IO(
+                Seq(
+                  experimentProcessor.zeroMassAtTipMeasurement(
+                    kenConfig.measurements.measurementUncertainties.massUncertainty
+                  )
+                )
+              ),
+              IO(
+                Seq(
+                  experimentProcessor.massContinuousAroundKissake(
+                    kenConfig.measurements.measurementUncertainties.massUncertainty
+                  )
+                )
+              )
+            )
+          )
+          .map(_.flatten)
+
+      (experimentProcessor, rows)
+    }
+
+    lazy val (staticExperiementProcessor: BalanceBeamExperimentProcessor,
+              staticMeasurementRows: IO[Seq[MeasurementRow]]
+    ) =
+      getMeasurementRows(Map())
+
     def forwardModelCoreMapping(
         input: Map[String, Vector[Double]]
     ): Vector[Double] = {
-      val experimentProcessor: BalanceBeamExperimentProcessor =
-        BalanceBeamExperimentProcessor(BladeGeometry(
-                                         rawMunePoints = rawMunePoints.toList,
-                                         munePointXOverride =
-                                           xPointMeasurementPrior.flatMap(p =>
-                                             input
-                                               .get(p.label)
-                                               .map(_.toList)
-                                           ),
-                                         munePointYOverride =
-                                           yPointMeasurementPrior.flatMap(p =>
-                                             input
-                                               .get(p.label)
-                                               .map(_.toList)
-                                           ),
-                                         bladeWidthOverride =
-                                           bladeWidthPrior.flatMap(p =>
-                                             input
-                                               .get(p.label)
-                                               .map(_.toList)
-                                           )
-                                       ),
-                                       kenConfig.inferenceParameters
-        )
+      val massCoefficients = input(massPerLengthPrior.label)
 
-      val measurementRows: Seq[MeasurementRow] =
-        kenConfig.measurements.measurementModels.flatMap { mm =>
-          experimentProcessor.processExperiment(mm)
-        } ++ Seq(
-          experimentProcessor.totalMassMeasurement(
-            kenConfig.measurements.kenMass,
-            kenConfig.measurements.measurementUncertainties.massUncertainty
-          )
-        )
+      val resultIo = for {
+        rows <- if (useStaticGeometry) {
+                  staticMeasurementRows
+                } else {
+                  getMeasurementRows(input)._2
+                }
+        result <- rows.parTraverse(r =>
+                    IO(r.massCoefficientMapping(massCoefficients)).map(res =>
+                      r.rowCoefficients.zip(res).map(i => i._1 * i._2).sum
+                    )
+                  )
+      } yield result.toVector
 
-      (DenseMatrix(
-        measurementRows.toList.map(_.rowCoefficients.toArray): _*
-      ) * DenseVector(
-        input(massPerLengthPrior.label).toArray
-      )).toScalaVector
+      resultIo.unsafeRunSync()
     }
 
     val collectedPriors = List(
@@ -172,12 +228,10 @@ object CombinedInference {
           .00000001,
           forwardModelDomain.values.sum * 2
         ),
-        kenConfig.measurements.measurementModels.flatMap(mm =>
-          Seq(mm.solveConstant, mm.dualSolveConstant)
-        ) ++ Seq(kenConfig.measurements.kenMass),
-        kenConfig.measurements.measurementModels.flatMap(mm =>
-          Seq(mm.uncertainty, mm.dualUncertainty)
-        ) ++ Seq(
+        kenConfig.measurements.measurementModels.flatMap(mm => Seq(mm.solveConstant, mm.dualSolveConstant)) ++ Seq(
+          kenConfig.measurements.shinkenMass
+        ),
+        kenConfig.measurements.measurementModels.flatMap(mm => Seq(mm.uncertainty, mm.dualUncertainty)) ++ Seq(
           kenConfig.measurements.measurementUncertainties.massUncertainty
         )
       )
@@ -200,21 +254,18 @@ object CombinedInference {
 
     val posteriorOptimiser: HookeAndJeevesOptimisedPosterior =
       HookeAndJeevesOptimisedPosterior(
-        hookeAndJeevesConfig =
-          kenConfig.inferenceParameters.hookesAndJeevesParams,
+        hookeAndJeevesConfig = kenConfig.inferenceParameters.hookesAndJeevesParameters,
         posterior = posterior,
         newMaximumCallback = nm =>
           println(
             s"Hooke & Jeeves Optimisation: New posterior maximum found of $nm"
           ),
-        newScaleCallback =
-          ns => println(s"Hooke & Jeeves Optimisation: Rescaling to $ns"),
-        isConvergedCallback =
-          _ => println(s"Hooke & Jeeves Optimisation: Has converged!")
+        newScaleCallback = ns => println(s"Hooke & Jeeves Optimisation: Rescaling to $ns"),
+        isConvergedCallback = _ => println(s"Hooke & Jeeves Optimisation: Has converged!")
       )
 
     val posteriorSampler = HmcmcPosteriorSampler(
-      hmcmcConfig = kenConfig.inferenceParameters.hmcmcParams,
+      hmcmcConfig = kenConfig.inferenceParameters.hmcmcParameters,
       posterior = posterior,
       sampleRequestSetCallback = samplesRequestsCount =>
         println(
@@ -232,45 +283,28 @@ object CombinedInference {
     )
 
     val samples: IO[List[Map[String, Vector[Double]]]] =
-      (0 until kenConfig.visualisationParameters.sampleCount).toList.parTraverse {
-        _ =>
-          posteriorSampler.sample
+      (0 until kenConfig.visualisationParameters.sampleCount).toList.parTraverse { _ =>
+        posteriorSampler.sample
       }
 
-    // If we have not recorded uncertainties in geometry measurements, there
-    // is no need to recalculate the geometry for the samples
-    lazy val baseExperimentProcessor =
-      BalanceBeamExperimentProcessor(
-        BladeGeometry(rawMunePoints = rawMunePoints.toList, None, None, None),
-        kenConfig.inferenceParameters
-      )
-
     // For each sample, we need to get the coordinate system
+    // Note that if the geometry isn't part of the sampling
+    // recalculation we fall back to the static geometry
     def getGeometry(
         sample: Map[String, Vector[Double]]
     ): BalanceBeamExperimentProcessor =
-      if (
-        uncertainties.munePointXUncertainty.isDefined || uncertainties.munePointYUncertainty.isDefined || uncertainties.bladeWidthUncertainty.isDefined
-      ) {
-        BalanceBeamExperimentProcessor(BladeGeometry(
-                                         rawMunePoints = rawMunePoints.toList,
-                                         munePointXOverride =
-                                           xPointMeasurementPrior.flatMap(p =>
-                                             sample.get(p.label).map(_.toList)
-                                           ),
-                                         munePointYOverride =
-                                           yPointMeasurementPrior.flatMap(p =>
-                                             sample.get(p.label).map(_.toList)
-                                           ),
-                                         bladeWidthOverride =
-                                           bladeWidthPrior.flatMap(p =>
-                                             sample.get(p.label).map(_.toList)
-                                           )
-                                       ),
-                                       kenConfig.inferenceParameters
+      if (!useStaticGeometry) {
+        BalanceBeamExperimentProcessor(
+          ShinkenGeometry(
+            rawMunePoints = rawMunePoints.toList,
+            inferenceConfig = kenConfig.inferenceParameters,
+            munePointXOverride = xPointMeasurementPrior.flatMap(p => sample.get(p.label).map(_.toList)),
+            munePointYOverride = yPointMeasurementPrior.flatMap(p => sample.get(p.label).map(_.toList)),
+            habaOverride = bladeWidthPrior.flatMap(p => sample.get(p.label).map(_.toList))
+          )
         )
       } else {
-        baseExperimentProcessor
+        staticExperiementProcessor
       }
 
     println(

@@ -19,8 +19,7 @@ package bayken.numerical
 
 import breeze.linalg.{DenseMatrix, DenseVector}
 
-sealed trait Polynomial1D
-    extends DifferentiableRealValuedFunction[Polynomial1D] {
+sealed trait Polynomial1D extends DifferentiableRealValuedFunction[Polynomial1D] {
   val coefficients: List[Double]
   final lazy val order = coefficients.size - 1
 }
@@ -57,8 +56,47 @@ object Polynomial1D {
       .asInstanceOf[NonTrivialPolynomial]
   }
 
-  case class NonTrivialPolynomial(coefficients: List[Double])
-      extends Polynomial1D {
+  // Fit minimum order that will touch all points. There are more efficient
+  // ways to do this; but this isn't imagined to have a big impact
+  // on computation, given the generally low-order nature of the polynomials
+  // used in the inference.
+  def fit(points: List[Point2D]): NonTrivialPolynomial =
+    fit(points, points.size - 1)
+
+  // Extend the Vandermonde matrix to include rows specifying derivatives
+  // for the polynomial
+  def fit(points: List[Point2D], derivatives: List[Point2D], order: Int): NonTrivialPolynomial = {
+    assert(points.map(_.x).toSet.size == points.size)
+    assert(derivatives.map(_.x).toSet.size == derivatives.size)
+
+    val xMat = DenseMatrix.zeros[Double](points.size + derivatives.size, order + 1)
+
+    points.foldLeft(0) { (i, j) =>
+      xMat(i, ::) := DenseVector(
+        (0 to order).map(k => Math.pow(j.x, k.toDouble)).toArray
+      ).t
+      i + 1
+    }
+
+    derivatives.foldLeft(points.size) { (i, j) =>
+      xMat(i, ::) := DenseVector(
+        (0d +: (1 to order).map(k => k * Math.pow(j.x, (k - 1).toDouble))).toArray
+      ).t
+      i + 1
+    }
+
+    val y = DenseVector(points.map(_.y).toArray)
+
+    Polynomial1D(((xMat.t * xMat) \ (xMat.t * y)).toArray.toList)
+      .asInstanceOf[NonTrivialPolynomial]
+  }
+
+  // Fit to get a polynomial guaranteed to touch all points and
+  // align to all derivatives
+  def fit(points: List[Point2D], derivatives: List[Point2D]): NonTrivialPolynomial =
+    fit(points, derivatives, points.size + derivatives.size - 1)
+
+  case class NonTrivialPolynomial(coefficients: List[Double]) extends Polynomial1D {
     assert(coefficients.exists(i => i != 0))
 
     override lazy val derivative: Polynomial1D =

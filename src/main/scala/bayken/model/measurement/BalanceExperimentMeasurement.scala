@@ -17,12 +17,10 @@
 package ai.entrolution
 package bayken.model.measurement
 
-import bayken.config._
-
-import ai.entrolution.bayken.config.measurements.{
+import bayken.config.measurements.{
   BalanceExperimentMeasurementConfig,
-  KenMeasurements,
-  MeasurementUncertaintiesConfig
+  MeasurementUncertaintiesConfig,
+  ShinkenMeasurements
 }
 
 case class BalanceExperimentMeasurement(
@@ -31,7 +29,9 @@ case class BalanceExperimentMeasurement(
     counterWeightPosition: Double,
     counterWeightHeight: Double,
     counterWeightMass: Double,
-    kenMass: Double,
+    kissakeSakiPosition: Option[Double],
+    kashiraPosition: Option[Double],
+    shinkenMass: Double,
     uncertainties: MeasurementUncertaintiesConfig
 ) {
 
@@ -42,34 +42,36 @@ case class BalanceExperimentMeasurement(
     (counterWeightPosition - fulcrumPosition) * counterWeightMass
 
   val uncertainty: Double =
-    2 * uncertainties.positionUncertainty * counterWeightMass + Math
+    2 * uncertainties.holderPositionUncertainty * counterWeightMass + Math
       .abs(
         fulcrumPosition - counterWeightPosition
-      ) * massUncertainty + 2 * massUncertainty * uncertainties.positionUncertainty
+      ) * massUncertainty + 2 * massUncertainty * uncertainties.holderPositionUncertainty
 
   lazy val dualSolveConstant: Double =
-    (fulcrumPosition - counterWeightPosition) * (kenMass - counterWeightMass)
+    (fulcrumPosition - counterWeightPosition) * (shinkenMass - counterWeightMass)
 
   lazy val dualUncertainty: Double =
-    2 * uncertainties.positionUncertainty * (kenMass - counterWeightMass) + Math
+    2 * uncertainties.holderPositionUncertainty * (shinkenMass - counterWeightMass) + Math
       .abs(
         fulcrumPosition - counterWeightPosition
-      ) * 2 * counterWeightMass + 4 * uncertainties.positionUncertainty * massUncertainty
+      ) * 2 * counterWeightMass + 4 * uncertainties.holderPositionUncertainty * massUncertainty
 }
 
 object BalanceExperimentMeasurement {
 
   def apply(
       rawMeasurement: BalanceExperimentMeasurementConfig,
-      kenData: KenMeasurements
+      kenData: ShinkenMeasurements
   ): BalanceExperimentMeasurement =
     BalanceExperimentMeasurement(
       rawMeasurement.fulcrumPosition,
-      rawMeasurement.fulcrumHeight,
+      rawMeasurement.fulcrumHeight.getOrElse(0d),
       rawMeasurement.counterWeightPosition,
-      rawMeasurement.counterWeightHeight,
+      rawMeasurement.counterWeightHeight.getOrElse(0d),
       rawMeasurement.counterWeightMass,
-      kenData.kenMass,
+      rawMeasurement.kissakeSakiPosition,
+      rawMeasurement.kashiraPosition,
+      kenData.shinkenMass,
       kenData.measurementUncertainties
     )
 }

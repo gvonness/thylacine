@@ -20,5 +20,6 @@ package bayken.model.measurement
 case class MeasurementRow(
     rowCoefficients: List[Double],
     solveConstant: Double,
-    uncertainty: Double
+    uncertainty: Double,
+    massCoefficientMapping: Vector[Double] => List[Double]
 )

@@ -19,13 +19,15 @@ package bayken
 
 import bayken.config._
 import bayken.config.measurements.MeasurementUncertaintiesConfig
-import bayken.config.visualisation.MassInferenceVisualisationConfig
+import bayken.config.visualisation.ProbabalisticVisualisationConfig
 import thylacine.config._
 
+import bayken.config.inference.MassInferenceConfig
 import cats.effect.unsafe.implicits.global
 import os.Path
 import pureconfig.ConfigSource
 import pureconfig.generic.auto._
+import pureconfig.module.enumeratum._
 
 object BayKen {
   val baseConfigLabel      = "bayken."
@@ -40,10 +42,10 @@ object BayKen {
       .at(baseConfigLabel + "uncertainties-defaults")
       .loadOrThrow[MeasurementUncertaintiesConfig]
 
-  lazy val visualisationConfigDefault: MassInferenceVisualisationConfig =
+  lazy val visualisationConfigDefault: ProbabalisticVisualisationConfig =
     ConfigSource.default
       .at(baseConfigLabel + "visualisation-defaults")
-      .loadOrThrow[MassInferenceVisualisationConfig]
+      .loadOrThrow[ProbabalisticVisualisationConfig]
 
   lazy val inferenceConfigDefault: MassInferenceConfig =
     ConfigSource.default
@@ -58,30 +60,21 @@ object BayKen {
   def main(args: Array[String]): Unit = {
     val kenDataReferences: List[String] =
       List(
-        "shinken001",
-        "shinken002",
-        "shinken003",
-        "shinken004",
-        "mogito001"
+        "shinken001"
       )
 
     kenDataReferences.foreach { ref =>
       val kenConfig =
         ConfigSource
           .file((baseDataPath / (ref + ".conf")).toString)
-          .at("kendata")
-          .loadOrThrow[KenConfig]
+          .at("shinken-data")
+          .loadOrThrow[ShinkenConfig]
 
-      if (kenConfig.recalculateAnalyticOnNextRun) {
+      if (kenConfig.recalculateOnNextRun) {
         val resultPath = baseResultPath / kenConfig.label
         os.makeDir.all(resultPath)
 
-        AnalyticInference.runAndVisualize(kenConfig,
-                                          uncertaintiesConfigDefault,
-                                          inferenceConfigDefault,
-                                          visualisationConfigDefault,
-                                          resultPath
-        )
+        CombinedInference.runAndVisualize(kenConfig, resultPath)
 
       } else {
         println(s"Skipping recalculation of $ref data")

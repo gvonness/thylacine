@@ -17,13 +17,14 @@
 package ai.entrolution
 package bayken.config
 
-import thylacine.config.{HmcmcConfig, HookeAndJeevesConfig}
+import bayken.config.inference.MassInferenceConfig
+import bayken.config.measurements.ShinkenMeasurements
+import bayken.config.visualisation.ProbabalisticVisualisationConfig
 
-case class MassInferenceConfig(
-    tangQuadratureSize: Int,
-    bladeQuadratureSize: Int,
-    tsubaQuadratureSize: Int = 2,
-    rotationalFitTolerance: Double,
-    hookesAndJeevesParams: HookeAndJeevesConfig,
-    hmcmcParams: HmcmcConfig
+case class ShinkenConfig(
+    label: String,
+    recalculateOnNextRun: Boolean,
+    measurements: ShinkenMeasurements,
+    inferenceParameters: MassInferenceConfig,
+    visualisationParameters: ProbabalisticVisualisationConfig
 )
