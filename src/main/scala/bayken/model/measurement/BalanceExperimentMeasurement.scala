@@ -30,10 +30,11 @@ case class BalanceExperimentMeasurement(
     counterWeightHeight: Double,
     counterWeightMass: Double,
     kissakeSakiPosition: Option[Double],
-    kashiraPosition: Option[Double],
+    nakagoJiriPosition: Option[Double],
     shinkenMass: Double,
     uncertainties: MeasurementUncertaintiesConfig
 ) {
+  assert(kissakeSakiPosition.isDefined ^ nakagoJiriPosition.isDefined)
 
   lazy val massUncertainty: Double =
     counterWeightMass + uncertainties.massUncertainty
@@ -70,7 +71,7 @@ object BalanceExperimentMeasurement {
       rawMeasurement.counterWeightHeight.getOrElse(0d),
       rawMeasurement.counterWeightMass,
       rawMeasurement.kissakeSakiPosition,
-      rawMeasurement.kashiraPosition,
+      rawMeasurement.nakagoJiriPosition,
       kenData.shinkenMass,
       kenData.measurementUncertainties
     )

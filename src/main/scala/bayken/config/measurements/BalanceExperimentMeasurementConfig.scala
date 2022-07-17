@@ -8,5 +8,5 @@ case class BalanceExperimentMeasurementConfig(
     counterWeightHeight: Option[Double],
     counterWeightMass: Double,
     kissakeSakiPosition: Option[Double],
-    kashiraPosition: Option[Double]
+    nakagoJiriPosition: Option[Double]
 )

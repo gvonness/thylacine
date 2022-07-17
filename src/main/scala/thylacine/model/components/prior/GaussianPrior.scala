@@ -39,14 +39,13 @@ case class GaussianPrior(
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
+  protected override def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
     ResultOrErrIo.fromCalculation(VectorContainer(rawDistribution.sample()))
 }
 
 object GaussianPrior {
 
-  def apply(
+  def ofConfidenceIntervals(
       label: String,
       values: Vector[Double],
       confidenceIntervals: Vector[Double]
@@ -57,6 +56,23 @@ object GaussianPrior {
       priorData = BelievedData(
         values = VectorContainer(values),
         symmetricConfidenceIntervals = VectorContainer(confidenceIntervals)
+      )
+    )
+  }
+
+  def ofCovariance(
+      label: String,
+      values: Vector[Double],
+      covarianceMatrix: Vector[Vector[Double]]
+  ): GaussianPrior = {
+    val covarianceContainer = MatrixContainer(covarianceMatrix)
+    val valueContainer      = VectorContainer(values)
+    assert(covarianceContainer.isSquare && valueContainer.dimension == covarianceContainer.rowTotalNumber)
+    GaussianPrior(
+      identifier = ModelParameterIdentifier(label),
+      priorData = BelievedData(
+        data = valueContainer,
+        covariance = covarianceContainer
       )
     )
   }

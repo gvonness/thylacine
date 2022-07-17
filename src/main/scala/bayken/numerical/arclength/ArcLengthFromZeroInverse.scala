@@ -17,14 +17,9 @@
 package ai.entrolution
 package bayken.numerical.arclength
 
+import bayken.numerical.Interval1D.{NegativeUnbounded, OrderedBoundedInterval1D, PositiveUnbounded}
 import bayken.numerical.Interval1DCollection.NontrivialInterval1DCollection
-import bayken.numerical.{ClosedBoundary, RealValuedFunction}
-
-import ai.entrolution.bayken.numerical.Interval1D.{
-  NegativeUnbounded,
-  OrderedBoundedInterval1D,
-  PositiveUnbounded
-}
+import bayken.numerical.RealValuedFunction
 
 import scala.annotation.tailrec
 
@@ -43,9 +38,8 @@ case class ArcLengthFromZeroInverse(
       x
     } else {
       val intervalMidpoints: Set[Double] =
-        nonTrivialIntervals.sets.collect {
-          case OrderedBoundedInterval1D(lb, ub) =>
-            (lb.boundaryValue + ub.boundaryValue) / 2.0
+        nonTrivialIntervals.sets.collect { case OrderedBoundedInterval1D(lb, ub) =>
+          (lb.boundaryValue + ub.boundaryValue) / 2.0
         }
 
       lazy val unboundedPoints: Set[Double] = nonTrivialIntervals.sets.collect {

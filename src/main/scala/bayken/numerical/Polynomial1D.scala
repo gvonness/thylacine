@@ -85,7 +85,7 @@ object Polynomial1D {
       i + 1
     }
 
-    val y = DenseVector(points.map(_.y).toArray)
+    val y = DenseVector((points.map(_.y) ++ derivatives.map(_.y)).toArray)
 
     Polynomial1D(((xMat.t * xMat) \ (xMat.t * y)).toArray.toList)
       .asInstanceOf[NonTrivialPolynomial]

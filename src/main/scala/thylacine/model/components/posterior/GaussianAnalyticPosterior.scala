@@ -26,11 +26,7 @@ import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
 import breeze.linalg._
-import breeze.stats.distributions.{
-  MultivariateGaussian,
-  RandBasis,
-  ThreadLocalRandomGenerator
-}
+import breeze.stats.distributions.{MultivariateGaussian, RandBasis, ThreadLocalRandomGenerator}
 import cats.effect.unsafe.implicits.global
 import org.apache.commons.math3.random.MersenneTwister
 
@@ -105,15 +101,13 @@ case class GaussianAnalyticPosterior(
       result    <- ResultOrErrIo.fromCalculation(rawDistribution.logPdf(rawVector))
     } yield result
 
-  override protected def sampleModelParameters
-      : ResultOrErrIo[ModelParameterCollection] =
+  override protected def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
     for {
       vectorContainer <- rawSampleModelParameters
       result          <- rawVectorToModelParameterCollection(vectorContainer.rawVector)
     } yield result
 
-  override protected def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
+  override protected def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
     ResultOrErrIo.fromCalculation(VectorContainer(rawDistribution.sample()))
 }
 
@@ -123,10 +117,7 @@ object GaussianAnalyticPosterior {
       priors: Set[GaussianPrior],
       likelihoods: Set[GaussianLinearLikelihood]
   ): GaussianAnalyticPosterior =
-    GaussianAnalyticPosterior(priors = priors,
-                              likelihoods = likelihoods,
-                              validated = false
-    )
+    GaussianAnalyticPosterior(priors = priors, likelihoods = likelihoods, validated = false)
 
   // Contains the logic for merging and ordered set of
   // Gaussian Priors and Linear Likelihoods to produce a single
@@ -140,22 +131,22 @@ object GaussianAnalyticPosterior {
       ]
   ) {
 
-    private[thylacine] lazy val gRawDistribution
-        : ResultOrErrIo[MultivariateGaussian] =
+    private[thylacine] lazy val gRawDistribution: ResultOrErrIo[MultivariateGaussian] =
       (for {
         vectorTerm            <- vectorTerm
         inverseCovarianceTerm <- inverseCovariance
       } yield {
         val newCovariance         = inv(inverseCovarianceTerm)
         val symmetrizedCovariance = (newCovariance + newCovariance.t) * 0.5
-        val newMean               = symmetrizedCovariance * vectorTerm
+        val newMean               = inverseCovarianceTerm \ vectorTerm
         implicit val randBasis: RandBasis = new RandBasis(
           new ThreadLocalRandomGenerator(
             new MersenneTwister((symmetrizedCovariance, newMean).hashCode())
           )
         )
+
         ResultOrErrIo.fromValue(
-          MultivariateGaussian(newMean, symmetrizedCovariance)
+          MultivariateGaussian(newMean, DenseMatrix.eye[Double](symmetrizedCovariance.rows) * 1e-10)
         )
       }).getOrElse(
         ResultOrErrIo.fromErratum(
@@ -179,13 +170,12 @@ object GaussianAnalyticPosterior {
 
       val newInvCov = inv(priorCovarianceAddition.rawMatrix)
 
-      val priorMeanAddition = orderedParameterIdentifiersWithDimension.map {
-        id =>
-          if (prior.identifier == id._1) {
-            prior.priorData.data
-          } else {
-            VectorContainer.zeros(id._2)
-          }
+      val priorMeanAddition = orderedParameterIdentifiersWithDimension.map { id =>
+        if (prior.identifier == id._1) {
+          prior.priorData.data
+        } else {
+          VectorContainer.zeros(id._2)
+        }
       }.reduce(_ rawConcatenateWith _)
 
       val newVectorTerm = newInvCov * priorMeanAddition.rawVector
@@ -195,8 +185,7 @@ object GaussianAnalyticPosterior {
           vectorTerm = Some(
             this.vectorTerm.map(_ + newVectorTerm).getOrElse(newVectorTerm)
           ),
-          inverseCovariance =
-            Some(this.inverseCovariance.map(_ + newInvCov).getOrElse(newInvCov))
+          inverseCovariance = Some(this.inverseCovariance.map(_ + newInvCov).getOrElse(newInvCov))
         )
       }
     }
@@ -226,8 +215,7 @@ object GaussianAnalyticPosterior {
           vectorTerm = Some(
             this.vectorTerm.map(_ + newVectorTerm).getOrElse(newVectorTerm)
           ),
-          inverseCovariance =
-            Some(this.inverseCovariance.map(_ + newInvCov).getOrElse(newInvCov))
+          inverseCovariance = Some(this.inverseCovariance.map(_ + newInvCov).getOrElse(newInvCov))
         )
       }
     }

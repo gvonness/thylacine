@@ -20,6 +20,7 @@ package thylacine.model.sampling.hmcmc
 import thylacine.config.HmcmcConfig
 import thylacine.model.components.posterior.NonAnalyticPosterior
 import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.IndexedVectorCollection
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.IO
@@ -44,7 +45,6 @@ case class HmcmcPosteriorSampler(
   override protected final val warmUpSimulationCount: Int =
     hmcmcConfig.warmupStepCount
 
-  override protected final val startingPoint
-      : ResultOrErrIo[ModelParameterCollection] =
-    ResultOrErrIo.fromIo(seedSpec)
+  override protected final val startingPoint: ResultOrErrIo[ModelParameterCollection] =
+    ResultOrErrIo.fromIo(seedSpec.map(IndexedVectorCollection(_)))
 }

@@ -31,9 +31,7 @@ class ArcLengthSpec extends AnyFlatSpec {
 
   "ArcLengthCalculation" should "calculate the arc-length of a function between two points" in new ArcLengthFixture {
 
-    arcLengthCalculator.arcLengthBetween(-2,
-                                         3
-    ) shouldBe (8.610525434957797277 +- .000000000001)
+    arcLengthCalculator.arcLengthBetween(-2, 3) shouldBe (8.610525434957797277 +- .000000000001)
   }
 
   "ArcLengthFromZero" should "calculate the arc-length from x=0 for a polynomial correctly" in new ArcLengthFixture {
@@ -47,7 +45,7 @@ class ArcLengthSpec extends AnyFlatSpec {
 
     piecewiseArcLengthFromZeroCalculator.evalAt(
       2.1
-    ) shouldBe (23.133632275077986 +- .000000000001)
+    ) shouldBe (23.273656333308885 +- .000000000001)
   }
 
   "ArcLengthFromZeroInverse" should "calculate the x coordinate for a given arc-length and a polynomial correctly" in new ArcLengthFixture {
@@ -61,7 +59,7 @@ class ArcLengthSpec extends AnyFlatSpec {
 
     piecewiseInverseArcLengthFromZeroCalculator.evalAt(
       27.73336
-    ) shouldBe (2.1782806995252653 +- .000000000001)
+    ) shouldBe (2.1728693044798457 +- .000000000001)
   }
 }
 
@@ -91,8 +89,7 @@ object ArcLengthSpec {
         )
       )
 
-    val piecewiseDomainMapping
-        : PairwiseDisjointDomainMapping[NonTrivialPolynomial] =
+    val piecewiseDomainMapping: PairwiseDisjointDomainMapping[NonTrivialPolynomial] =
       PairwiseDisjointDomainMapping(
         Map(
           piecewiseDomain1 -> Polynomial1D(List(0, 0.25))
@@ -124,8 +121,6 @@ object ArcLengthSpec {
       ArcLengthFromZeroInverse(arcLengthFromZeroCalculator, .000000000001)
 
     val piecewiseInverseArcLengthFromZeroCalculator: ArcLengthFromZeroInverse =
-      ArcLengthFromZeroInverse(piecewiseArcLengthFromZeroCalculator,
-                               .000000000001
-      )
+      ArcLengthFromZeroInverse(piecewiseArcLengthFromZeroCalculator, .000000000001)
   }
 }

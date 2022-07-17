@@ -8,9 +8,7 @@ ThisBuild / endYear := Some(2022)
 
 ThisBuild / homepage := Some(url("https://github.com/gvonness/thylacine"))
 ThisBuild / scmInfo := Some(
-  ScmInfo(url("https://github.com/gvonness/thylacine"),
-          "git@github.com:gvonness/thylacine.git"
-  )
+  ScmInfo(url("https://github.com/gvonness/thylacine"), "git@github.com:gvonness/thylacine.git")
 )
 
 ThisBuild / spiewakCiReleaseSnapshots := false

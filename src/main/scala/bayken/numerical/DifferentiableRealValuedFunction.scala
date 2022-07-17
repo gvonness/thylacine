@@ -19,8 +19,7 @@ package bayken.numerical
 
 import scala.annotation.tailrec
 
-trait DifferentiableRealValuedFunction[+T <: RealValuedFunction]
-    extends RealValuedFunction {
+trait DifferentiableRealValuedFunction[+T <: RealValuedFunction] extends RealValuedFunction {
   def derivative: T
 
   def solveFor(
@@ -52,7 +51,7 @@ trait DifferentiableRealValuedFunction[+T <: RealValuedFunction]
     ) {
       nextNewtonMethodStep
     } else {
-      evalRecursion(nextNewtonMethodStep, target, currentIteration + 1)
+      evalRecursion(nextNewtonMethodStep, target, currentIteration + 1, tolerance, maxIterations)
     }
   }
 }

@@ -4,5 +4,7 @@ package bayken.config.visualisation
 case class ProbabalisticVisualisationConfig(
     sampleCount: Int,
     graphLineIncrement: Double,
-    graphKernelVariance: Double
+    graphKernelVariance: Double,
+    numXPlotPoints: Int,
+    numYPlotPoints: Int
 )

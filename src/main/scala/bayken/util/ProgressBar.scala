@@ -128,9 +128,7 @@ class ProgressBar(_total: Int) extends Output {
     if (showCounter) {
       prefix += (units match {
         case Bytes =>
-          "%s / %s ".format(ProgressBar.kbFmt(current.toDouble),
-                            ProgressBar.kbFmt(total.toDouble)
-          )
+          "%s / %s ".format(ProgressBar.kbFmt(current.toDouble), ProgressBar.kbFmt(total.toDouble))
         case _ => "%d / %d ".format(current, total)
       })
     }

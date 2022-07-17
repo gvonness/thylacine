@@ -42,24 +42,7 @@ case class ArcLengthCalculation(
     AnalyticRealValuedFunction(i => Math.sqrt(1d + Math.pow(i, 2)))
       .composeWith(piecewisePolynomial.derivative)
 
-  private val rawDomainIntervals: Set[Interval1D] =
-    piecewisePolynomial.polynomialMapping.mergedDomainIntervals.sets
-
-  def arcLengthBetween(x0: Double, x1: Double): Double = {
-    // Do open here to prevent any single point intervals from
-    // being part of the integration (i.e. will have a trivial
-    // Lebesgue measure)
-    val integrationDomain = OrderedBoundedInterval1D.openInterval(x0, x1)
-
-    rawDomainIntervals
-      .map(_.intersectWith(integrationDomain))
-      .collect { case OrderedBoundedInterval1D(lowerBoundary, upperBoundary) =>
-        quadrature.integrate(arcLengthIntegrand,
-                             lowerBoundary.boundaryValue,
-                             upperBoundary.boundaryValue
-        )
-      }
-      .sum
-  }
+  def arcLengthBetween(x0: Double, x1: Double): Double =
+    quadrature.integrate(arcLengthIntegrand, Math.min(x0, x1), Math.max(x0, x1))
 
 }

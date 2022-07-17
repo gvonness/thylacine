@@ -20,6 +20,7 @@ package thylacine.visualisation
 import bengal.stm._
 import thylacine.util.MathOps.trapezoidalQuadrature
 
+import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrIo
 import cats.data.NonEmptyVector
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
@@ -58,10 +59,11 @@ case class CartesianSurface(
                    case h +: t =>
                      NonEmptyVector(h, t).parTraverse { col =>
                        for {
-                         integration <- trapezoidalQuadrature(
-                                          yAbscissa,
-                                          col._2.values.toVector
-                                        )
+//                         integration <- trapezoidalQuadrature(
+//                                          yAbscissa,
+//                                          col._2.values.toVector
+//                                        )
+                         integration <- ResultOrErrIo.fromCalculation(col._2.values.toVector.max)
                        } yield
                          if (integration > 0) {
                            col._2.view.mapValues(v => v / integration).toSeq
@@ -103,7 +105,7 @@ case class CartesianSurface(
       kernelVariance: Double
   ): IO[Unit] =
     for {
-      _ <- IO(progressIncrementCallback)
+      _ <- IO(progressIncrementCallback())
       chain <- IO(
                  SimplexChain(
                    abcissa.zip(values).map(GraphPoint(_))
@@ -123,10 +125,7 @@ case class CartesianSurface(
           IO {
             pv._1 -> chain.getPoints.foldLeft(pv._2) { (i, j) =>
               i + Math.exp(
-                -0.5 * j.scaledDistSquaredTo(pv._1,
-                                             xScale,
-                                             yScale
-                ) / kernelVariance
+                -0.5 * j.scaledDistSquaredTo(pv._1, xScale, yScale) / kernelVariance
               )
             }
           }
@@ -148,7 +147,7 @@ case class CartesianSurface(
             NonEmptyVector(h, t)
               .traverse(i => addValues(abcissa, i, ds, kernelVariance))
           _ <- IO(progressIncrementCallback)
-          _ <- IO(progressFinishCallback)
+          _ <- IO(progressFinishCallback())
         } yield ()
       case _ =>
         IO.unit

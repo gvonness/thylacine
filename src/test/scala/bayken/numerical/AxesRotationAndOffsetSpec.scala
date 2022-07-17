@@ -32,7 +32,8 @@ class AxesRotationAndOffsetSpec extends AnyFlatSpec {
       AxesRotationAndOffset(polnomial, .001)
 
     axesRotationAndOffsetCalculation
-      .getRotationCorrectionFor(p1, p2)
-      .get mustBe (0.2646670291363753 +- 0.0000001)
+      .getRotationCorrectionFor(p1, p2, 0, 0)
+      .get
+      ._1 mustBe (0.2646670291363753 +- 0.0000001)
   }
 }

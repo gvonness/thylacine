@@ -10,20 +10,16 @@ case class BalanceBeamExperimentProcessor(
 ) {
 
   private val rotationCalculator: AxesRotationAndOffset[PiecewisePolynomial1DSupport] =
-    AxesRotationAndOffset(bladeGeometry.backEdgeModel,
-                          bladeGeometry.kissakeSakiPoint.x,
-                          bladeGeometry.inferenceConfig.rotationalFitTolerance
-    )
+    AxesRotationAndOffset(bladeGeometry.backEdgeModel, bladeGeometry.inferenceConfig.rotationalFitTolerance)
 
   def totalMassMeasurement(
       kenMass: Double,
       massUncertainty: Double
   ): MeasurementRow =
     MeasurementRow(
-      bladeGeometry.massInferencePolesAndWeights.map(_._2),
+      bladeGeometry.taggedMassInferencePolesAndWeights.map(_.weight).toVector,
       kenMass,
-      massUncertainty,
-      cs => bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues(cs)
+      massUncertainty
     )
 
   // Tip is taken to have 0 mass per length
@@ -31,10 +27,9 @@ case class BalanceBeamExperimentProcessor(
       massUncertainty: Double
   ): MeasurementRow =
     MeasurementRow(
-      List.fill(bladeGeometry.massInferencePolesAndWeights.size - 1)(0d) :+ 1d,
+      Vector.fill(bladeGeometry.taggedMassInferencePolesAndWeights.size - 1)(0d) :+ 1d,
       0d,
-      massUncertainty / 100.0,
-      cs => bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues(cs)
+      massUncertainty / 1000000.0
     )
 
   // Mass is continuous at Kissake
@@ -42,10 +37,9 @@ case class BalanceBeamExperimentProcessor(
       massUncertainty: Double
   ): MeasurementRow =
     MeasurementRow(
-      bladeGeometry.quadratureKissakeBoundaryIsolated,
+      bladeGeometry.quadratureKissakeBoundaryIsolated.toVector,
       0d,
-      massUncertainty / 100.0,
-      cs => bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues(cs)
+      massUncertainty / 1000000.0
     )
 
   def processExperiment(
@@ -55,34 +49,44 @@ case class BalanceBeamExperimentProcessor(
       Point2D(measurement.fulcrumPosition, measurement.fulcrumHeight)
     val counterWeightPoint = Point2D(measurement.counterWeightPosition, measurement.counterWeightHeight)
 
+    val (basePoint, measuredPoint) = (measurement.kissakeSakiPosition, measurement.nakagoJiriPosition) match {
+      case (Some(pt), _) =>
+        (bladeGeometry.kissakeSakiPoint.x, pt)
+      case (_, Some(pt)) =>
+        (bladeGeometry.nakogoJiriPoint.x, pt)
+      case _ =>
+        throw new RuntimeException("measurement missing geometry reference point")
+    }
+
     val (rotationAngle: Double, fulcrumOrigin: Point2D, counterWeightOrigin: Point2D) = rotationCalculator
       .getRotationCorrectionFor(
         fulcrumPoint,
         counterWeightPoint,
-        measurement.kissakeSakiPosition
+        basePoint,
+        measuredPoint
       )
       .get
 
-    def getCoefficients(fulcrumPos: Point2D): List[Double] = {
+    def getCoefficients(fulcrumPos: Point2D): Vector[Double] = {
       val torqueIntegrand: RealValuedFunction =
         bladeGeometry.torqueIntegrand(fulcrumPosition = fulcrumPos, rotationAngle)
 
-      bladeGeometry.massInferencePolesAndWeights
-        .map(pw => torqueIntegrand.evalAt(pw._1) * pw._2)
+      bladeGeometry.taggedMassInferencePolesAndWeights
+        .map(pw => torqueIntegrand.evalAt(pw.pole) * pw.weight)
+        .toVector
     }
 
-    Seq(MeasurementRow(
-          getCoefficients(fulcrumOrigin),
-          measurement.solveConstant,
-          measurement.uncertainty,
-          bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues
-        ),
-        MeasurementRow(
-          getCoefficients(counterWeightOrigin),
-          measurement.dualSolveConstant,
-          measurement.dualUncertainty,
-          bladeGeometry.mapMassCoeffiencetsIntoQuadratureValues
-        )
+    Seq(
+      MeasurementRow(
+        getCoefficients(fulcrumOrigin),
+        measurement.solveConstant,
+        measurement.uncertainty
+      )
+//        MeasurementRow(
+//          getCoefficients(counterWeightOrigin),
+//          measurement.dualSolveConstant,
+//          measurement.dualUncertainty
+//        )
     )
   }
 }

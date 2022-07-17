@@ -114,10 +114,10 @@ object PiecewisePolynomial1DSupport {
 
     val upperDomain: NontrivialInterval1DCollection =
       NontrivialInterval1DCollection(
-        Set(PositiveUnbounded(ClosedBoundary(boundaries.head)))
+        Set(PositiveUnbounded(ClosedBoundary(boundaries.last)))
       )
 
-    val unboundedPolnomialFirst: Map[NontrivialInterval1DCollection, NonTrivialPolynomial] = Map(
+    val unboundedPolynomialFirst: Map[NontrivialInterval1DCollection, NonTrivialPolynomial] = Map(
       lowerDomain -> nonTrivialPolynomials.head,
       upperDomain -> nonTrivialPolynomials.last
     )
@@ -125,13 +125,13 @@ object PiecewisePolynomial1DSupport {
     if (boundaries.size == 1) {
       PiecewisePolynomial1DSupport(
         PairwiseDisjointDomainMapping(
-          unboundedPolnomialFirst
+          unboundedPolynomialFirst
         )
       )
     } else {
       PiecewisePolynomial1DSupport(
         PairwiseDisjointDomainMapping[NonTrivialPolynomial](
-          unboundedPolnomialFirst ++ boundaries.init
+          unboundedPolynomialFirst ++ boundaries.init
             .zip(boundaries.tail)
             .zip(nonTrivialPolynomials.tail.init)
             .map { i =>

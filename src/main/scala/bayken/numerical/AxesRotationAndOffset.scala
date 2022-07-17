@@ -26,14 +26,14 @@ import scala.annotation.tailrec
 // holder placement
 case class AxesRotationAndOffset[+T <: RealValuedFunction](
     fn: DifferentiableRealValuedFunction[T],
-    xt: Double,
     tolerance: Double
 ) {
 
   private def getNextIteration(
       p1: Point2D,
       p2: Point2D,
-      xp: Double,
+      xInit: Double,
+      xMeasured: Double,
       guess: DenseVector[Double]
   ): DenseVector[Double] =
     guess.toScalaVector.toList match {
@@ -44,7 +44,7 @@ case class AxesRotationAndOffset[+T <: RealValuedFunction](
         val fl2  = fn.evalAt(l2)
         val dfl1 = fn.derivative.evalAt(l1)
         val dfl2 = fn.derivative.evalAt(l2)
-        val ft   = fn.evalAt(xt)
+        val ft   = fn.evalAt(xInit)
 
         val Jacobian = DenseMatrix.zeros[Double](5, 5)
 
@@ -61,19 +61,20 @@ case class AxesRotationAndOffset[+T <: RealValuedFunction](
           List[Double](l2 * cosT - fl2 * sinT, 0, 1, 0, sinT + dfl2 * cosT).toArray
         ).t
         Jacobian(4, ::) := DenseVector(
-          List[Double](-xt * sinT - ft * cosT, 1, 0, 0, 0).toArray
+          List[Double](-xInit * sinT - ft * cosT, 1, 0, 0, 0).toArray
         ).t
 
         val inverseJacobian = inv(Jacobian)
 
         DenseVector(
-          List(theta, y, l1, l2).toArray
+          List(theta, x, y, l1, l2).toArray
         ) - inverseJacobian * DenseVector(
-          List(l1 * cosT - fl1 * sinT + x - p1.x,
-               l1 * sinT + fl1 * cosT + y - p1.y,
-               l2 * cosT - fl2 * sinT + x - p2.x,
-               l2 * sinT + fl2 * cosT + y - p2.y,
-               xt * cosT - ft * sinT + x - xp
+          List(
+            l1 * cosT - fl1 * sinT + x - p1.x,
+            l1 * sinT + fl1 * cosT + y - p1.y,
+            l2 * cosT - fl2 * sinT + x - p2.x,
+            l2 * sinT + fl2 * cosT + y - p2.y,
+            xInit * cosT - ft * sinT + x - xMeasured
           ).toArray
         )
       case _ =>
@@ -84,25 +85,31 @@ case class AxesRotationAndOffset[+T <: RealValuedFunction](
   private def evalRecursion(
       p1: Point2D,
       p2: Point2D,
-      xp: Double,
+      xInit: Double,
+      xMeasured: Double,
       x: DenseVector[Double],
       currentIteration: Int
   ): DenseVector[Double] = {
-    val nextNewtonMethodStep: DenseVector[Double] = getNextIteration(p1, p2, xp, x)
+    val nextNewtonMethodStep: DenseVector[Double] = getNextIteration(p1, p2, xInit, xMeasured, x)
 
     if (norm(x - nextNewtonMethodStep) <= tolerance) {
       nextNewtonMethodStep
     } else {
-      evalRecursion(p1, p2, xp, nextNewtonMethodStep, currentIteration + 1)
+      evalRecursion(p1, p2, xInit, xMeasured, nextNewtonMethodStep, currentIteration + 1)
     }
   }
 
-  def getRotationCorrectionFor(p1: Point2D, p2: Point2D, xp: Double): Option[(Double, Point2D, Point2D)] = {
+  def getRotationCorrectionFor(
+      p1: Point2D,
+      p2: Point2D,
+      xInit: Double,
+      xMeasured: Double
+  ): Option[(Double, Point2D, Point2D)] = {
     val initialGuess = DenseVector(
-      List(0, 0, (p1.y + p2.y) / 2.0, p1.x, p2.x).toArray
+      List(0, xMeasured, (p1.y + p2.y) / 2.0, p1.x, p2.x).toArray
     )
 
-    evalRecursion(p1, p2, xp, initialGuess, 0).toScalaVector.toList match {
+    evalRecursion(p1, p2, xInit, xMeasured, initialGuess, 0).toScalaVector.toList match {
       case theta :: _ :: _ :: l1 :: l2 :: _ =>
         Some((theta, Point2D(l1, fn.evalAt(l1)), Point2D(l2, fn.evalAt(l2))))
       case _ =>

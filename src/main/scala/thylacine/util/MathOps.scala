@@ -65,9 +65,8 @@ private[thylacine] object MathOps {
   ): ResultOrErrIo[Vector[(BigDecimal, BigDecimal)]] =
     for {
       cdfReversed <- ResultOrErrIo.fromCalculation {
-                       values.foldLeft(Vector[BigDecimal](BigDecimal(0))) {
-                         (i, j) =>
-                           (i.head + j) +: i
+                       values.foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
+                         (i.head + j) +: i
                        }
                      }
       normalisedCdf <- ResultOrErrIo.fromCalculation {

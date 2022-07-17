@@ -57,9 +57,7 @@ private[thylacine] object BelievedData {
     BelievedData(
       data = validatedValues,
       covariance = MatrixContainer(
-        values = validatedConfidenceIntervals.values.map(i =>
-          (i._1, i._1) -> Math.pow(i._2 / 2, 2)
-        ),
+        values = validatedConfidenceIntervals.values.map(i => (i._1, i._1) -> Math.pow(i._2 / 2, 2)),
         rowTotalNumber = values.dimension,
         columnTotalNumber = values.dimension,
         validated = true

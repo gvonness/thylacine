@@ -18,8 +18,7 @@ package ai.entrolution
 package bayken.model.measurement
 
 case class MeasurementRow(
-    rowCoefficients: List[Double],
+    rowCoefficients: Vector[Double],
     solveConstant: Double,
-    uncertainty: Double,
-    massCoefficientMapping: Vector[Double] => List[Double]
+    uncertainty: Double
 )

@@ -39,6 +39,9 @@ private[thylacine] case class MatrixContainer(
   private[thylacine] override lazy val getValidated: MatrixContainer =
     if (validated) this else this.copy(validated = true)
 
+  private[thylacine] lazy val isSquare: Boolean =
+    rowTotalNumber == columnTotalNumber
+
   // Low-level API
   // ------------------------
   private[thylacine] lazy val rawMatrix: DenseMatrix[Double] = {
@@ -57,9 +60,7 @@ private[thylacine] case class MatrixContainer(
       input: MatrixContainer
   ): MatrixContainer =
     MatrixContainer(
-      values ++ input.getValidated.values.map(i =>
-        (i._1._1, i._1._2 + columnTotalNumber) -> i._2
-      ),
+      values ++ input.getValidated.values.map(i => (i._1._1, i._1._2 + columnTotalNumber) -> i._2),
       rowTotalNumber = rowTotalNumber,
       columnTotalNumber = columnTotalNumber + input.columnTotalNumber,
       validated = true
@@ -68,9 +69,7 @@ private[thylacine] case class MatrixContainer(
   // Analogous to the above for columns
   private[thylacine] def rowMergeWith(input: MatrixContainer): MatrixContainer =
     MatrixContainer(
-      values ++ input.getValidated.values.map(i =>
-        (i._1._1 + rowTotalNumber, i._1._2) -> i._2
-      ),
+      values ++ input.getValidated.values.map(i => (i._1._1 + rowTotalNumber, i._1._2) -> i._2),
       rowTotalNumber = rowTotalNumber + input.rowTotalNumber,
       columnTotalNumber = columnTotalNumber,
       validated = true
@@ -82,9 +81,7 @@ private[thylacine] case class MatrixContainer(
       input: MatrixContainer
   ): MatrixContainer =
     MatrixContainer(
-      values ++ input.getValidated.values.map(i =>
-        (i._1._1 + rowTotalNumber, i._1._2 + columnTotalNumber) -> i._2
-      ),
+      values ++ input.getValidated.values.map(i => (i._1._1 + rowTotalNumber, i._1._2 + columnTotalNumber) -> i._2),
       rowTotalNumber = rowTotalNumber + input.columnTotalNumber,
       columnTotalNumber = columnTotalNumber + input.columnTotalNumber,
       validated = true

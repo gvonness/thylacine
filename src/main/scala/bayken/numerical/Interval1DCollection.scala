@@ -17,7 +17,7 @@
 package ai.entrolution
 package bayken.numerical
 
-import bayken.numerical.Interval1D.{NullInterval1D, SinglePointInterval}
+import bayken.numerical.Interval1D.NullInterval1D
 
 sealed trait Interval1DCollection {
   def union(other: Interval1DCollection): Interval1DCollection
@@ -28,8 +28,7 @@ sealed trait Interval1DCollection {
 
 object Interval1DCollection {
 
-  case class NontrivialInterval1DCollection(sets: Set[Interval1D])
-      extends Interval1DCollection {
+  case class NontrivialInterval1DCollection(sets: Set[Interval1D]) extends Interval1DCollection {
     assert(sets.exists {
       case NullInterval1D => false
       case _              => true

@@ -74,7 +74,7 @@ object BayKen {
         val resultPath = baseResultPath / kenConfig.label
         os.makeDir.all(resultPath)
 
-        CombinedInference.runAndVisualize(kenConfig, resultPath)
+        AnalyticInference.runAndVisualize(kenConfig, resultPath)
 
       } else {
         println(s"Skipping recalculation of $ref data")

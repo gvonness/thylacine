@@ -19,9 +19,9 @@ package bayken.model.ken
 
 import bayken.config.inference.MassInferenceConfig
 import bayken.config.measurements.BackEdgePointConfig
-import bayken.model.ken.ShinkenGeometry.getSortedAndJoinedBladeSections
+import bayken.model.ken.ShinkenGeometry.{TaggedQuadraturePoint, getSortedAndJoinedBladeSections}
 import bayken.model.ken.ShinkenSectionLabel._
-import bayken.numerical.Interval1D.OrderedBoundedInterval1D
+import bayken.numerical.Interval1D.{NegativeUnbounded, OrderedBoundedInterval1D, PositiveUnbounded}
 import bayken.numerical.Interval1DCollection.NontrivialInterval1DCollection
 import bayken.numerical.Polynomial1D.NonTrivialPolynomial
 import bayken.numerical._
@@ -30,10 +30,7 @@ import bayken.numerical.arclength.{ArcLengthFromZero, ArcLengthFromZeroInverse}
 // Overrides are entry points for priors in non-analytic inferences
 case class ShinkenGeometry(
     rawMunePoints: List[BackEdgePointConfig],
-    inferenceConfig: MassInferenceConfig,
-    munePointXOverride: Option[List[Double]],
-    munePointYOverride: Option[List[Double]],
-    habaOverride: Option[List[Double]]
+    inferenceConfig: MassInferenceConfig
 ) {
 
   /*
@@ -43,51 +40,33 @@ case class ShinkenGeometry(
    * - - -- --- ----- -------- -------------
    */
 
-  private lazy val munePoints: List[BackEdgePointConfig] = {
-    val xProcessedPoints: List[BackEdgePointConfig] = munePointXOverride match {
-      case Some(xOverride) =>
-        assert(xOverride.size == rawMunePoints.size)
-        rawMunePoints.zip(xOverride).map(pts => pts._1.copy(x = pts._2))
-      case _ =>
-        rawMunePoints
-    }
-
-    val yProcessedPoints: List[BackEdgePointConfig] = munePointYOverride match {
-      case Some(yOverride) =>
-        assert(yOverride.size == xProcessedPoints.size)
-        xProcessedPoints.zip(yOverride).map(pts => pts._1.copy(y = pts._2))
-      case _ =>
-        xProcessedPoints
-    }
-
-    val habaProcessedPoints: List[BackEdgePointConfig] = habaOverride match {
-      case Some(depthOverride) =>
-        val (pointsWithWidths, pointsWithoutWidths) =
-          xProcessedPoints.partition(p => p.haba.isDefined)
-        assert(pointsWithWidths.size == depthOverride.size)
-        pointsWithWidths
-          .zip(depthOverride)
-          .map(pts => pts._1.copy(haba = Some(pts._2))) ++ pointsWithoutWidths
-      case _ =>
-        yProcessedPoints
-    }
-
+  private val munePoints: List[BackEdgePointConfig] = {
     // Check to see if point at the base of the Tsuka is closest to origin.
     // Reflect the points about the x-axis if this is not the case
-    if (
-      habaProcessedPoints
-        .filter(p => p.shinkenSection == Tang || p.shinkenSection == Tsuka)
-        .map(_.x)
-        .min < habaProcessedPoints.filter(_.shinkenSection == Blade).map(_.x).max
-    ) {
-      habaProcessedPoints
-    } else {
-      habaProcessedPoints.map(p => p.copy(x = -p.x))
-    }
+    val possiblyReflectedPoints =
+      if (
+        rawMunePoints
+          .filter(p => p.shinkenSection == Tang || p.shinkenSection == Tsuka)
+          .map(_.x)
+          .min < rawMunePoints.filter(_.shinkenSection == Blade).map(_.x).max
+      ) {
+        rawMunePoints
+      } else {
+        rawMunePoints.map(p => p.copy(x = -p.x))
+      }
+
+    val bladeBasePoint = possiblyReflectedPoints
+      .filter(bp => bp.shinkenSection == Blade)
+      .minBy(_.x)
+
+    val origin = possiblyReflectedPoints.minBy(_.x)
+
+    possiblyReflectedPoints.map(p => p.copy(x = Math.abs(p.x - origin.x), y = p.y - bladeBasePoint.y))
   }
 
   assert(munePoints.count(_.kissakeSaki) == 1)
   assert(munePoints.count(_.muneMachi) == 1)
+  assert(munePoints.count(_.nakagoJiri) == 1)
 
   private val bladeSectionsMeasured: Set[ShinkenSectionLabel] =
     munePoints.map(_.shinkenSection).toSet
@@ -102,15 +81,6 @@ case class ShinkenGeometry(
   assert(bladeSectionsMeasured.contains(Tsuba))
   assert(bladeSectionsMeasured.contains(Kissake))
 
-  private def rotatePointsAboutOrigin(
-      input: List[BackEdgePointConfig],
-      rotation: Double
-  ): List[BackEdgePointConfig] =
-    input.map { i =>
-      val newPoint = Point2D.rotateAboutOrigin(i.point2d, rotation)
-      i.copy(x = newPoint.x, y = newPoint.y)
-    }
-
   // Defining the Mune-model
   // - - -- --- ----- --------
   // * Mune-side of the Habaki is parallel to the x-axis
@@ -119,30 +89,14 @@ case class ShinkenGeometry(
   //   model (everywhere else is a 0-valued constant)
   // * See writeup for discussion on coordinates
 
-  lazy val orientedPoints: List[BackEdgePointConfig] = {
-    val habakiPoints = munePoints
-      .filter(mp => mp.shinkenSection == Habaki)
-    val bladeBasePoint = munePoints
-      .filter(bp => bp.shinkenSection == Blade)
-      .minBy(_.x)
-
-    val habakiMax = habakiPoints.maxBy(_.x).point2d
-    val habakiMin = habakiPoints.minBy(_.x).point2d
-
-    val rotation: Double = Math.atan2(habakiMax.y - habakiMin.y, habakiMax.x - habakiMin.x)
-
-    val rotatedPoints = rotatePointsAboutOrigin(munePoints, -rotation)
-
-    val origin = rotatedPoints.minBy(_.x)
-
-    rotatedPoints.map(p => p.copy(x = Math.abs(p.x - origin.x), y = p.y - bladeBasePoint.y))
-  }
-
   lazy val kissakeSakiPoint: BackEdgePointConfig =
-    orientedPoints.find(_.kissakeSaki).get
+    munePoints.find(_.kissakeSaki).get
+
+  lazy val nakogoJiriPoint: BackEdgePointConfig =
+    munePoints.find(_.nakagoJiri).get
 
   lazy val muneMachiPoint: BackEdgePointConfig =
-    orientedPoints.find(_.muneMachi).get
+    munePoints.find(_.muneMachi).get
 
   /*
    * - - -- --- ----- -------- -------------
@@ -152,7 +106,8 @@ case class ShinkenGeometry(
 
   private def generateModelCurve(
       points: List[BackEdgePointConfig],
-      bladeSectionDerivativeZero: Boolean = false
+      bladeSectionDerivativeZero: Boolean = false,
+      unbounded: Boolean = false
   ): PiecewisePolynomial1DSupport = {
     val sortedAndJoinedBladeSections: Seq[ShinkenSectionModel] =
       getSortedAndJoinedBladeSections(
@@ -168,19 +123,39 @@ case class ShinkenGeometry(
 
     PiecewisePolynomial1DSupport(
       PairwiseDisjointDomainMapping(
-        (sortedAndJoinedBladeSections.init.map { section =>
-          (NontrivialInterval1DCollection(
-             Set(
-               OrderedBoundedInterval1D(ClosedBoundary(section.lowerBound), OpenBoundary(section.upperBound))
-             )
-           ),
-           polynomialFor(section)
-          )
-        } :+ (NontrivialInterval1DCollection(
+        ((if (sortedAndJoinedBladeSections.init.nonEmpty) {
+            (NontrivialInterval1DCollection(
+               Set(
+                 if (unbounded) {
+                   NegativeUnbounded(OpenBoundary(sortedAndJoinedBladeSections.init.head.upperBound))
+                 } else {
+                   OrderedBoundedInterval1D(ClosedBoundary(sortedAndJoinedBladeSections.init.head.lowerBound),
+                                            ClosedBoundary(sortedAndJoinedBladeSections.init.head.upperBound)
+                   )
+                 }
+               )
+             ),
+             polynomialFor(sortedAndJoinedBladeSections.init.head)
+            ) +: sortedAndJoinedBladeSections.init.tail.map { section =>
+              (NontrivialInterval1DCollection(
+                 Set(
+                   OrderedBoundedInterval1D(ClosedBoundary(section.lowerBound), OpenBoundary(section.upperBound))
+                 )
+               ),
+               polynomialFor(section)
+              )
+            }
+          } else {
+            Seq[(NontrivialInterval1DCollection, NonTrivialPolynomial)]()
+          }) :+ (NontrivialInterval1DCollection(
           Set(
-            OrderedBoundedInterval1D(ClosedBoundary(sortedAndJoinedBladeSections.last.lowerBound),
-                                     ClosedBoundary(sortedAndJoinedBladeSections.last.upperBound)
-            )
+            if (unbounded) {
+              PositiveUnbounded(ClosedBoundary(sortedAndJoinedBladeSections.last.lowerBound))
+            } else {
+              OrderedBoundedInterval1D(ClosedBoundary(sortedAndJoinedBladeSections.last.lowerBound),
+                                       ClosedBoundary(sortedAndJoinedBladeSections.last.upperBound)
+              )
+            }
           )
         ), polynomialFor(sortedAndJoinedBladeSections.last))).toMap
       )
@@ -196,7 +171,7 @@ case class ShinkenGeometry(
   // integration for the mass inference.
   lazy val coordinateModel: PiecewisePolynomial1DSupport =
     generateModelCurve(
-      orientedPoints.flatMap { pt =>
+      munePoints.flatMap { pt =>
         pt.shinkenSection match {
           case Kissake => Some(pt.copy(shinkenSection = Blade))
           case Blade   => Some(pt)
@@ -229,23 +204,24 @@ case class ShinkenGeometry(
   // experiments
   val backEdgeModel: PiecewisePolynomial1DSupport =
     generateModelCurve(
-      orientedPoints.map { pt =>
+      munePoints.map { pt =>
         pt.shinkenSection match {
           case Kissake => pt.copy(shinkenSection = Blade)
           case _       => pt
         }
       },
-      bladeSectionDerivativeZero = true
+      bladeSectionDerivativeZero = true,
+      unbounded = true
     )
 
   // Model to generate the lower and upper bounds for the Haba integration. Note
   // these are functions of the originating cartesian coordinates
   val (lowerHabaModel: RealValuedFunction, upperHabaModel: RealValuedFunction) = {
     val lowerHabaBaseModel = generateModelCurve(
-      orientedPoints.filter(pt => pt.shinkenSection != Blade && pt.shinkenSection != Kissake)
+      munePoints.filter(pt => pt.shinkenSection != Blade && pt.shinkenSection != Kissake)
     )
 
-    val upperHabaBaseModel = generateModelCurve(orientedPoints.flatMap { pt =>
+    val upperHabaBaseModel = generateModelCurve(munePoints.flatMap { pt =>
       pt.haba.map { h =>
         pt.copy(y = h + lowerHabaBaseModel.evalAt(pt.x))
       }
@@ -271,8 +247,9 @@ case class ShinkenGeometry(
 
       val hu      = upperHabaModel.evalAt(xs)
       val hl      = lowerHabaModel.evalAt(xs)
-      val hu2diff = Math.pow(hu, 2) - Math.pow(hl, 2)
-      val hu3diff = Math.pow(hu, 3) - Math.pow(hl, 3)
+      val huDiff  = hu - hl
+      val hu2diff = (Math.pow(hu, 2) - Math.pow(hl, 2)) / huDiff
+      val hu3diff = (Math.pow(hu, 3) - Math.pow(hl, 3)) / huDiff
 
       val A     = cosT * (xs - fulcrumPosition.x) - sinT * (fs - fulcrumPosition.y)
       val B     = cosT * fps + sinT
@@ -281,101 +258,52 @@ case class ShinkenGeometry(
       val C2    = Math.pow(C, 2)
       val D     = fp2s * fpps * (1 - fps)
 
-      A * (hu - hl) + hu2diff / (2 * sqrtC) * (D * A / C2 - B - fpps * A / C) + hu3diff / (3 * C2) * (fpps * B - D * B / C)
+      A + hu2diff / (2 * sqrtC) * (D * A / C2 - B - fpps * A / C) + hu3diff / (3 * C2) * (fpps * B - D * B / C)
     }
   }
 
-  // Reconstruct mass-per-length from parametrisation
+  val sortedAndJoinedBladeSectionsByArcLength: Seq[ShinkenSectionModel] =
+    getSortedAndJoinedBladeSections(
+      inferenceConfig,
+      munePoints,
+      p => p.copy(x = coordsToArcLength.evalAt(p.x))
+    )
 
-  val massInferencePolesAndWeights: List[(Double, Double)] = {
-    val sortedAndJoinedBladeSections =
-      getSortedAndJoinedBladeSections(
-        inferenceConfig,
-        orientedPoints,
-        p => p.copy(x = coordsToArcLength.evalAt(p.x))
-      )
-
-    sortedAndJoinedBladeSections.map { bsc =>
-      LegendreQuadrature(bsc.quadratureSize).getPolesAndWeights(bsc.lowerBound, bsc.upperBound)
+  val taggedMassInferencePolesAndWeights: List[TaggedQuadraturePoint] =
+    sortedAndJoinedBladeSectionsByArcLength.map { bsc =>
+      LegendreQuadrature(bsc.massInferenceQuadratureSize)
+        .getPolesAndWeights(bsc.lowerBound, bsc.upperBound)
+        .map(i => TaggedQuadraturePoint(bsc.shinkenSection, i._1, i._2))
     }.reduce(_ ++ _)
-  }
+
+  val sectionCoefficientMapping: Map[ShinkenSectionLabel, Double] =
+    inferenceConfig.bladeSectionParameters.map(i => (i.label, i.gaussianProcessCoefficient)).toMap
+
+  val gaussianProcessCovariance: Vector[Vector[Double]] =
+    taggedMassInferencePolesAndWeights.toVector.map { tpwOuter =>
+      val coefficient = sectionCoefficientMapping.getOrElse(tpwOuter.label, 0d)
+      taggedMassInferencePolesAndWeights.toVector.map { tpwInner =>
+        if (tpwOuter.label == tpwInner.label) {
+          Math.abs(tpwOuter.pole - tpwInner.pole) * coefficient
+        } else {
+          0d
+        }
+      }
+    }
 
   // Used to constrain mass inference to be continuous
   // around the Kissake
-  lazy val quadratureKissakeBoundaryIsolated: List[Double] = {
-    val sortedAndJoinedBladeSections =
-      getSortedAndJoinedBladeSections(
-        inferenceConfig,
-        orientedPoints,
-        p => p.copy(x = coordsToArcLength.evalAt(p.x))
-      )
-
-    sortedAndJoinedBladeSections.map { bsc =>
+  lazy val quadratureKissakeBoundaryIsolated: List[Double] =
+    sortedAndJoinedBladeSectionsByArcLength.map { bsc =>
       bsc.shinkenSection match {
         case Blade =>
-          List.fill(bsc.quadratureSize - 1)(0d) :+ 1d
+          List.fill(bsc.massInferenceQuadratureSize - 1)(0d) :+ 1d
         case Kissake =>
-          -1d +: List.fill(bsc.quadratureSize - 1)(0d)
+          -1d +: List.fill(bsc.massInferenceQuadratureSize - 1)(0d)
         case _ =>
-          List.fill(bsc.quadratureSize)(0d)
+          List.fill(bsc.massInferenceQuadratureSize)(0d)
       }
     }.reduce(_ ++ _)
-  }
-
-  lazy val bladeSectionOrderedPartitions: Seq[(ShinkenSectionLabel, List[BackEdgePointConfig])] =
-    orientedPoints
-      .groupBy(_.shinkenSection)
-      .toList
-      .sortBy(_._2.map(_.x).min)
-
-  lazy val inferenceQuadratureOrders: Seq[Int] =
-    bladeSectionOrderedPartitions.flatMap { bSec =>
-      inferenceConfig.bladeSectionParameters
-        .find(b => b.label == bSec._1)
-        .map(_.quadratureSize)
-    }
-
-  lazy val inferencePolynomialOrders: Seq[Int] =
-    bladeSectionOrderedPartitions.flatMap { bSec =>
-      inferenceConfig.bladeSectionParameters
-        .find(b => b.label == bSec._1)
-        .map(_.massPolynomialFitOrder)
-    }
-
-  def mapMassCoeffiencetsIntoQuadratureValues(
-      coefficients: Vector[Double]
-  ): List[Double] = {
-    val sortedAndJoinedBladeSections =
-      getSortedAndJoinedBladeSections(
-        inferenceConfig,
-        orientedPoints,
-        p => p.copy(x = coordsToArcLength.evalAt(p.x))
-      )
-
-    val sectionPolynomials = bladeSectionOrderedPartitions.map(_._1).zip {
-      inferenceQuadratureOrders
-        .map(_ + 1)
-        .foldLeft(List[NonTrivialPolynomial](), coefficients) { (i, j) =>
-          val splitCoefficients = i._2.splitAt(j)
-          (i._1 :+ NonTrivialPolynomial(splitCoefficients._1.toList), splitCoefficients._2)
-        }
-        ._1
-    }
-
-    // Probably not necessary, as there is a canonical ordering held across
-    // the calculations
-    val orderedPolynomials = sortedAndJoinedBladeSections.flatMap { bsc =>
-      sectionPolynomials.find(_._1 == bsc.shinkenSection).map(_._2)
-    }
-
-    val massPolynomial = PiecewisePolynomial1DSupport.constructPiecewisePolynomial(
-      boundaries = sortedAndJoinedBladeSections.init
-        .map(_.upperBound),
-      nonTrivialPolynomials = orderedPolynomials
-    )
-
-    massInferencePolesAndWeights.map(pw => massPolynomial.evalAt(pw._1))
-  }
 
   // Post sampling calculations
   private lazy val arcLengthToMuneDerivative: RealValuedFunction =
@@ -406,9 +334,13 @@ case class ShinkenGeometry(
 
     Point2D.rotateAboutOrigin(Point2D(xCoord, yCood), -rotation).y
   }
+
+  lazy val arcLengthUpperBound: Double = coordsToArcLength.evalAt(kissakeSakiPoint.x)
 }
 
 object ShinkenGeometry {
+
+  case class TaggedQuadraturePoint(label: ShinkenSectionLabel, pole: Double, weight: Double)
 
   def getSortedAndJoinedBladeSections(
       inferenceConfig: MassInferenceConfig,
@@ -426,7 +358,8 @@ object ShinkenGeometry {
                 .map(_.point2d)
                 .map(xRemapping)
                 .toSet,
-              quadratureSize = bsc.quadratureSize
+              quadratureSize = bsc.quadratureSize,
+              gaussianProcessCoefficient = bsc.gaussianProcessCoefficient
             )
           }
         }

@@ -9,11 +9,12 @@ case class ShinkenSectionModel(
     points: Set[Point2D],
     lowerBound: Double,
     upperBound: Double,
-    quadratureSize: Int
+    massInferenceQuadratureSize: Int,
+    massInferenceGaussianProcessCoefficient: Double
 ) {
   assert(points.nonEmpty)
 
-  lazy val quadrature: LegendreQuadrature = LegendreQuadrature(quadratureSize)
+  lazy val quadrature: LegendreQuadrature = LegendreQuadrature(massInferenceQuadratureSize)
 
   lazy val polesAndWeights: Seq[(Double, Double)] =
     quadrature.getPolesAndWeights(lowerBound, upperBound)
@@ -30,13 +31,15 @@ object ShinkenSectionModel {
   def apply(
       shinkenSection: ShinkenSectionLabel,
       points: Set[Point2D],
-      quadratureSize: Int
+      quadratureSize: Int,
+      gaussianProcessCoefficient: Double
   ): ShinkenSectionModel =
     ShinkenSectionModel(
       shinkenSection = shinkenSection,
       points = points,
       lowerBound = points.map(_.x).min,
       upperBound = points.map(_.x).max,
-      quadratureSize = quadratureSize
+      massInferenceQuadratureSize = quadratureSize,
+      massInferenceGaussianProcessCoefficient = gaussianProcessCoefficient
     )
 }
