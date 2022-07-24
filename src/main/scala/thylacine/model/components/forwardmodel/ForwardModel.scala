@@ -20,6 +20,8 @@ package thylacine.model.components.forwardmodel
 import thylacine.model.core._
 import thylacine.model.core.Erratum._
 
+import cats.effect.IO
+
 private[thylacine] trait ForwardModel
     extends GenericMapping
     with ModelParameterRawMappings
@@ -31,9 +33,23 @@ private[thylacine] trait ForwardModel
       input: IndexedVectorCollection
   ): ResultOrErrIo[VectorContainer]
 
+  final def evalAt(input: Map[String, Vector[Double]]): IO[Vector[Double]] =
+    ResultOrErrIo.toIo {
+      for {
+        result <- evalAt(IndexedVectorCollection(input))
+      } yield result.scalaVector
+    }
+
   // Note that input validation should be done within
   // the surrounding likelihood
   private[thylacine] def jacobianAt(
       input: IndexedVectorCollection
   ): ResultOrErrIo[IndexedMatrixCollection]
+
+  final def jacobianAt(input: Map[String, Vector[Double]]): IO[Map[String, Map[(Int, Int), Double]]] =
+    ResultOrErrIo.toIo {
+      for {
+        result <- jacobianAt(IndexedVectorCollection(input))
+      } yield result.genericScalaRepresentation
+    }
 }

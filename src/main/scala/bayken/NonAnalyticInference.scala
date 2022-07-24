@@ -20,26 +20,29 @@ package bayken
 import bayken.config._
 import bayken.config.measurements._
 import bayken.model.Abscissa.UniformAbscissa
-import bayken.model.ken.{ShinkenGeometry, ShinkenSectionLabel}
+import bayken.model.ken.ShinkenGeometry
 import bayken.model.measurement.{BalanceBeamExperimentProcessor, MeasurementRow}
+import bayken.numerical.{Point2D, RealValuedFunction}
 import bayken.util.{DataWriter, ProgressBarOps}
-import thylacine.model.components.likelihood.GaussianLinearLikelihood
-import thylacine.model.components.posterior.GaussianAnalyticPosterior
+import bengal.stm.STM
+import thylacine.implicits.stm
+import thylacine.model.components.forwardmodel.{
+  LinearForwardModel,
+  NonLinearFiniteDifferenceInMemoryMemoizedForwardModel
+}
+import thylacine.model.components.likelihood.{GaussianLikelihood, GaussianLinearLikelihood}
+import thylacine.model.components.posterior.{GaussianAnalyticPosterior, UnNormalisedPosterior}
 import thylacine.model.components.prior.GaussianPrior
+import thylacine.model.optimization.HookeAndJeevesOptimisedPosterior
+import thylacine.model.sampling.hmcmc.HmcmcPosteriorSampler
 import thylacine.visualisation.CartesianSurface
 
-import ai.entrolution.bayken.model.ken.ShinkenSectionLabel.{Habaki, Tsuba, Tsuka}
-import ai.entrolution.bayken.numerical.{Point2D, RealValuedFunction}
 import cats.effect.IO
-import cats.effect.implicits._
 import cats.effect.unsafe.IORuntime
 import cats.implicits._
 import os.Path
-import thylacine.implicits.stm
 
-import ai.entrolution.bengal.stm.STM
-
-object AnalyticInference {
+object NonAnalyticInference {
 
   def runAndVisualize(
       kenConfig: ShinkenConfig,
@@ -88,7 +91,7 @@ object AnalyticInference {
     val experimentProcessor: BalanceBeamExperimentProcessor =
       BalanceBeamExperimentProcessor(bladeGeometry)
 
-    def getLikelihood(
+    def getAnalyticLikelihood(
         measurements: Vector[MeasurementRow]
     ): GaussianLinearLikelihood =
       GaussianLinearLikelihood(
@@ -98,8 +101,25 @@ object AnalyticInference {
         prior = massPerLengthPrior
       )
 
-    val totalMassLikelihood: GaussianLinearLikelihood =
-      getLikelihood {
+    def getNonAnalyticLikelihood(measurements: Vector[MeasurementRow]) = {
+      val linearMapping = LinearForwardModel(massPerLengthPrior.label, measurements.map(_.rowCoefficients))
+      val nonAnalyticForwardModel = NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
+        evaluation = linearMapping.evalAt(_).unsafeRunSync(),
+        domainDimensions = Map(massPerLengthPrior.label -> linearMapping.domainDimension),
+        rangeDimension = linearMapping.rangeDimension,
+        differential = 0.0000001,
+        maxResultsToCache = 1000
+      )
+
+      GaussianLikelihood(
+        forwardModel = nonAnalyticForwardModel,
+        measurements = measurements.map(_.solveConstant),
+        uncertainties = measurements.map(_.uncertainty)
+      )
+    }
+
+    val totalMassAnalyticLikelihood: GaussianLinearLikelihood =
+      getAnalyticLikelihood {
         Vector(
           experimentProcessor.totalMassMeasurement(kenConfig.measurements.shinkenMass,
                                                    kenConfig.measurements.measurementUncertainties.massUncertainty
@@ -107,8 +127,8 @@ object AnalyticInference {
         )
       }
 
-    val zeroMassAtTipLikelihood: GaussianLinearLikelihood =
-      getLikelihood {
+    val zeroMassAtTipAnalyticLikelihood: GaussianLinearLikelihood =
+      getAnalyticLikelihood {
         Vector(
           experimentProcessor.zeroMassAtTipMeasurement(
             kenConfig.measurements.measurementUncertainties.massUncertainty
@@ -116,8 +136,8 @@ object AnalyticInference {
         )
       }
 
-    val massContinuousAtKissakeLikelihood: GaussianLinearLikelihood =
-      getLikelihood {
+    val massContinuousAtKissakeAnalyticLikelihood: GaussianLinearLikelihood =
+      getAnalyticLikelihood {
         Vector(
           experimentProcessor.massContinuousAroundKissake(
             kenConfig.measurements.measurementUncertainties.massUncertainty
@@ -125,8 +145,44 @@ object AnalyticInference {
         )
       }
 
-    val balanceBeamMeasurementsLikelihood: GaussianLinearLikelihood =
-      getLikelihood {
+    val balanceBeamMeasurementsAnalyticLikelihood: GaussianLinearLikelihood =
+      getAnalyticLikelihood {
+        kenConfig.measurements.measurementModels.flatMap { mm =>
+          experimentProcessor.processExperiment(mm)
+        }.toVector
+      }
+
+    val totalMassNonAnalyticLikelihood: GaussianLikelihood[NonLinearFiniteDifferenceInMemoryMemoizedForwardModel] =
+      getNonAnalyticLikelihood {
+        Vector(
+          experimentProcessor.totalMassMeasurement(kenConfig.measurements.shinkenMass,
+                                                   kenConfig.measurements.measurementUncertainties.massUncertainty
+          )
+        )
+      }
+
+    val zeroMassAtTipNonAnalyticLikelihood: GaussianLikelihood[NonLinearFiniteDifferenceInMemoryMemoizedForwardModel] =
+      getNonAnalyticLikelihood {
+        Vector(
+          experimentProcessor.zeroMassAtTipMeasurement(
+            kenConfig.measurements.measurementUncertainties.massUncertainty
+          )
+        )
+      }
+
+    val massContinuousAtKissakeNonAnalyticLikelihood
+        : GaussianLikelihood[NonLinearFiniteDifferenceInMemoryMemoizedForwardModel] =
+      getNonAnalyticLikelihood {
+        Vector(
+          experimentProcessor.massContinuousAroundKissake(
+            kenConfig.measurements.measurementUncertainties.massUncertainty
+          )
+        )
+      }
+
+    val balanceBeamMeasurementsNonAnalyticLikelihood
+        : GaussianLikelihood[NonLinearFiniteDifferenceInMemoryMemoizedForwardModel] =
+      getNonAnalyticLikelihood {
         kenConfig.measurements.measurementModels.flatMap { mm =>
           experimentProcessor.processExperiment(mm)
         }.toVector
@@ -136,28 +192,90 @@ object AnalyticInference {
     // Posterior Construction
     // - - -- --- ----- -------- -------------
 
-    val posterior = GaussianAnalyticPosterior(
+    println(
+      s"\nAnalytic Posterior..."
+    )
+
+    val analyticPosterior = GaussianAnalyticPosterior(
       priors = Set(massPerLengthPrior),
       likelihoods = Set(
-//        totalMassLikelihood,
-        zeroMassAtTipLikelihood,
-//        massContinuousAtKissakeLikelihood,
-        balanceBeamMeasurementsLikelihood
+        //        totalMassLikelihood,
+        zeroMassAtTipAnalyticLikelihood,
+        //        massContinuousAtKissakeLikelihood,
+        balanceBeamMeasurementsAnalyticLikelihood
       )
     )
+
+    analyticPosterior.init().unsafeRunSync()
+
+    println(
+      s"\nNon-Analytic Posterior..."
+    )
+
+    val posterior = UnNormalisedPosterior(
+      priors = Set(massPerLengthPrior),
+      likelihoods = Set(
+        //        totalMassLikelihood,
+        zeroMassAtTipAnalyticLikelihood,
+        //        massContinuousAtKissakeLikelihood,
+        balanceBeamMeasurementsNonAnalyticLikelihood
+      )
+    )
+
+    val posteriorOptimiser: HookeAndJeevesOptimisedPosterior =
+      HookeAndJeevesOptimisedPosterior(
+        hookeAndJeevesConfig = kenConfig.inferenceParameters.hookesAndJeevesParameters,
+        posterior = posterior,
+        newMaximumCallback = nm =>
+          print(
+            s"\rHooke & Jeeves Optimisation: New posterior maximum found of $nm"
+          ),
+        newScaleCallback = ns => println(s"\nHooke & Jeeves Optimisation: Rescaling to $ns"),
+        isConvergedCallback = _ => println(s"\nHooke & Jeeves Optimisation: Has converged!")
+      )
+
+    println(
+      s"\nAcquiring optimisation result..."
+    )
+
+    val optimisationResult = posteriorOptimiser.findMaximumLogPdf(analyticPosterior.mean).unsafeRunSync()
+
+    println(
+      s"\nSetting up sampling..."
+    )
+
+    val posteriorSampler = HmcmcPosteriorSampler(
+      hmcmcConfig = kenConfig.inferenceParameters.hmcmcParameters,
+      posterior = posterior,
+      sampleRequestSetCallback = samplesRequestsCount =>
+        print(
+          s"\rSample requested: Current requests queued: $samplesRequestsCount"
+        ),
+      sampleRequestUpdateCallback = samplesRequestsCount =>
+        print(
+          s"\rSample acquired: Current requests queued: $samplesRequestsCount"
+        ),
+      seedSpec = IO(optimisationResult._2)
+    )
+
+    println(
+      s"\nInitialising sampler..."
+    )
+
+    posteriorSampler.init.unsafeRunSync()
 
     println(
       s"Inference setup is complete..."
     )
 
     val samples: List[List[Double]] =
-      (0 until kenConfig.visualisationParameters.sampleCount).toList.traverse { _ =>
-        for {
-          modelParams <- posterior.sample
-        } yield modelParams
-          .get(massPerLengthPrior.label)
-          .map(_.toList)
-      }.map(_.flatten).unsafeRunSync()
+      (0 until kenConfig.visualisationParameters.sampleCount).toList.parTraverse { _ =>
+        posteriorSampler.sample.map(_.get("mass-per-length-parametrization"))
+      }.map(_.flatten.map(_.toList)).unsafeRunSync()
+
+    println(
+      s"\nSampling is complete..."
+    )
 
     // Prep for creating visualisations and outputs
     val sampleGraph = CartesianSurface(
@@ -188,7 +306,7 @@ object AnalyticInference {
     val inferredMassMapping = RealValuedFunction.linearInterpolation {
       bladeGeometry.taggedMassInferencePolesAndWeights
         .map(_.pole)
-        .zip(posterior.mean("mass-per-length-parametrization"))
+        .zip(optimisationResult._2("mass-per-length-parametrization"))
         .map(i => Point2D(i._1, i._2))
     }
 
@@ -218,7 +336,7 @@ object AnalyticInference {
 
     val writePlotData =
       for {
-        maxLogPdf <- posterior.maxLogPdf
+        maxLogPdf <- IO(optimisationResult._1)
         _         <- IO(println(s"MaxLogPdf - $maxLogPdf"))
         _         <- IO(println(s"Writing scalar data - ${kenConfig.label}"))
         _ <-
@@ -254,6 +372,10 @@ object AnalyticInference {
         _       <- IO(dataWriter.writeDatFile(results.toList, (resultPath / "massDensity_analytic.dat").toString))
         _       <- IO(println(s"\nDone - ${kenConfig.label}!"))
       } yield ()
+
+    println(
+      s"\nWriting plot data..."
+    )
 
     writePlotData.unsafeRunSync()
   }

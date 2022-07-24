@@ -10,11 +10,15 @@ Thylacine is a Bayesian inference framework that facilitates sampling, integrati
 A few aspects differentiate Thylacine from other Bayesian inference frameworks:
 * Framework and design largely de-coupled from Bayesian graphical representations of the problem (more details in the FAQ below)
 * Designed to be multi-threaded from the ground up using a high-performance Software Transactional Memory (STM) implementation to facilitate efficient concurrency across the differing computational profiles for sampling, integration, visualisation, etc.
-* Analytic gradient calculations can be specified on a component level that enables automatic differentiation to be used in gradient calculations
-* A growing list of advanced algorithms have already been implementated:
+* Analytic gradient calculations can be specified on a component level that enables automatic differentiation to be used in gradient calculations. This is essential if aiming to perform high-dimension inference using gradient information.
+* A growing list of advanced algorithms/concepts have already been implementated:
   * Hamiltonian MCMC
   * An advanced version of Nested Sampling: Stochastic Lebesgue Quadrature (SLQ) 
-  * Gaussian Analytic Posteriors
+  * Gaussian analytic posteriors
+  * Automatic differentiation that falls back to finite-differences when analytic gradient calculations are not available
+  * Hookes & Jeeves optimisation: This is one of the best optimisation algorithms I've ever come across that works across a wide range of posterior distributions
+  * Likelihoods that support in-memory caching of evaluation and Jacobian calculations
+  * Support for Cauchy distributions (in addition to standard Gaussian and uniform distributions)
 
 ---
 
@@ -38,14 +42,19 @@ Coming Soon!
 Take a look at [the Medium article on PR FAQs](https://medium.com/agileinsider/press-releases-for-product-managers-everything-you-need-to-know-942485961e31) for a good overview of the concept. I have taken some liberties with the formatting, but I generally like the concept of a living FAQ to help introduce products.
 
 ### Why another Bayesian framework?
-I got involved with Bayesian techniques a long time ago when I was working as a plasma physicist. In that time most of the Bayesian data analysis I did was via a bespoke framework written in Java. Over the course of my research, I saw many avenues of improvement for this framework that mostly centred around data modelling and performance optimisations. However, the nature of research did not afford me to the time to work on tooling improvement over getting research results. 
+I became involved with Bayesian techniques a long time ago when I was working as a plasma physicist. In that time most of the Bayesian data analysis I did was via a bespoke framework written in Java. Over the course of my research, I saw many avenues of improvement for this framework that mostly centred around data modelling and performance optimisations. However, the nature of research did not afford me to the time to work on tooling improvement over getting research results. 
 
 After I left academia, I wanted to implement these improvements but lacked a good problem to test my ideas against. Also, extending the framework I was using wasn't really feasible, as the project was closed sourced with commercial aspirations. Eventually, I came across an interesting problem of inferring mass density distributions of Katana when I started training in Battojutsu. As I continued to flesh out details in the forward model for this problem, the supporting inference code became more complex; and it became clear it was time to extract out the underpinning framework from the application code. Hence, Thylacine was born.
 
-### Will you add tests?
-Yes, the first step was to simply extract out the inference framework from the BayKen application code (in another repo now). I have been doing extensive testing in the context of higher level inference validation using this codebase. 
+### What about Graphical models?
+The framework is decoupled from any concepts in Bayesian graphical models by design. Indeed, I found previously that trying to integrate graphical concepts into a low-level Bayesian framework led to unneeded coupling within the data model, when just needing to perform posterior analysis. Indeed, priors and likelihoods can be formulated in any desired context and then fed into this framework.
 
-How to meaningfully test a framework like this I find to be a very interesting problem in and of itself. I am currently working on a simple multi-variate normal distribution analytic test case that will serve as the centerpiece for a top-down testing strategy.
+More abstractly, the concept of probabalistic graphical models is not intrinsically linked to Bayesian analysis. Indeed, frequentist methods can also be used to process these graphs representations. Given this, I decided it did not make sense to artificially couple two concepts within this framework that are not intrinsically linked together (for more-or-less standard software engineering reasons not to introduce unneeded coupling in one's code).
+
+### Will you add tests?
+How to meaningfully test a framework like this I find to be a very interesting problem in and of itself. I have some simple tests that cover simple analytic and non-analytic inferences. However, figuring out how to meaningful test the sampling inside a unit test in a deterministic and fast way is something I'm still working on.
+
+The first step was to simply extract out the inference framework from the BayKen application code (in another repo now). I have been doing extensive testing in the context of higher level inference validation using this codebase.
 
 ### Why 'Thylacine'?
 Tasmanian tigers have been one of my favourite animals since I was a kid. I really hope we can bring them back someday. I named this framework after then, as this framework is about meaningfully merging data from a heterogenous collection of measurements, and I see thylacines as a bit of a chimera with respect to other animals: they are marsupials, carnivorous, have stripes, and exhibit both feline and canine qualities. I.e. both are about combining different parts to get a better whole. If that's too much of a stretch, then let's just say it's artistic license :).

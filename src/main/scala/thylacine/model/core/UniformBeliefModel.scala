@@ -41,13 +41,10 @@ private[thylacine] case class UniformBeliefModel(
     if (validated) {
       this
     } else {
-      UniformBeliefModel(maxBounds.getValidated,
-                         minBounds.getValidated,
-                         validated = true
-      )
+      UniformBeliefModel(maxBounds.getValidated, minBounds.getValidated, validated = true)
     }
 
-  private[thylacine] override val domainDimension: Int = maxBounds.dimension
+  override val domainDimension: Int = maxBounds.dimension
 
   private[thylacine] lazy val negLogVolume: ResultOrErrIo[Double] =
     ResultOrErrIo.fromValue {

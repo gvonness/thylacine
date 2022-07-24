@@ -19,6 +19,7 @@ package thylacine.model.core
 
 import cats.data.EitherT
 import cats.effect._
+import cats.effect.unsafe.IORuntime
 
 import scala.concurrent.{Future, TimeoutException}
 import scala.util.{Failure, Success, Try}
@@ -66,6 +67,15 @@ private[thylacine] object Erratum {
   private[thylacine] case class MinorErratum(message: String) extends PersistentErratum
 
   private[thylacine] object ResultOrErrIo {
+
+    private[thylacine] def toIo[T](spec: ResultOrErrIo[T]): IO[T] =
+      spec.value.flatMap {
+        case Right(res) => IO.pure(res)
+        case Left(err)  => IO.raiseError(new RuntimeException(err.message))
+      }
+
+    private[thylacine] def materialize[T](input: ResultOrErrIo[T])(implicit runtime: IORuntime): T =
+      toIo(input).unsafeRunSync()
 
     private[thylacine] def fromCalculation[T](calculation: => T): ResultOrErrIo[T] =
       fromIo(IO(calculation))

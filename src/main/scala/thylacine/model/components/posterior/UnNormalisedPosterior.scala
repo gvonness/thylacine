@@ -22,5 +22,5 @@ case class UnNormalisedPosterior(
       likelihoodFib         <- likelihoods.toList.traverse(_.logPdfAt(input)).start
       priorEvaluations      <- priorFib.joinWithNever
       likelihoodEvaluations <- likelihoodFib.joinWithNever
-    } yield (priorEvaluations ++ likelihoodEvaluations).product
+    } yield (priorEvaluations ++ likelihoodEvaluations).sum
 }

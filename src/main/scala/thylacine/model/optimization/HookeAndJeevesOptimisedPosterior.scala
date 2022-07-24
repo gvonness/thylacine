@@ -21,13 +21,17 @@ import thylacine.config.HookeAndJeevesConfig
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 
+import ai.entrolution.bengal.stm.STM
+import cats.effect.IO
+
 case class HookeAndJeevesOptimisedPosterior(
     hookeAndJeevesConfig: HookeAndJeevesConfig,
     posterior: Posterior[Prior[_], _],
     newMaximumCallback: Double => Unit = _ => (),
     newScaleCallback: Double => Unit = _ => (),
     isConvergedCallback: Unit => Unit = _ => ()
-) extends HookeAndJeevesEngine {
+)(implicit stm: STM[IO])
+    extends HookeAndJeevesEngine {
 
   override protected val convergenceThreshold: Double =
     hookeAndJeevesConfig.convergenceThreshold

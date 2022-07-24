@@ -45,10 +45,7 @@ private[thylacine] case class CauchyBeliefModel(
     if (validated) {
       this
     } else {
-      CauchyBeliefModel(mean.getValidated,
-                        covariance.getValidated,
-                        validated = true
-      )
+      CauchyBeliefModel(mean.getValidated, covariance.getValidated, validated = true)
     }
 
   private lazy val multiplier = gamma((1 + domainDimension) / 2.0) / (gamma(
@@ -57,7 +54,7 @@ private[thylacine] case class CauchyBeliefModel(
     det(rawInverseCovariance)
   ))
 
-  private[thylacine] override val domainDimension: Int = mean.dimension
+  override val domainDimension: Int = mean.dimension
 
   private lazy val rawInverseCovariance: DenseMatrix[Double] =
     inv(covariance.rawMatrix)
@@ -69,9 +66,7 @@ private[thylacine] case class CauchyBeliefModel(
       for {
         diffVec <- IO(input.rawVector - mean.rawVector)
         result <- IO(
-                    Math.pow(1 + diffVec.t * rawInverseCovariance * diffVec,
-                             (1.0 + domainDimension) / 2.0
-                    )
+                    Math.pow(1 + diffVec.t * rawInverseCovariance * diffVec, (1.0 + domainDimension) / 2.0)
                   )
       } yield multiplier * result
     }
@@ -98,9 +93,7 @@ private[thylacine] case class CauchyBeliefModel(
   // Leveraging connection to Gamma and Gaussian distributions
   private[thylacine] def getRawSample: VectorContainer =
     VectorContainer(
-      MultivariateGaussian(mean.rawVector,
-                           covariance.rawMatrix / chiSquared.sample()
-      ).sample()
+      MultivariateGaussian(mean.rawVector, covariance.rawMatrix / chiSquared.sample()).sample()
     )
 
 }

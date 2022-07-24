@@ -19,11 +19,10 @@ package thylacine.model.components.forwardmodel
 
 import thylacine.model.core.Erratum.ResultOrErrIo
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.{
-  IndexedMatrixCollection,
-  IndexedVectorCollection,
-  VectorContainer
-}
+import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
+
+import ai.entrolution.bengal.stm.STM
+import cats.effect.IO
 
 case class NonLinearForwardModel(
     evaluation: Map[String, Vector[Double]] => Vector[Double],
@@ -43,7 +42,7 @@ case class NonLinearForwardModel(
 
   override private[thylacine] val getValidated = this
 
-  override private[thylacine] val domainDimension = domainDimensions.values.sum
+  override val domainDimension: Int = domainDimensions.values.sum
 
   private[thylacine] override def evalAt(
       input: IndexedVectorCollection
@@ -75,11 +74,7 @@ object NonLinearForwardModel {
       rangeDimension: Int,
       differential: Double
   ): NonLinearFiniteDifferenceForwardModel =
-    NonLinearFiniteDifferenceForwardModel(evaluation,
-                                          domainDimensions,
-                                          rangeDimension,
-                                          differential
-    )
+    NonLinearFiniteDifferenceForwardModel(evaluation, domainDimensions, rangeDimension, differential)
 
   def apply(
       evaluation: Map[String, Vector[Double]] => Vector[Double],
@@ -87,7 +82,7 @@ object NonLinearForwardModel {
       rangeDimension: Int,
       differential: Double,
       maxResultsToCache: Int
-  ): NonLinearFiniteDifferenceInMemoryMemoizedForwardModel =
+  )(implicit stm: STM[IO]): NonLinearFiniteDifferenceInMemoryMemoizedForwardModel =
     NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
       evaluation,
       domainDimensions,
@@ -104,7 +99,7 @@ object NonLinearForwardModel {
       domainDimensions: Map[String, Int],
       rangeDimension: Int,
       maxResultsToCache: Int
-  ): NonLinearInMemoryMemoizedForwardModel =
+  )(implicit stm: STM[IO]): NonLinearInMemoryMemoizedForwardModel =
     NonLinearInMemoryMemoizedForwardModel(
       evaluation,
       jacobian,

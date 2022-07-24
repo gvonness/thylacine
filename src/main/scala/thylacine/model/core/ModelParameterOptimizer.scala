@@ -24,12 +24,13 @@ import cats.effect.IO
 
 private[thylacine] trait ModelParameterOptimizer {
 
-  protected def calculateMaximumLogPdf
-      : ResultOrErrIo[(Double, ModelParameterCollection)]
+  protected def calculateMaximumLogPdf(
+      startingPt: ModelParameterCollection
+  ): ResultOrErrIo[(Double, ModelParameterCollection)]
 
-  final def findMaximumLogPdf: IO[(Double, Map[String, Vector[Double]])] =
+  final def findMaximumLogPdf(startPt: Map[String, Vector[Double]]): IO[(Double, Map[String, Vector[Double]])] =
     for {
-      maximumResult <- calculateMaximumLogPdf.value
+      maximumResult <- calculateMaximumLogPdf(IndexedVectorCollection(startPt)).value
       result <- maximumResult match {
                   case Right(res) =>
                     IO.pure(res)
@@ -38,6 +39,12 @@ private[thylacine] trait ModelParameterOptimizer {
                 }
     } yield (result._1, result._2.genericScalaRepresentation)
 
+  final def findMaximumLogPdf: IO[(Double, Map[String, Vector[Double]])] =
+    findMaximumLogPdf(Map())
+
+  final def findMaximumPdf(startPt: Map[String, Vector[Double]]): IO[(Double, Map[String, Vector[Double]])] =
+    findMaximumLogPdf(startPt).map(i => (Math.exp(i._1), i._2))
+
   final def findMaximumPdf: IO[(Double, Map[String, Vector[Double]])] =
-    findMaximumLogPdf.map(i => (Math.exp(i._1), i._2))
+    findMaximumPdf(Map())
 }

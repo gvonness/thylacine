@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.core
 
 private[thylacine] trait GenericMapping {
-  private[thylacine] def domainDimension: Int
+  def domainDimension: Int
 
-  private[thylacine] def rangeDimension: Int
+  def rangeDimension: Int
 }

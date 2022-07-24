@@ -31,9 +31,8 @@ import cats.implicits._
 import scala.util.Random
 import scala.{Vector => ScalaVector}
 
-private[thylacine] trait HookeAndJeevesEngine extends ModelParameterOptimizer {
+private[thylacine] abstract class HookeAndJeevesEngine(implicit val stm: STM[IO]) extends ModelParameterOptimizer {
 
-  private val stm = STM.runtime[IO].unsafeRunSync()
   import stm._
 
   protected def posterior: Posterior[Prior[_], _]
@@ -53,13 +52,11 @@ private[thylacine] trait HookeAndJeevesEngine extends ModelParameterOptimizer {
   private val isConverged: TxnVar[Boolean] =
     TxnVar.of(false).unsafeRunSync()
 
-  private def findMaxDimensionalDifference(input: List[Vector[Double]]) =
+  private def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
     input.tail
       .foldLeft(input.head.zip(input.head)) { (i, j) =>
         i.zip(j).map { k =>
-          (if (k._2 > k._1._1) k._2 else k._1._1,
-           if (k._2 < k._1._2) k._2 else k._1._2
-          )
+          (if (k._2 > k._1._1) k._2 else k._1._1, if (k._2 < k._1._2) k._2 else k._1._2)
         }
       }
       .map(i => i._1 - i._2)
@@ -69,9 +66,7 @@ private[thylacine] trait HookeAndJeevesEngine extends ModelParameterOptimizer {
       numberOfPriorSamples: Int
   ): ResultOrErrIo[Unit] =
     for {
-      samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ =>
-                   posterior.samplePriors
-                 )
+      samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ => posterior.samplePriors)
       samplesRaw <-
         samples.parTraverse(posterior.modelParameterCollectionToVectorValues)
       bestSample <-
@@ -79,9 +74,10 @@ private[thylacine] trait HookeAndJeevesEngine extends ModelParameterOptimizer {
           .zip(samplesRaw)
           .parTraverse(s => posterior.logPdfAt(s._1).map(lpdf => (lpdf, s._2)))
           .map(_.maxBy(_._1))
+      maxDifference = findMaxDimensionalDifference(samplesRaw)
       _ <- ResultOrErrIo.fromIo {
              (for {
-               _ <- currentScale.set(findMaxDimensionalDifference(samplesRaw))
+               _ <- currentScale.set(maxDifference)
                _ <- currentBest.set(bestSample)
                _ <- isConverged.set(false)
              } yield ()).commit
@@ -114,12 +110,11 @@ private[thylacine] trait HookeAndJeevesEngine extends ModelParameterOptimizer {
 
     Random
       .shuffle(startingPoint.indices.toList)
-      .foldLeft(ResultOrErrIo.fromValue((startingLogPdf, startingPoint))) {
-        (i, j) =>
-          for {
-            prev    <- i
-            results <- nudges.parTraverse(nudgeAndEvaluate(j, _, prev._2))
-          } yield (prev +: Random.shuffle(results)).maxBy(_._1)
+      .foldLeft(ResultOrErrIo.fromValue((startingLogPdf, startingPoint))) { (i, j) =>
+        for {
+          prev    <- i
+          results <- nudges.parTraverse(nudgeAndEvaluate(j, _, prev._2))
+        } yield (prev +: Random.shuffle(results)).maxBy(_._1)
       }
   }
 
@@ -154,14 +149,24 @@ private[thylacine] trait HookeAndJeevesEngine extends ModelParameterOptimizer {
     runDimensionalIteration.flatMap { _ =>
       for {
         converged <- ResultOrErrIo.fromIo(isConverged.get.commit)
-        _         <- if (converged) optimisationRecursion else ResultOrErrIo.unit
+        _         <- if (!converged) optimisationRecursion else ResultOrErrIo.unit
       } yield ()
     }
 
-  protected def calculateMaximumLogPdf
-      : ResultOrErrIo[(Double, ModelParameterCollection)] =
+  override protected def calculateMaximumLogPdf(
+      startPt: ModelParameterCollection
+  ): ResultOrErrIo[(Double, ModelParameterCollection)] =
     for {
-      _          <- initialize(numberOfSamplesToSetScale)
+      _ <- initialize(numberOfSamplesToSetScale)
+      _ <- if (startPt.index.isEmpty) {
+             ResultOrErrIo.unit
+           } else {
+             for {
+               pt     <- posterior.modelParameterCollectionToVectorValues(startPt)
+               logPdf <- posterior.logPdfAt(startPt)
+               _      <- ResultOrErrIo.fromIo(currentBest.set((logPdf, pt)).commit)
+             } yield ()
+           }
       _          <- optimisationRecursion
       best       <- ResultOrErrIo.fromIo(currentBest.get.commit)
       bestParams <- posterior.vectorValuesToModelParameterCollection(best._2)

@@ -27,9 +27,8 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
 
-private[thylacine] trait InMemoryMemoizedForwardModel extends MemoizedForwardModel {
+private[thylacine] abstract class InMemoryMemoizedForwardModel(implicit val stm: STM[IO]) extends MemoizedForwardModel {
 
-  private val stm = STM.runtime[IO].unsafeRunSync()
   import stm._
 
   protected def maxResultsToCache: Int
@@ -48,28 +47,32 @@ private[thylacine] trait InMemoryMemoizedForwardModel extends MemoizedForwardMod
       Map[Int, ComputationResult[VectorContainer]]()
     }.unsafeRunSync()
 
-  private val jacobianCache
-      : TxnVar[Map[Int, ComputationResult[IndexedMatrixCollection]]] =
+  private val jacobianCache: TxnVar[Map[Int, ComputationResult[IndexedMatrixCollection]]] =
     TxnVar.of {
       Map[Int, ComputationResult[IndexedMatrixCollection]]()
     }.unsafeRunSync()
 
-  private def retrieveKeyFromStore[T](
-      key: Int,
-      store: TxnVar[Map[Int, ComputationResult[T]]]
-  ): ResultOrErrIo[Option[T]] =
+  private def retrieveKeyFromEvalStore(
+      key: Int
+  ): ResultOrErrIo[Option[VectorContainer]] =
     ResultOrErrIo.fromIo(
-      store.get.map(_.get(key).map(_.result)).commit
+      evalCache.get.map(_.get(key).map(_.result)).commit
     )
 
-  private def updateAccessTimeForKeyInStore[T](
+  private def retrieveKeyFromJacobianStore(
+      key: Int
+  ): ResultOrErrIo[Option[IndexedMatrixCollection]] =
+    ResultOrErrIo.fromIo(
+      jacobianCache.get.map(_.get(key).map(_.result)).commit
+    )
+
+  private def updateAccessTimeForKeyInEvalStore(
       key: Int,
-      time: Int,
-      store: TxnVar[Map[Int, ComputationResult[T]]]
+      time: Int
   ): ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
       for {
-        _ <- store.modify { ec =>
+        _ <- evalCache.modify { ec =>
                ec.get(key) match {
                  case Some(res) if time > res.lastAccessed =>
                    ec + (key -> res.updateLastAccess(time))
@@ -80,34 +83,65 @@ private[thylacine] trait InMemoryMemoizedForwardModel extends MemoizedForwardMod
       } yield ()
     }
 
-  private def upsertResultIntoStore[T](
+  private def updateAccessTimeForKeyInJacobianStore(
       key: Int,
-      newResult: ComputationResult[T],
-      store: TxnVar[Map[Int, ComputationResult[T]]]
+      time: Int
   ): ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
       for {
-        _ <- store.modify { ec =>
+        _ <- jacobianCache.modify { ec =>
                ec.get(key) match {
-                 case None =>
-                   ec + (key -> newResult)
-                 case Some(oldResult)
-                     if newResult.lastAccessed > oldResult.lastAccessed =>
-                   ec + (key -> newResult)
-                 case _ =>
-                   ()
+                 case Some(res) if time > res.lastAccessed =>
+                   ec + (key -> res.updateLastAccess(time))
+                 case _ => ()
                }
                ec
              }.commit.start
       } yield ()
     }
 
-  private def cleanStore[T](
-      store: TxnVar[Map[Int, ComputationResult[T]]]
+  private def upsertResultIntoEvalStore(
+      key: Int,
+      newResult: ComputationResult[VectorContainer]
   ): ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
       for {
-        _ <- store.modify { ec =>
+        _ <- evalCache.modify { ec =>
+               ec.get(key) match {
+                 case None =>
+                   ec + (key -> newResult)
+                 case Some(oldResult) if newResult.lastAccessed > oldResult.lastAccessed =>
+                   ec + (key -> newResult)
+                 case _ =>
+                   ec
+               }
+             }.commit.start
+      } yield ()
+    }
+
+  private def upsertResultIntoJacobianStore(
+      key: Int,
+      newResult: ComputationResult[IndexedMatrixCollection]
+  ): ResultOrErrIo[Unit] =
+    ResultOrErrIo.fromIo {
+      for {
+        _ <- jacobianCache.modify { ec =>
+               ec.get(key) match {
+                 case None =>
+                   ec + (key -> newResult)
+                 case Some(oldResult) if newResult.lastAccessed > oldResult.lastAccessed =>
+                   ec + (key -> newResult)
+                 case _ =>
+                   ec
+               }
+             }.commit.start
+      } yield ()
+    }
+
+  private def cleanEvalStore: ResultOrErrIo[Unit] =
+    ResultOrErrIo.fromIo {
+      for {
+        _ <- evalCache.modify { ec =>
                if (ec.size > maxResultsToCache) {
                  ec.toSeq
                    .sortBy(_._2.lastAccessed)
@@ -120,55 +154,79 @@ private[thylacine] trait InMemoryMemoizedForwardModel extends MemoizedForwardMod
       } yield ()
     }
 
-  private def retrieveFromStoreFor[T](
-      input: ModelParameterCollection,
-      store: TxnVar[Map[Int, ComputationResult[T]]]
-  ): ResultOrErrIo[Option[T]] =
+  private def cleanJacobianStore: ResultOrErrIo[Unit] =
+    ResultOrErrIo.fromIo {
+      for {
+        _ <- jacobianCache.modify { ec =>
+               if (ec.size > maxResultsToCache) {
+                 ec.toSeq
+                   .sortBy(_._2.lastAccessed)
+                   .takeRight(maxResultsToCache)
+                   .toMap
+               } else {
+                 ec
+               }
+             }.commit.start
+      } yield ()
+    }
+
+  override protected def retrieveEvalFromStoreFor(
+      input: ModelParameterCollection
+  ): ResultOrErrIo[Option[VectorContainer]] =
     for {
       time <- tickAndGet
       key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
-      ec   <- retrieveKeyFromStore(key, store)
+      ec   <- retrieveKeyFromEvalStore(key)
       _ <- ec match {
              case Some(_) =>
-               updateAccessTimeForKeyInStore(key, time, store)
+               updateAccessTimeForKeyInEvalStore(
+                 key,
+                 time
+               )
              case _ =>
                ResultOrErrIo.unit
            }
     } yield ec
 
-  final override protected def retrieveEvalFromStoreFor(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[Option[VectorContainer]] =
-    retrieveFromStoreFor(input, evalCache)
-
-  final override protected def retrieveJacobianFromStoreFor(
+  override protected def retrieveJacobianFromStoreFor(
       input: ModelParameterCollection
   ): ResultOrErrIo[Option[IndexedMatrixCollection]] =
-    retrieveFromStoreFor(input, jacobianCache)
+    for {
+      time <- tickAndGet
+      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
+      ec   <- retrieveKeyFromJacobianStore(key)
+      _ <- ec match {
+             case Some(_) =>
+               updateAccessTimeForKeyInJacobianStore(
+                 key,
+                 time
+               )
+             case _ =>
+               ResultOrErrIo.unit
+           }
+    } yield ec
 
-  private def updateStoreWith[T](
+  override protected def updateEvalStoreWith(
       input: ModelParameterCollection,
-      eval: T,
-      store: TxnVar[Map[Int, ComputationResult[T]]]
+      eval: VectorContainer
   ): ResultOrErrIo[Unit] =
     for {
       time <- getTime
       key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
-      _    <- upsertResultIntoStore(key, ComputationResult(eval, time), store)
-      _    <- cleanStore(store)
+      _    <- upsertResultIntoEvalStore(key, ComputationResult(eval, time))
+      _    <- cleanEvalStore
     } yield ()
 
-  final override protected def updateEvalStoreWith(
-      input: ModelParameterCollection,
-      eval: VectorContainer
-  ): ResultOrErrIo[Unit] =
-    updateStoreWith(input, eval, evalCache)
-
-  final override protected def updateJacobianStoreWith(
+  override protected def updateJacobianStoreWith(
       input: ModelParameterCollection,
       jacobian: IndexedMatrixCollection
   ): ResultOrErrIo[Unit] =
-    updateStoreWith(input, jacobian, jacobianCache)
+    for {
+      time <- getTime
+      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
+      _    <- upsertResultIntoJacobianStore(key, ComputationResult(jacobian, time))
+      _    <- cleanJacobianStore
+    } yield ()
 }
 
 private[thylacine] object InMemoryMemoizedForwardModel {

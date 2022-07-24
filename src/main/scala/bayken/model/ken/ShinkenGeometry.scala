@@ -107,12 +107,14 @@ case class ShinkenGeometry(
   private def generateModelCurve(
       points: List[BackEdgePointConfig],
       bladeSectionDerivativeZero: Boolean = false,
-      unbounded: Boolean = false
+      unbounded: Boolean = false,
+      xRemapping: Point2D => Point2D = p => p
   ): PiecewisePolynomial1DSupport = {
     val sortedAndJoinedBladeSections: Seq[ShinkenSectionModel] =
       getSortedAndJoinedBladeSections(
         inferenceConfig,
-        points
+        points,
+        xRemapping
       )
 
     def polynomialFor(section: ShinkenSectionModel): NonTrivialPolynomial =
@@ -130,7 +132,7 @@ case class ShinkenGeometry(
                    NegativeUnbounded(OpenBoundary(sortedAndJoinedBladeSections.init.head.upperBound))
                  } else {
                    OrderedBoundedInterval1D(ClosedBoundary(sortedAndJoinedBladeSections.init.head.lowerBound),
-                                            ClosedBoundary(sortedAndJoinedBladeSections.init.head.upperBound)
+                                            OpenBoundary(sortedAndJoinedBladeSections.init.head.upperBound)
                    )
                  }
                )
@@ -276,20 +278,15 @@ case class ShinkenGeometry(
         .map(i => TaggedQuadraturePoint(bsc.shinkenSection, i._1, i._2))
     }.reduce(_ ++ _)
 
-  val sectionCoefficientMapping: Map[ShinkenSectionLabel, Double] =
-    inferenceConfig.bladeSectionParameters.map(i => (i.label, i.gaussianProcessCoefficient)).toMap
-
   val gaussianProcessCovariance: Vector[Vector[Double]] =
     taggedMassInferencePolesAndWeights.toVector.map { tpwOuter =>
-      val coefficient = sectionCoefficientMapping.getOrElse(tpwOuter.label, 0d)
       taggedMassInferencePolesAndWeights.toVector.map { tpwInner =>
-        if (tpwOuter.label == tpwInner.label) {
-          Math.abs(tpwOuter.pole - tpwInner.pole) * coefficient
-        } else {
-          0d
-        }
+        Math.exp(-Math.pow(tpwOuter.pole - tpwInner.pole, 2.0) / inferenceConfig.gaussianProcessCoefficient)
       }
     }
+
+  val gaussianProcessMean: Vector[Double] =
+    List.fill(taggedMassInferencePolesAndWeights.size)(0d).toVector
 
   // Used to constrain mass inference to be continuous
   // around the Kissake
@@ -312,11 +309,60 @@ case class ShinkenGeometry(
   private lazy val arcLengthToMuneDoubleDerivative: RealValuedFunction =
     coordinateModel.derivative.derivative.composeWith(arcLengthToCoords)
 
+  lazy val arcLengthToMune: RealValuedFunction = {
+    val bladeMunePoints =
+      munePoints.filter(pt => pt.shinkenSection == Blade || pt.shinkenSection == Kissake)
+
+    generateModelCurve(bladeMunePoints, xRemapping = p => p.copy(x = coordsToArcLength.evalAt(p.x)))
+  }
+
   lazy val arcLengthToMuneCurvature: RealValuedFunction = (s: Double) =>
     Math.abs(arcLengthToMuneDoubleDerivative.evalAt(s)) / Math.pow(
       1d + Math.pow(arcLengthToMuneDerivative.evalAt(s), 2),
       1.5
     )
+
+  lazy val arcLengthToBladeHaba: RealValuedFunction = {
+    val bladeHabaPoints =
+      munePoints.filter(pt => pt.shinkenSection == Blade || pt.shinkenSection == Kissake).flatMap { pt =>
+        pt.haba match {
+          case Some(h) =>
+            Some(pt.copy(y = h))
+          case _ =>
+            None
+        }
+      }
+
+    generateModelCurve(bladeHabaPoints, xRemapping = p => p.copy(x = coordsToArcLength.evalAt(p.x)))
+  }
+
+  lazy val arcLengthToBladeKasane: RealValuedFunction = {
+    val bladeHabaPoints =
+      munePoints.filter(pt => pt.shinkenSection == Blade || pt.shinkenSection == Kissake).flatMap { pt =>
+        pt.kasane match {
+          case Some(h) =>
+            Some(pt.copy(y = h))
+          case _ =>
+            None
+        }
+      }
+
+    generateModelCurve(bladeHabaPoints, xRemapping = p => p.copy(x = coordsToArcLength.evalAt(p.x)))
+  }
+
+  lazy val arcLengthToBladeShinogi: RealValuedFunction = {
+    val bladeHabaPoints =
+      munePoints.filter(pt => pt.shinkenSection == Blade || pt.shinkenSection == Kissake).flatMap { pt =>
+        pt.shinogiHaba match {
+          case Some(h) =>
+            Some(pt.copy(y = h))
+          case _ =>
+            None
+        }
+      }
+
+    generateModelCurve(bladeHabaPoints, xRemapping = p => p.copy(x = coordsToArcLength.evalAt(p.x)))
+  }
 
   lazy val nagasa: Double = Point2D.distanceBetween(muneMachiPoint.point2d, kissakeSakiPoint.point2d)
 
@@ -332,9 +378,11 @@ case class ShinkenGeometry(
     )
     val yCood = coordinateModel.evalAt(xCoord)
 
-    Point2D.rotateAboutOrigin(Point2D(xCoord, yCood), -rotation).y
+    Point2D.rotateAboutOrigin(Point2D(xCoord - muneMachiPoint.x, yCood - muneMachiPoint.y), -rotation).y
   }
 
+  lazy val bladeBaseArcLength: Double =
+    coordsToArcLength.evalAt(munePoints.filter(_.shinkenSection == Blade).map(_.x).min)
   lazy val arcLengthUpperBound: Double = coordsToArcLength.evalAt(kissakeSakiPoint.x)
 }
 
@@ -358,8 +406,7 @@ object ShinkenGeometry {
                 .map(_.point2d)
                 .map(xRemapping)
                 .toSet,
-              quadratureSize = bsc.quadratureSize,
-              gaussianProcessCoefficient = bsc.gaussianProcessCoefficient
+              quadratureSize = bsc.quadratureSize
             )
           }
         }

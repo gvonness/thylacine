@@ -52,15 +52,7 @@ private[thylacine] trait ModelParameterPdf extends GenericScalarValuedMapping {
     }.reduce(_ rawMergeWith _)
 
   final def logPdfAt(input: Map[String, Vector[Double]]): IO[Double] =
-    for {
-      logPdfRes <- logPdfAt(IndexedVectorCollection(input)).value
-      result <- logPdfRes match {
-                  case Right(res) =>
-                    IO.pure(res)
-                  case Left(erratum) =>
-                    IO.raiseError(new RuntimeException(erratum.toString))
-                }
-    } yield result
+    ResultOrErrIo.toIo(logPdfAt(IndexedVectorCollection(input)))
 
   final def pdfAt(input: Map[String, Vector[Double]]): IO[Double] =
     logPdfAt(input).map(Math.exp)
@@ -68,26 +60,18 @@ private[thylacine] trait ModelParameterPdf extends GenericScalarValuedMapping {
   final def logPdfGradientAt(
       input: Map[String, Vector[Double]]
   ): IO[Map[String, Vector[Double]]] =
-    for {
-      logPdfRes <- logPdfGradientAt(IndexedVectorCollection(input)).value
-      result <- logPdfRes match {
-                  case Right(res) =>
-                    IO.pure(res)
-                  case Left(erratum) =>
-                    IO.raiseError(new RuntimeException(erratum.toString))
-                }
-    } yield result.genericScalaRepresentation
+    ResultOrErrIo.toIo {
+      for {
+        logPdfRes <- logPdfGradientAt(IndexedVectorCollection(input))
+      } yield logPdfRes.genericScalaRepresentation
+    }
 
   final def pdfGradientAt(
       input: Map[String, Vector[Double]]
   ): IO[Map[String, Vector[Double]]] =
-    for {
-      logPdfRes <- pdfGradientAt(IndexedVectorCollection(input)).value
-      result <- logPdfRes match {
-                  case Right(res) =>
-                    IO.pure(res)
-                  case Left(erratum) =>
-                    IO.raiseError(new RuntimeException(erratum.toString))
-                }
-    } yield result.genericScalaRepresentation
+    ResultOrErrIo.toIo {
+      for {
+        logPdfRes <- pdfGradientAt(IndexedVectorCollection(input))
+      } yield logPdfRes.genericScalaRepresentation
+    }
 }

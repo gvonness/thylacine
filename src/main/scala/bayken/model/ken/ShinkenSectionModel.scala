@@ -9,8 +9,7 @@ case class ShinkenSectionModel(
     points: Set[Point2D],
     lowerBound: Double,
     upperBound: Double,
-    massInferenceQuadratureSize: Int,
-    massInferenceGaussianProcessCoefficient: Double
+    massInferenceQuadratureSize: Int
 ) {
   assert(points.nonEmpty)
 
@@ -31,15 +30,13 @@ object ShinkenSectionModel {
   def apply(
       shinkenSection: ShinkenSectionLabel,
       points: Set[Point2D],
-      quadratureSize: Int,
-      gaussianProcessCoefficient: Double
+      quadratureSize: Int
   ): ShinkenSectionModel =
     ShinkenSectionModel(
       shinkenSection = shinkenSection,
       points = points,
       lowerBound = points.map(_.x).min,
       upperBound = points.map(_.x).max,
-      massInferenceQuadratureSize = quadratureSize,
-      massInferenceGaussianProcessCoefficient = gaussianProcessCoefficient
+      massInferenceQuadratureSize = quadratureSize
     )
 }

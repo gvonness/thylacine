@@ -19,11 +19,10 @@ package thylacine.model.components.forwardmodel
 
 import thylacine.model.core.Erratum.ResultOrErrIo
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.{
-  IndexedMatrixCollection,
-  IndexedVectorCollection,
-  VectorContainer
-}
+import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
+
+import ai.entrolution.bengal.stm.STM
+import cats.effect.IO
 
 case class NonLinearInMemoryMemoizedForwardModel(
     evaluation: Map[String, Vector[Double]] => Vector[Double],
@@ -34,7 +33,8 @@ case class NonLinearInMemoryMemoizedForwardModel(
     override val rangeDimension: Int,
     override val maxResultsToCache: Int,
     override val validated: Boolean = false
-) extends InMemoryMemoizedForwardModel {
+)(implicit stm: STM[IO])
+    extends InMemoryMemoizedForwardModel {
 
   override protected val orderedParameterIdentifiersWithDimension
       : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
@@ -44,7 +44,7 @@ case class NonLinearInMemoryMemoizedForwardModel(
 
   override private[thylacine] val getValidated = this
 
-  override private[thylacine] val domainDimension = domainDimensions.values.sum
+  override val domainDimension: Int = domainDimensions.values.sum
 
   override protected def computeEvalAt(
       input: IndexedVectorCollection

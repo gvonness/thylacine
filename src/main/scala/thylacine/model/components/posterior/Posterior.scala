@@ -34,7 +34,7 @@ private[thylacine] trait Posterior[P <: Prior[_], L <: Likelihood[_, _]]
   private[thylacine] def likelihoods: Set[L]
   private[thylacine] def isAnalytic: Boolean
 
-  private[thylacine] override final val domainDimension =
+  override final val domainDimension =
     priors.toVector.map(_.domainDimension).sum
 
   protected override final lazy val orderedParameterIdentifiersWithDimension

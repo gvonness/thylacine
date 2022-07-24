@@ -31,7 +31,7 @@ private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
   private[thylacine] def observationModel: BM
   private[thylacine] def forwardModel: FM
 
-  private[thylacine] override final val domainDimension: Int =
+  override final val domainDimension: Int =
     forwardModel.domainDimension
 
   private[thylacine] override final def logPdfAt(

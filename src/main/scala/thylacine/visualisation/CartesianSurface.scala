@@ -32,9 +32,8 @@ case class CartesianSurface(
     progressSetCallback: Int => Unit,
     progressIncrementCallback: Unit => Unit,
     progressFinishCallback: Unit => Unit
-) {
+)(implicit val stm: STM[IO]) {
 
-  private[thylacine] val stm: STM[IO] = STM.runtime[IO].unsafeRunSync()
   import stm._
 
   progressSetCallback(0)
@@ -59,11 +58,11 @@ case class CartesianSurface(
                    case h +: t =>
                      NonEmptyVector(h, t).parTraverse { col =>
                        for {
-//                         integration <- trapezoidalQuadrature(
-//                                          yAbscissa,
-//                                          col._2.values.toVector
-//                                        )
-                         integration <- ResultOrErrIo.fromCalculation(col._2.values.toVector.max)
+                         integration <- trapezoidalQuadrature(
+                                          yAbscissa,
+                                          col._2.values.toVector
+                                        )
+                         //integration <- ResultOrErrIo.fromCalculation(col._2.values.toVector.max)
                        } yield
                          if (integration > 0) {
                            col._2.view.mapValues(v => v / integration).toSeq

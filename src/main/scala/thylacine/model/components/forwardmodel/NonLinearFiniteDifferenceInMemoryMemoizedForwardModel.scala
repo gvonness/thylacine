@@ -21,6 +21,9 @@ import thylacine.model.core.Erratum.ResultOrErrIo
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.{IndexedVectorCollection, VectorContainer}
 
+import ai.entrolution.bengal.stm.STM
+import cats.effect.IO
+
 case class NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
     evaluation: Map[String, Vector[Double]] => Vector[Double],
     domainDimensions: Map[String, Int],
@@ -28,7 +31,8 @@ case class NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
     override val differential: Double,
     override val maxResultsToCache: Int,
     override val validated: Boolean = false
-) extends FiniteDifferenceInMemoryMemoizedForwardModel {
+)(implicit stm: STM[IO])
+    extends FiniteDifferenceInMemoryMemoizedForwardModel {
 
   override protected val orderedParameterIdentifiersWithDimension
       : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
@@ -38,7 +42,7 @@ case class NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
 
   override private[thylacine] val getValidated = this
 
-  override private[thylacine] val domainDimension = domainDimensions.values.sum
+  override val domainDimension: Int = domainDimensions.values.sum
 
   override protected def computeEvalAt(
       input: IndexedVectorCollection

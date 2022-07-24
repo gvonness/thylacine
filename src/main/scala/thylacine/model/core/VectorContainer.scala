@@ -34,7 +34,7 @@ private[thylacine] case class VectorContainer(
   }
 
   private[thylacine] override val getValidated: VectorContainer =
-    if (validated) this else this.copy(validated = true)
+    if (validated) this else this.copy(values = values.filter(_._2 != 0d), validated = true)
 
   // Low-level API
   private[thylacine] lazy val rawVector: DenseVector[Double] = {
@@ -58,9 +58,8 @@ private[thylacine] case class VectorContainer(
   ): VectorContainer =
     VectorContainer(
       values ++ input.getValidated.values.map(i => i._1 + dimension -> i._2),
-      dimension = dimension + input.dimension,
-      validated = true
-    )
+      dimension = dimension + input.dimension
+    ).getValidated
 
   // Low-level API
   // Sum of vectors. Dimension check needs to be done outside
@@ -70,16 +69,14 @@ private[thylacine] case class VectorContainer(
       values = (values.keySet ++ input.values.keySet).map { k =>
         k -> (values.getOrElse(k, 0d) + input.values.getOrElse(k, 0d))
       }.toMap,
-      dimension = dimension,
-      validated = true
-    )
+      dimension = dimension
+    ).getValidated
 
   private[thylacine] def rawScalarProductWith(input: Double): VectorContainer =
     VectorContainer(
       values = values.view.mapValues(_ * input).toMap,
-      dimension = dimension,
-      validated = true
-    )
+      dimension = dimension
+    ).getValidated
 
   private[thylacine] def rawSubtract(input: VectorContainer): VectorContainer =
     rawSumWith(input.rawScalarProductWith(-1.0))
@@ -91,9 +88,8 @@ private[thylacine] case class VectorContainer(
       values = (values.keySet ++ input.values.keySet).map { k =>
         k -> (values.getOrElse(k, 0d) * input.values.getOrElse(k, 0d))
       }.toMap,
-      dimension = dimension,
-      validated = true
-    )
+      dimension = dimension
+    ).getValidated
 
   private[thylacine] def rawDotProductWith(input: VectorContainer): Double =
     rawProductWith(input).valueSum
@@ -133,9 +129,8 @@ private[thylacine] object VectorContainer {
 
     VectorContainer(
       resultMap._2,
-      vector.length,
-      validated = true
-    )
+      vector.length
+    ).getValidated
   }
 
   private[thylacine] def apply(vector: DenseVector[Double]): VectorContainer =

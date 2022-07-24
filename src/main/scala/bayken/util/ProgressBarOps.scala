@@ -23,8 +23,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 
 // Singleton to control progress bar command line visualisation
-object ProgressBarOps {
-  val stm: STM[IO] = STM.runtime[IO].unsafeRunSync()
+case class ProgressBarOps(stm: STM[IO]) {
   import stm._
 
   private val progressBar =

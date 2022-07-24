@@ -81,12 +81,12 @@ case class BalanceBeamExperimentProcessor(
         getCoefficients(fulcrumOrigin),
         measurement.solveConstant,
         measurement.uncertainty
+      ),
+      MeasurementRow(
+        getCoefficients(counterWeightOrigin),
+        measurement.dualSolveConstant,
+        measurement.dualUncertainty
       )
-//        MeasurementRow(
-//          getCoefficients(counterWeightOrigin),
-//          measurement.dualSolveConstant,
-//          measurement.dualUncertainty
-//        )
     )
   }
 }

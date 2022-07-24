@@ -33,9 +33,7 @@ case class LinearForwardModel(
   if (!validated) {
     assert(transform.index.map(_._2.rowTotalNumber).toSet.size == 1)
     assert(
-      vectorOffset.forall(vo =>
-        vo.dimension == transform.index.head._2.rowTotalNumber
-      )
+      vectorOffset.forall(vo => vo.dimension == transform.index.head._2.rowTotalNumber)
     )
   }
 
@@ -43,22 +41,19 @@ case class LinearForwardModel(
     if (validated) {
       this
     } else {
-      LinearForwardModel(transform.getValidated,
-                         vectorOffset.map(_.getValidated),
-                         validated = true
-      )
+      LinearForwardModel(transform.getValidated, vectorOffset.map(_.getValidated), validated = true)
     }
 
   override protected val orderedParameterIdentifiersWithDimension
       : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
     ResultOrErrIo.fromCalculation(
-      transform.index.map(i => (i._1, i._2.columnTotalNumber)).toVector
+      transform.index.map(i => (i._1, i._2.columnTotalNumber)).toVector.sortBy(_._1.value)
     )
 
-  private[thylacine] override val rangeDimension: Int =
+  override val rangeDimension: Int =
     transform.index.head._2.rowTotalNumber
 
-  private[thylacine] override val domainDimension: Int =
+  override val domainDimension: Int =
     transform.index.map(_._2.columnTotalNumber).sum
 
   val rawMatrixTransform: ResultOrErrIo[DenseMatrix[Double]] =
@@ -68,9 +63,7 @@ case class LinearForwardModel(
                   .map(_._1)
                   .foldLeft(
                     ResultOrErrIo.fromValue(
-                      MatrixContainer.zeros(rowDimension = rangeDimension,
-                                            columnDimension = domainDimension
-                      )
+                      MatrixContainer.zeros(rowDimension = rangeDimension, columnDimension = 0)
                     )
                   ) { (i, j) =>
                     for {
@@ -104,8 +97,17 @@ case class LinearForwardModel(
 
 object LinearForwardModel {
 
-  def apply(
+  private[thylacine] def apply(
       identifier: ModelParameterIdentifier,
+      values: Vector[Vector[Double]]
+  ): LinearForwardModel =
+    LinearForwardModel(
+      transform = IndexedMatrixCollection(identifier, values),
+      vectorOffset = None
+    )
+
+  def apply(
+      identifier: String,
       values: Vector[Vector[Double]]
   ): LinearForwardModel =
     LinearForwardModel(

@@ -5,6 +5,5 @@ import bayken.model.ken.ShinkenSectionLabel
 
 case class ShinkenSectionConfig(
     label: ShinkenSectionLabel,
-    quadratureSize: Int,
-    gaussianProcessCoefficient: Double
+    quadratureSize: Int
 )

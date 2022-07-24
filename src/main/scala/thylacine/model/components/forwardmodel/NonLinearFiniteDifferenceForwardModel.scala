@@ -37,7 +37,7 @@ case class NonLinearFiniteDifferenceForwardModel(
 
   override private[thylacine] val getValidated = this
 
-  override private[thylacine] val domainDimension = domainDimensions.values.sum
+  override val domainDimension: Int = domainDimensions.values.sum
 
   private[thylacine] override def evalAt(
       input: IndexedVectorCollection
@@ -45,7 +45,7 @@ case class NonLinearFiniteDifferenceForwardModel(
     ResultOrErrIo.fromCalculation {
       VectorContainer(
         evaluation(
-          input.index.map(i => i._1.value -> i._2.rawVector.toScalaVector)
+          input.index.map(i => i._1.value -> i._2.rawVector.toScalaVector())
         )
       )
     }

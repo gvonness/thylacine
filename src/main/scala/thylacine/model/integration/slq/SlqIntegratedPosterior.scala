@@ -23,6 +23,9 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.interface.SlqTelemetryUpdate
 
+import ai.entrolution.bengal.stm.STM
+import cats.effect.IO
+
 case class SlqIntegratedPosterior(
     slqConfig: SlqConfig,
     posterior: Posterior[Prior[_], _],
@@ -30,7 +33,8 @@ case class SlqIntegratedPosterior(
     slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit = _ => (),
     domainRebuildStartCallback: Unit => Unit = _ => (),
     domainRebuildFinishCallback: Unit => Unit = _ => ()
-) extends SlqEngine {
+)(implicit stm: STM[IO])
+    extends SlqEngine {
   override protected final val slqSamplePoolSize: Int = slqConfig.poolSize
 
   override protected final val slqNumberOfAbscissa: Int =

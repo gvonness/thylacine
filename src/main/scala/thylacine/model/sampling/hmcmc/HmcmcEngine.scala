@@ -98,9 +98,8 @@ private[thylacine] trait HmcmcEngine extends ModelParameterSampler {
               gNew.rawScalarMultiplyWith(simulationEpsilon / 2)
             )
           )
-      } yield (xNew, VectorContainer(pNewNew.toArray.toVector), gNew)).flatMap {
-        i =>
-          runLeapfrogAt(i._1, i._2, i._3, iterationCount + 1)
+      } yield (xNew, VectorContainer(pNewNew.toArray.toVector), gNew)).flatMap { i =>
+        runLeapfrogAt(i._1, i._2, i._3, iterationCount + 1)
       }
     }
 
@@ -139,12 +138,7 @@ private[thylacine] trait HmcmcEngine extends ModelParameterSampler {
                     ResultOrErrIo.fromValue((input, logPdf, gradLogPdf))
                   }
       } yield result).flatMap { r =>
-        runDynamicSimulationFrom(r._1,
-                                 maxIterations,
-                                 Some(r._2),
-                                 Some(r._3),
-                                 iterationCount + 1
-        )
+        runDynamicSimulationFrom(r._1, maxIterations, Some(r._2), Some(r._3), iterationCount + 1)
       }
     } else {
       ResultOrErrIo.fromValue(input)
@@ -159,9 +153,8 @@ private[thylacine] trait HmcmcEngine extends ModelParameterSampler {
   private def setNewSample(): Txn[Unit] =
     for {
       position <- currentMcmcPosition.get
-      newPosition = runDynamicSimulationFrom(position,
-                                             simulationsBetweenSamples
-                    ).value.unsafeRunSync() // stateless computation
+      newPosition =
+        runDynamicSimulationFrom(position, simulationsBetweenSamples).value.unsafeRunSync() // stateless computation
       _ <- newPosition match {
              case Right(newPosition) if newPosition != position =>
                currentMcmcPosition.set(newPosition)
@@ -279,12 +272,10 @@ private[thylacine] trait HmcmcEngine extends ModelParameterSampler {
       } yield result
     }
 
-  override protected def sampleModelParameters
-      : ResultOrErrIo[ModelParameterCollection] =
+  override protected def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
     getHmcmcSample
 
-  override protected def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
+  override protected def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
     for {
       sample <- sampleModelParameters
       result <- posterior.modelParameterCollectionToRawVector(sample)

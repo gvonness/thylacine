@@ -47,4 +47,15 @@ case class HmcmcPosteriorSampler(
 
   override protected final val startingPoint: ResultOrErrIo[ModelParameterCollection] =
     ResultOrErrIo.fromIo(seedSpec.map(IndexedVectorCollection(_)))
+
+  def init: IO[Unit] =
+    (for {
+      pt <- startingPoint
+      _ <- if (pt.index.isEmpty) {
+             ResultOrErrIo.fromIo(initialise)
+           } else {
+             ResultOrErrIo.fromIo(initialise(pt))
+           }
+      _ <- ResultOrErrIo.fromIo(waitForInitialisation)
+    } yield ()).value.void
 }

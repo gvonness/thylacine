@@ -29,10 +29,8 @@ case class UniformPrior(
     private[thylacine] override val validated: Boolean = false
 ) extends Prior[UniformBeliefModel] {
 
-  protected override val priorModel: UniformBeliefModel =
-    UniformBeliefModel(maxBounds = VectorContainer(maxBounds),
-                       minBounds = VectorContainer(minBounds)
-    ).getValidated
+  protected override lazy val priorModel: UniformBeliefModel =
+    UniformBeliefModel(maxBounds = VectorContainer(maxBounds), minBounds = VectorContainer(minBounds)).getValidated
 
   private[thylacine] override lazy val getValidated: UniformPrior =
     if (validated) this
@@ -55,8 +53,7 @@ case class UniformPrior(
   ): ResultOrErrIo[ModelParameterCollection] =
     priorModel.zeroVector.map(IndexedVectorCollection(identifier, _))
 
-  protected override def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
+  protected override def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
     ResultOrErrIo.fromCalculation(priorModel.getRawSample)
 }
 

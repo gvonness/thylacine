@@ -23,3 +23,26 @@ trait RealValuedFunction { self =>
   final def composeWith(f: RealValuedFunction): RealValuedFunction =
     (x: Double) => self.evalAt(f.evalAt(x))
 }
+
+object RealValuedFunction {
+
+  def linearInterpolation(graphPoints: List[Point2D]): RealValuedFunction = {
+    assert(graphPoints.map(_.x).toSet.size == graphPoints.size)
+    val orderedPoints = graphPoints.sortBy(_.x)
+    val pointPairs    = orderedPoints.init.zip(orderedPoints.tail)
+
+    (x: Double) =>
+      pointPairs
+        .find(i => x >= i._1.x && x <= i._2.x)
+        .map { i =>
+          if (i._1.x < x && i._2.x > x) {
+            (i._2.x - x) / (i._2.x - i._1.x) * (i._1.y - i._2.y) + i._2.y
+          } else if (i._1.x == x) {
+            i._1.y
+          } else {
+            i._2.y
+          }
+        }
+        .getOrElse(0d)
+  }
+}

@@ -57,11 +57,10 @@ import cats.implicits._
   *       equilibria and high-dimensional stochastic quadratures
   *     Plasma Phys. Control Fusion 56 (2014) 114011
   */
-private[thylacine] trait SlqEngine
+private[thylacine] abstract class SlqEngine(implicit val stm: STM[IO])
     extends ModelParameterIntegrator
     with ModelParameterSampler {
 
-  private val stm = STM.runtime[IO].unsafeRunSync()
   import SlqEngine._
   import stm._
 
@@ -101,8 +100,7 @@ private[thylacine] trait SlqEngine
     TxnVar.of(-Double.MaxValue).unsafeRunSync()
 
   //
-  private val logPdfResults
-      : TxnVar[Vector[(Double, ModelParameterCollection)]] =
+  private val logPdfResults: TxnVar[Vector[(Double, ModelParameterCollection)]] =
     TxnVar.of(Vector[(Double, ModelParameterCollection)]()).unsafeRunSync()
 
   //
@@ -205,9 +203,7 @@ private[thylacine] trait SlqEngine
                 } else {
                   stm.pure(false)
                 }
-    } yield result).commit.flatMap(continue =>
-      if (continue) drainSamplePool else IO.unit
-    )
+    } yield result).commit.flatMap(continue => if (continue) drainSamplePool else IO.unit)
 
   private def updateStateWithSampleCalculation(
       logPdf: Double,
@@ -251,10 +247,7 @@ private[thylacine] trait SlqEngine
                            (for {
                              samples      <- samplePool.get
                              integrations <- quadratureIntegrations.get
-                           } yield (samples,
-                                    scalingFactorTelemetry,
-                                    integrations
-                           )).commit
+                           } yield (samples, scalingFactorTelemetry, integrations)).commit
                          }
             negEntStats <- telemetry._3.negativeEntropyStats
           } yield slqTelemetryUpdateCallback(
@@ -263,8 +256,7 @@ private[thylacine] trait SlqEngine
               logPdf = logPdf,
               samplePoolMinimumLogPdf = telemetry._1.keySet.min,
               domainVolumeScaling = telemetry._2.currentScaleFactor,
-              acceptancesSinceDomainRebuild =
-                telemetry._2.acceptancesSinceLastRebuild,
+              acceptancesSinceDomainRebuild = telemetry._2.acceptancesSinceLastRebuild,
               samplePoolSize = telemetry._1.size,
               domainCubeCount = domain.pointsInCube.size,
               iterationCount = telemetry._3.logPdfs.size
@@ -310,19 +302,13 @@ private[thylacine] trait SlqEngine
                        iterationCount <- logPdfResults.get.map(_.size)
                        domainExhausted <-
                          sampleDomainScalingState.get.map(_.isConverged)
-                     } yield (quadratures,
-                              iterationCount,
-                              domainExhausted
-                     )).commit
+                     } yield (quadratures, iterationCount, domainExhausted)).commit
                    }
       negEntStats <- telemetry._1.negativeEntropyStats
       _ <- ResultOrErrIo.fromIo {
              isConverged
                .set(
-                 testConverged(telemetry._2,
-                               slqSamplePoolSize,
-                               negEntStats
-                 ) || telemetry._3
+                 testConverged(telemetry._2, slqSamplePoolSize, negEntStats) || telemetry._3
                )
                .commit
            }
@@ -445,8 +431,7 @@ private[thylacine] trait SlqEngine
       } yield ()).commit
     }
 
-  private def analyseSeeds
-      : ResultOrErrIo[Map[Double, ModelParameterCollection]] =
+  private def analyseSeeds: ResultOrErrIo[Map[Double, ModelParameterCollection]] =
     for {
       result <- seeds.toVector.parTraverse { s =>
                   posterior.logPdfAt(s).map(i => (i, s))
@@ -538,12 +523,10 @@ private[thylacine] trait SlqEngine
       result        <- quadratureRaw.getIntegrationStats(integrand)
     } yield result.sum / result.size
 
-  override protected def sampleModelParameters
-      : ResultOrErrIo[ModelParameterCollection] =
+  override protected def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
     getSimulatedSample
 
-  override protected def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
+  override protected def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
     for {
       sample <- sampleModelParameters
       result <- posterior.modelParameterCollectionToRawVector(sample)

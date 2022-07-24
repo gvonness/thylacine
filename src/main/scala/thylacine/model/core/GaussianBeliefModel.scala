@@ -42,13 +42,10 @@ private[thylacine] case class GaussianBeliefModel(
     if (validated) {
       this
     } else {
-      GaussianBeliefModel(mean.getValidated,
-                          covariance.getValidated,
-                          validated = true
-      )
+      GaussianBeliefModel(mean.getValidated, covariance.getValidated, validated = true)
     }
 
-  private[thylacine] override val domainDimension: Int = mean.dimension
+  override val domainDimension: Int = mean.dimension
 
   // Low-level API
   private[thylacine] lazy val rawDistribution: MultivariateGaussian =
