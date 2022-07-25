@@ -46,7 +46,7 @@ private[thylacine] trait ForwardModel
       input: IndexedVectorCollection
   ): ResultOrErrIo[IndexedMatrixCollection]
 
-  final def jacobianAt(input: Map[String, Vector[Double]]): IO[Map[String, Map[(Int, Int), Double]]] =
+  final def jacobianAt(input: Map[String, Vector[Double]]): IO[Map[String, Vector[Vector[Double]]]] =
     ResultOrErrIo.toIo {
       for {
         result <- jacobianAt(IndexedVectorCollection(input))

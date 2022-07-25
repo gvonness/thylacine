@@ -53,6 +53,13 @@ private[thylacine] case class MatrixContainer(
     matResult
   }
 
+  private[thylacine] lazy val genericScalaRepresentation: ScalaVector[ScalaVector[Double]] =
+    (1 to rowTotalNumber).toVector.map { ri =>
+      (1 to columnTotalNumber).toVector.map { ci =>
+        values.getOrElse((ri, ci), 0d)
+      }
+    }
+
   // Extension of matrices with the input being used to increase
   // the number of columns, under the assumption that row numbers
   // are equal and have been checked outside of this
