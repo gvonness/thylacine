@@ -31,7 +31,7 @@ import cats.implicits._
 import scala.util.Random
 import scala.{Vector => ScalaVector}
 
-private[thylacine] abstract class HookeAndJeevesEngine(implicit val stm: STM[IO]) extends ModelParameterOptimizer {
+private[thylacine] abstract class HookeAndJeevesEngine(implicit stm: STM[IO]) extends ModelParameterOptimizer {
 
   import stm._
 
