@@ -1,4 +1,4 @@
-ThisBuild / baseVersion := "0.0.3"
+ThisBuild / baseVersion := "0.1.0"
 ThisBuild / organization := "ai.entrolution"
 ThisBuild / organizationName := "Greg von Nessi"
 ThisBuild / publishGithubUser := "gvonness"
