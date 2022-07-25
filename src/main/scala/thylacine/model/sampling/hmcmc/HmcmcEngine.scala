@@ -48,6 +48,8 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
   protected def simulationsBetweenSamples: Int
   protected def stepsInSimulation: Int
   protected def simulationInitialEpsilon: Double
+  protected def maxEpsilonHistory: Int
+  protected def targetAcceptance: Double
   protected def warmUpSimulationCount: Int
   protected def sampleParallelism: Int
 
@@ -74,10 +76,13 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
     TxnVar.of(false).unsafeRunSync()
 
   private val simulationEpsilon: TxnVar[Double] =
-    TxnVar.of(simulationInitialEpsilon).unsafeRunSync()
+    TxnVar.of(0.1).unsafeRunSync()
+
+  private val epsilonAdjustmentResults: TxnVar[Queue[Double]] =
+    TxnVar.of(Queue[Double]()).unsafeRunSync()
 
   private val parallelismTokenPool: TxnVar[Int] =
-    TxnVar.of(sampleParallelism).unsafeRunSync()
+    TxnVar.of(2).unsafeRunSync()
 
   /*
    * - - -- --- ----- -------- -------------
@@ -85,16 +90,35 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
    * - - -- --- ----- -------- -------------
    */
 
-  private def updateSimulationEpsilon(success: Boolean, iteration: Int): ResultOrErrIo[Unit] = {
-    val multiplier =
-      1d + (if (success) 1.0 else -1.0) * (1d - (Math
-        .min(iteration, warmUpSimulationCount)
-        .toDouble / warmUpSimulationCount))
+  private def updateSimulationEpsilon(
+      success: Boolean,
+      iteration: Int
+  ): ResultOrErrIo[Unit] = {
+    def multiplier(goUp: Boolean) =
+      Math.max(1d + (if (goUp) 1.0 else -1.0) * (1d - (Math
+                 .min(iteration, warmUpSimulationCount)
+                 .toDouble / warmUpSimulationCount)),
+               .01
+      )
 
     ResultOrErrIo.fromIo {
       for {
         result <- (for {
-                    _      <- simulationEpsilon.modify(_ * multiplier)
+                    _ <- if (success) {
+                           epsilonAdjustmentResults.modify(
+                             _.enqueue(1.0).takeRight(maxEpsilonHistory)
+                           )
+                         } else {
+                           epsilonAdjustmentResults.modify(
+                             _.enqueue(0.0).takeRight(maxEpsilonHistory)
+                           )
+                         }
+                    epsilonHistory <- epsilonAdjustmentResults.get
+                    newMultiplier =
+                      multiplier(
+                        epsilonHistory.sum / epsilonHistory.size >= targetAcceptance
+                      )
+                    _      <- simulationEpsilon.modify(_ * newMultiplier)
                     result <- simulationEpsilon.get
                   } yield result).commit
         _ <- IO(epsilonUpdateCallback(result))
@@ -117,7 +141,9 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
       _ <- currentMcmcPositions.set(newQueue)
     } yield result
 
-  private def submitNextPosition(position: ModelParameterCollection): Txn[Unit] =
+  private def submitNextPosition(
+      position: ModelParameterCollection
+  ): Txn[Unit] =
     currentMcmcPositions.modify(_.enqueue(position))
 
   private def runLeapfrogAt(
@@ -175,6 +201,7 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
         eNew <- posterior.logPdfAt(xNew)
         hNew = getHamiltonianValue(pNew, eNew)
         dH   = hNew - hamiltonian
+        _ <- ResultOrErrIo.fromIo(IO(dhMonitorCallback(dH)).start)
         result <- if (dH < 0 || Math.random() < Math.exp(-dH)) {
                     for {
                       _ <- if (burnIn) {
@@ -206,19 +233,17 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
    * - - -- --- ----- -------- -------------
    */
 
-  private def setNewSample(): IO[Unit] =
-    for {
-      position    <- getNextPosition.commit
-      newPosition <- runDynamicSimulationFrom(position, simulationsBetweenSamples).value
-      _ <- newPosition match {
-             case Right(newPosition) if newPosition != position =>
-               submitNextPosition(newPosition).commit
-             case Right(_) =>
-               setNewSample()
-             case Left(err) =>
-               IO.raiseError(new RuntimeException(err.message))
-           }
-    } yield ()
+  private def setAndAcquireNewSample(
+      position: ModelParameterCollection
+  ): IO[ModelParameterCollection] =
+    runDynamicSimulationFrom(position, simulationsBetweenSamples).value.flatMap {
+      case Right(res) if res != position =>
+        submitNextPosition(res).commit >> IO.pure(res)
+      case Right(_) =>
+        setAndAcquireNewSample(position)
+      case Left(err) =>
+        IO.raiseError(new RuntimeException(err.message))
+    }
 
   private def getNextRequest: Txn[SampleRequest] =
     for {
@@ -230,15 +255,15 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
 
   private def processRequest: ResultOrErrIo[Unit] =
     ResultOrErrIo.fromIo {
-      for {
-        _         <- secureWorkRight.commit
+      secureWorkRight.commit >> (for {
         request   <- getNextRequest.commit
-        _         <- setNewSample()
-        newSample <- getNextPosition.commit
+        position  <- getNextPosition.commit
+        newSample <- setAndAcquireNewSample(position)
         remaining <- sampleRequests.get.map(_.size).commit
         _         <- IO(sampleRequestUpdateCallback(remaining)).start
         _         <- request.complete(newSample)
-      } yield ()
+        _         <- parallelismTokenPool.modify(_ + 1).commit
+      } yield ()).start.void
     }
 
   private def processingRecursion: ResultOrErrIo[Unit] =
@@ -266,7 +291,7 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
           ResultOrErrIo.fromValue(possibleStartingPoint)
         }
       result <-
-        runDynamicSimulationFrom(priorSample, warmUpSimulationCount)
+        runDynamicSimulationFrom(priorSample, warmUpSimulationCount, burnIn = true)
     } yield result
 
   /*
@@ -278,12 +303,16 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
   private[thylacine] def initialise: IO[Unit] =
     for {
       _             <- burnInComplete.set(false).commit
+      _             <- epsilonAdjustmentResults.set(Queue()).commit
+      _             <- simulationEpsilon.set(simulationInitialEpsilon).commit
       startPosition <- burnIn.value
       _ <- startPosition match {
              case Right(result) =>
                (for {
                  _ <- parallelismTokenPool.set(sampleParallelism)
-                 _ <- currentMcmcPositions.set(Queue.fill(sampleParallelism)(result))
+                 _ <- currentMcmcPositions.set(
+                        Queue.fill(sampleParallelism)(result)
+                      )
                  _ <- burnInComplete.set(true)
                } yield ()).commit
              case Left(err) =>

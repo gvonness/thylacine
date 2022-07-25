@@ -39,7 +39,9 @@ case class HmcmcPosteriorSampler(
 
   override protected final val sampleParallelism: Int =
     hmcmcConfig.sampleParallelism.getOrElse(
-      Math.max(Math.ceil(Runtime.getRuntime.availableProcessors() / 2.0), 1).toInt
+      Math
+        .max(Math.ceil(Runtime.getRuntime.availableProcessors() / 2.0), 1)
+        .toInt
     )
 
   override protected final val simulationsBetweenSamples: Int =
@@ -50,6 +52,12 @@ case class HmcmcPosteriorSampler(
 
   override protected final val simulationInitialEpsilon: Double =
     hmcmcConfig.dynamicsSimulationStepSize
+
+  override protected final val maxEpsilonHistory: Int =
+    hmcmcConfig.maxStepSizeHistoryForAdjustment
+
+  override protected final val targetAcceptance: Double =
+    hmcmcConfig.targetAcceptanceRatio
 
   override protected final val warmUpSimulationCount: Int =
     hmcmcConfig.warmupStepCount
