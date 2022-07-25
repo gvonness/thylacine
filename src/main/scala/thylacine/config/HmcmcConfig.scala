@@ -22,5 +22,7 @@ case class HmcmcConfig(
     stepsInDynamicsSimulation: Int,
     warmupStepCount: Int,
     dynamicsSimulationStepSize: Double,
+    maxStepSizeHistoryForAdjustment: Int,
+    targetAcceptanceRatio: Double,
     sampleParallelism: Option[Int]
 )
