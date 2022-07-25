@@ -35,8 +35,8 @@ private[thylacine] case class IndexedMatrixCollection(
       )
     }
 
-  private[thylacine] lazy val genericScalaRepresentation: Map[String, Map[(Int, Int), Double]] =
-    index.map(i => i._1.value -> i._2.values)
+  private[thylacine] lazy val genericScalaRepresentation: Map[String, Vector[Vector[Double]]] =
+    index.map(i => i._1.value -> i._2.genericScalaRepresentation)
 
   private[thylacine] def rawMergeWith(other: IndexedMatrixCollection): IndexedMatrixCollection =
     IndexedMatrixCollection(index ++ other.index).getValidated
