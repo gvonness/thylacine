@@ -57,7 +57,7 @@ import cats.implicits._
   *       equilibria and high-dimensional stochastic quadratures
   *     Plasma Phys. Control Fusion 56 (2014) 114011
   */
-private[thylacine] abstract class SlqEngine(implicit val stm: STM[IO])
+private[thylacine] abstract class SlqEngine(implicit stm: STM[IO])
     extends ModelParameterIntegrator
     with ModelParameterSampler {
 
