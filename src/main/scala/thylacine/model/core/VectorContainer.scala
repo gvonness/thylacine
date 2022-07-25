@@ -47,7 +47,7 @@ private[thylacine] case class VectorContainer(
   }
 
   private[thylacine] lazy val scalaVector: ScalaVector[Double] =
-    rawVector.toScalaVector()
+    rawVector.toScalaVector
 
   private[thylacine] lazy val valueSum: Double = values.values.sum
 

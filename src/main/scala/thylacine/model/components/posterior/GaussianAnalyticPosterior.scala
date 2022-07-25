@@ -26,9 +26,10 @@ import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
 import breeze.linalg._
-import breeze.stats.distributions.MultivariateGaussian
+import breeze.stats.distributions.{MultivariateGaussian, RandBasis, ThreadLocalRandomGenerator}
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import org.apache.commons.math3.random.MersenneTwister
 
 import scala.{Vector => ScalaVector}
 
@@ -158,6 +159,13 @@ object GaussianAnalyticPosterior {
         val newMean =
           newInverseCovariance \ (pcContainer.rawMatrix \ pmContainer.rawVector +
             tmContainer.rawMatrix.t * (lcContainer.rawMatrix \ dContainer.rawVector))
+
+        implicit val randBasis: RandBasis = new RandBasis(
+          new ThreadLocalRandomGenerator(
+            new MersenneTwister((newCovariance, newMean).hashCode())
+          )
+        )
+
         ResultOrErrIo.fromValue(
           MultivariateGaussian(newMean, (newCovariance + newCovariance.t) * 0.5)
         )
