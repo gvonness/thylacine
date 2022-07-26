@@ -17,19 +17,24 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
+import bengal.stm.STM
+import thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
 import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
 import breeze.linalg.{DenseMatrix, DenseVector}
+import cats.effect.IO
 
 // A linear forward model may work across more than
 // one model parameter generator
 case class LinearForwardModel(
     transform: IndexedMatrixCollection,
     vectorOffset: Option[VectorContainer],
+    maxResultsToCache: Int,
     override val validated: Boolean = false
-) extends ForwardModel {
+)(implicit stm: STM[IO])
+    extends InMemoryMemoizedForwardModel {
   if (!validated) {
     assert(transform.index.map(_._2.rowTotalNumber).toSet.size == 1)
     assert(
@@ -37,17 +42,23 @@ case class LinearForwardModel(
     )
   }
 
+  override protected val cacheConfig: ForwardModelCachingConfig =
+    ForwardModelCachingConfig(evalCacheDepth = Some(maxResultsToCache), jacobianCacheDepth = None)
+
   private[thylacine] override lazy val getValidated: LinearForwardModel =
     if (validated) {
       this
     } else {
-      LinearForwardModel(transform.getValidated, vectorOffset.map(_.getValidated), validated = true)
+      LinearForwardModel(transform.getValidated, vectorOffset.map(_.getValidated), maxResultsToCache, validated = true)
     }
 
   override protected val orderedParameterIdentifiersWithDimension
       : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
     ResultOrErrIo.fromCalculation(
-      transform.index.map(i => (i._1, i._2.columnTotalNumber)).toVector.sortBy(_._1.value)
+      transform.index
+        .map(i => (i._1, i._2.columnTotalNumber))
+        .toVector
+        .sortBy(_._1.value)
     )
 
   override val rangeDimension: Int =
@@ -76,7 +87,7 @@ case class LinearForwardModel(
   private def applyOffset(input: DenseVector[Double]): DenseVector[Double] =
     vectorOffset.map(_.rawVector + input).getOrElse(input)
 
-  private[thylacine] override def evalAt(
+  override protected def computeEvalAt(
       input: IndexedVectorCollection
   ): ResultOrErrIo[VectorContainer] =
     for {
@@ -89,7 +100,7 @@ case class LinearForwardModel(
   private[thylacine] val getJacobian: ResultOrErrIo[IndexedMatrixCollection] =
     ResultOrErrIo.fromValue(transform)
 
-  private[thylacine] override def jacobianAt(
+  override protected def computeJacobianAt(
       input: IndexedVectorCollection
   ): ResultOrErrIo[IndexedMatrixCollection] =
     getJacobian
@@ -99,19 +110,23 @@ object LinearForwardModel {
 
   private[thylacine] def apply(
       identifier: ModelParameterIdentifier,
-      values: Vector[Vector[Double]]
-  ): LinearForwardModel =
+      values: Vector[Vector[Double]],
+      maxResultsToCache: Int
+  )(implicit stm: STM[IO]): LinearForwardModel =
     LinearForwardModel(
       transform = IndexedMatrixCollection(identifier, values),
-      vectorOffset = None
+      vectorOffset = None,
+      maxResultsToCache = maxResultsToCache
     )
 
   def apply(
-      identifier: String,
-      values: Vector[Vector[Double]]
-  ): LinearForwardModel =
+      label: String,
+      values: Vector[Vector[Double]],
+      maxResultsToCache: Int
+  )(implicit stm: STM[IO]): LinearForwardModel =
     LinearForwardModel(
-      transform = IndexedMatrixCollection(identifier, values),
-      vectorOffset = None
+      transform = IndexedMatrixCollection(label, values),
+      vectorOffset = None,
+      maxResultsToCache = maxResultsToCache
     )
 }

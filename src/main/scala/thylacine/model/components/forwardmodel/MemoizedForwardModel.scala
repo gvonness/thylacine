@@ -21,6 +21,8 @@ import thylacine.model.core._
 import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 
+import ai.entrolution.thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
+
 // For all but the simplest inferences, the majority of computation
 // will be tied up in forward model, and as such posterior
 // operations may be greatly sped up with memoizing the associated
@@ -28,6 +30,8 @@ import thylacine.model.core.IndexedVectorCollection._
 // be highly dependent on the inference itself (forward models,
 // sampling strategy, model parameter scaling, etc.)
 private[thylacine] trait MemoizedForwardModel extends ForwardModel {
+
+  protected def cacheConfig: ForwardModelCachingConfig
 
   protected def retrieveEvalFromStoreFor(
       input: ModelParameterCollection
@@ -58,30 +62,38 @@ private[thylacine] trait MemoizedForwardModel extends ForwardModel {
   private[thylacine] override final def evalAt(
       input: ModelParameterCollection
   ): ResultOrErrIo[VectorContainer] =
-    for {
-      oCachedResult <- retrieveEvalFromStoreFor(input)
-      result <- oCachedResult.map { res =>
-                  ResultOrErrIo.fromValue(res)
-                }.getOrElse {
-                  for {
-                    innerResult <- computeEvalAt(input)
-                    _           <- updateEvalStoreWith(input, innerResult)
-                  } yield innerResult
-                }
-    } yield result
+    if (cacheConfig.evalCacheEnabled) {
+      for {
+        oCachedResult <- retrieveEvalFromStoreFor(input)
+        result <- oCachedResult.map { res =>
+                    ResultOrErrIo.fromValue(res)
+                  }.getOrElse {
+                    for {
+                      innerResult <- computeEvalAt(input)
+                      _           <- updateEvalStoreWith(input, innerResult)
+                    } yield innerResult
+                  }
+      } yield result
+    } else {
+      computeEvalAt(input)
+    }
 
   private[thylacine] override final def jacobianAt(
       input: ModelParameterCollection
   ): ResultOrErrIo[IndexedMatrixCollection] =
-    for {
-      oCachedResult <- retrieveJacobianFromStoreFor(input)
-      result <- oCachedResult.map { res =>
-                  ResultOrErrIo.fromValue(res)
-                }.getOrElse {
-                  for {
-                    innerResult <- computeJacobianAt(input)
-                    _           <- updateJacobianStoreWith(input, innerResult)
-                  } yield innerResult
-                }
-    } yield result
+    if (cacheConfig.jacobianCacheEnabled) {
+      for {
+        oCachedResult <- retrieveJacobianFromStoreFor(input)
+        result <- oCachedResult.map { res =>
+                    ResultOrErrIo.fromValue(res)
+                  }.getOrElse {
+                    for {
+                      innerResult <- computeJacobianAt(input)
+                      _           <- updateJacobianStoreWith(input, innerResult)
+                    } yield innerResult
+                  }
+      } yield result
+    } else {
+      computeJacobianAt(input)
+    }
 }
