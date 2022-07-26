@@ -31,8 +31,6 @@ private[thylacine] abstract class InMemoryMemoizedForwardModel(implicit val stm:
 
   import stm._
 
-  protected def maxResultsToCache: Int
-
   private val scalarClock: TxnVar[Int] =
     TxnVar.of(0).unsafeRunSync()
 
@@ -142,10 +140,10 @@ private[thylacine] abstract class InMemoryMemoizedForwardModel(implicit val stm:
     ResultOrErrIo.fromIo {
       for {
         _ <- evalCache.modify { ec =>
-               if (ec.size > maxResultsToCache) {
+               if (ec.size > cacheConfig.evalCacheDepth.getOrElse(0)) {
                  ec.toSeq
                    .sortBy(_._2.lastAccessed)
-                   .takeRight(maxResultsToCache)
+                   .takeRight(cacheConfig.evalCacheDepth.getOrElse(0))
                    .toMap
                } else {
                  ec
@@ -158,10 +156,10 @@ private[thylacine] abstract class InMemoryMemoizedForwardModel(implicit val stm:
     ResultOrErrIo.fromIo {
       for {
         _ <- jacobianCache.modify { ec =>
-               if (ec.size > maxResultsToCache) {
+               if (ec.size > cacheConfig.jacobianCacheDepth.getOrElse(0)) {
                  ec.toSeq
                    .sortBy(_._2.lastAccessed)
-                   .takeRight(maxResultsToCache)
+                   .takeRight(cacheConfig.jacobianCacheDepth.getOrElse(0))
                    .toMap
                } else {
                  ec
@@ -238,5 +236,14 @@ private[thylacine] object InMemoryMemoizedForwardModel {
 
     private[thylacine] def updateLastAccess(accessedAt: Int): ComputationResult[T] =
       this.copy(lastAccessed = accessedAt)
+  }
+
+  case class ForwardModelCachingConfig(evalCacheDepth: Option[Int], jacobianCacheDepth: Option[Int]) {
+    lazy val evalCacheEnabled: Boolean     = evalCacheDepth.exists(_ > 0)
+    lazy val jacobianCacheEnabled: Boolean = jacobianCacheDepth.exists(_ > 0)
+  }
+
+  object ForwardModelCachingConfig {
+    val empty: ForwardModelCachingConfig = ForwardModelCachingConfig(None, None)
   }
 }

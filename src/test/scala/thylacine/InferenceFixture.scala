@@ -46,14 +46,16 @@ trait InferenceFixture {
     coefficients = Vector(Vector(1, 3), Vector(2, 4)),
     measurements = Vector(7, 10),
     uncertainties = Vector(0.01, 0.01),
-    prior = fooPrior
+    prior = fooPrior,
+    maxResultsToCache = 0
   )
 
   val fooTwoLikeliHood: GaussianLinearLikelihood = GaussianLinearLikelihood(
     coefficients = Vector(Vector(1, 3), Vector(2, 4)),
     measurements = Vector(7, 10),
     uncertainties = Vector(0.01, 0.01),
-    prior = fooUniformPrior
+    prior = fooUniformPrior,
+    maxResultsToCache = 0
   )
 
   val barPrior: GaussianPrior =
@@ -74,14 +76,16 @@ trait InferenceFixture {
     coefficients = Vector(Vector(3), Vector(4)),
     measurements = Vector(15, 20),
     uncertainties = Vector(0.00001, 0.00001),
-    prior = barPrior
+    prior = barPrior,
+    maxResultsToCache = 0
   )
 
   val barTwoLikeliHood: GaussianLinearLikelihood = GaussianLinearLikelihood(
     coefficients = Vector(Vector(3), Vector(4)),
     measurements = Vector(15, 20),
     uncertainties = Vector(0.00001, 0.00001),
-    prior = barUniformPrior
+    prior = barUniformPrior,
+    maxResultsToCache = 0
   )
 
   val analyticPosterior: GaussianAnalyticPosterior = GaussianAnalyticPosterior(

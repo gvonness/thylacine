@@ -17,10 +17,13 @@
 package ai.entrolution
 package thylacine.model.components.likelihood
 
+import bengal.stm.STM
 import thylacine.model.components.forwardmodel._
 import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+
+import cats.effect.IO
 
 import java.util.UUID
 
@@ -55,14 +58,19 @@ object GaussianLinearLikelihood {
       coefficients: Vector[Vector[Double]],
       measurements: Vector[Double],
       uncertainties: Vector[Double],
-      prior: Prior[_]
-  ): GaussianLinearLikelihood =
+      prior: Prior[_],
+      maxResultsToCache: Int
+  )(implicit stm: STM[IO]): GaussianLinearLikelihood =
     GaussianLinearLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = BelievedData(
         values = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
-      forwardModel = LinearForwardModel(prior.identifier, coefficients)
+      forwardModel = LinearForwardModel(
+        identifier = prior.identifier,
+        values = coefficients,
+        maxResultsToCache = maxResultsToCache
+      )
     )
 }

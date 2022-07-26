@@ -22,6 +22,7 @@ import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 
 import ai.entrolution.bengal.stm.STM
+import ai.entrolution.thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
 import cats.effect.IO
 
 case class NonLinearInMemoryMemoizedForwardModel(
@@ -31,10 +32,13 @@ case class NonLinearInMemoryMemoizedForwardModel(
     ]],
     domainDimensions: Map[String, Int],
     override val rangeDimension: Int,
-    override val maxResultsToCache: Int,
+    maxResultsToCache: Int,
     override val validated: Boolean = false
 )(implicit stm: STM[IO])
     extends InMemoryMemoizedForwardModel {
+
+  override protected val cacheConfig: ForwardModelCachingConfig =
+    ForwardModelCachingConfig(evalCacheDepth = Some(maxResultsToCache), jacobianCacheDepth = Some(maxResultsToCache))
 
   override protected val orderedParameterIdentifiersWithDimension
       : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
