@@ -15,8 +15,9 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.values
 
+import thylacine.model.core.CanValidate
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 
 private[thylacine] case class IndexedMatrixCollection(

@@ -25,6 +25,8 @@ import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.{MatrixContainer, VectorContainer}
+import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
 import breeze.linalg._
 import breeze.stats.distributions.{MultivariateGaussian, RandBasis, ThreadLocalRandomGenerator}
 import cats.effect.IO

@@ -19,7 +19,7 @@ package thylacine.model.components.forwardmodel
 
 import bengal.stm.STM
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
+import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 
 import cats.effect.IO
 

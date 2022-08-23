@@ -15,25 +15,23 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.values.modelparameters
 
-import thylacine.model.core.Erratum.ResultOrErrF
-import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 
 import breeze.linalg.DenseVector
+import cats.effect.kernel.Async
 
-private[thylacine] trait ModelParameterRawMappings {
+private[thylacine] abstract class ModelParameterRawMappings[F[_]: Async] {
 
-  protected def orderedParameterIdentifiersWithDimension[F[_]]: ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]]
+  protected def orderedParameterIdentifiersWithDimension: ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]]
 
-  private[thylacine] final def rawVectorToModelParameterCollection[F[_]](
+  private[thylacine] final def rawVectorToModelParameterCollection(
       input: DenseVector[Double]
   ): ResultOrErrF[F, ModelParameterCollection] =
     vectorValuesToModelParameterCollection(input.toArray.toVector)
 
-  private[thylacine] final def vectorValuesToModelParameterCollection[F[_]](
+  private[thylacine] final def vectorValuesToModelParameterCollection(
       input: Vector[Double]
   ): ResultOrErrF[F, ModelParameterCollection] =
     orderedParameterIdentifiersWithDimension.map {
@@ -50,7 +48,7 @@ private[thylacine] trait ModelParameterRawMappings {
       }
     }.map(_._2)
 
-  private[thylacine] final def modelParameterCollectionToRawVector[F[_]](
+  private[thylacine] final def modelParameterCollectionToRawVector(
       input: ModelParameterCollection
   ): ResultOrErrF[F, DenseVector[Double]] =
     orderedParameterIdentifiersWithDimension.flatMap { op =>
@@ -62,7 +60,7 @@ private[thylacine] trait ModelParameterRawMappings {
       }.map(i => DenseVector(i.reverse.reduce(_ ++ _).toArray))
     }
 
-  private[thylacine] final def modelParameterCollectionToVectorValues[F[_]](
+  private[thylacine] final def modelParameterCollectionToVectorValues(
       input: ModelParameterCollection
   ): ResultOrErrF[F, Vector[Double]] =
     modelParameterCollectionToRawVector(input).map(_.toArray.toVector)

@@ -1,33 +1,15 @@
-/*
- * Copyright 2020-2022 Greg von Nessi
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.distributions
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.CanValidate
+import ai.entrolution.thylacine.model.core.values.VectorContainer
 
-import scala.collection.parallel.CollectionConverters._
-import scala.{Vector => ScalaVector}
-
-private[thylacine] case class UniformBeliefModel(
+private[thylacine] case class UniformDistribution(
     upperBounds: VectorContainer,
     lowerBounds: VectorContainer,
     validated: Boolean = false
-) extends BeliefModel
-    with CanValidate[UniformBeliefModel] {
+) extends Distribution
+    with CanValidate[UniformDistribution] {
 
   private lazy val zippedBounds: ScalaVector[(Double, Double)] =
     lowerBounds.scalaVector.zip(upperBounds.scalaVector)
@@ -37,11 +19,11 @@ private[thylacine] case class UniformBeliefModel(
     assert(!zippedBounds.exists(i => i._2 <= i._1))
   }
 
-  private[thylacine] override lazy val getValidated: UniformBeliefModel =
+  private[thylacine] override lazy val getValidated: UniformDistribution =
     if (validated) {
       this
     } else {
-      UniformBeliefModel(upperBounds.getValidated, lowerBounds.getValidated, validated = true)
+      UniformDistribution(upperBounds.getValidated, lowerBounds.getValidated, validated = true)
     }
 
   override val domainDimension: Int = upperBounds.dimension

@@ -15,28 +15,30 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.values
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
+import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 
-private[thylacine] trait IndexedCollection[T <: Container] {
+import cats.effect.kernel.Async
+
+private[thylacine] abstract class IndexedCollection[F[_]: Async, T <: Container] {
   private[thylacine] def index: Map[ModelParameterIdentifier, T]
 
-  private[thylacine] def retrieveIndex(identifier: ModelParameterIdentifier): ResultOrErrIo[T] =
-    ResultOrErrIo.fromResultOrErr {
-      index
-        .get(identifier)
-        .map(Right(_))
-        .getOrElse(
-          Left(
-            UnexpectedErratum(
-              s"Identifier $identifier not found in indexed collection: $index"
-            )
+  private[thylacine] def retrieveIndex(identifier: ModelParameterIdentifier): ResultOrErrF[F, T] =
+    index
+      .get(identifier)
+      .map(Right(_))
+      .getOrElse(
+        Left(
+          UnexpectedErratum(
+            s"Identifier $identifier not found in indexed collection: $index"
           )
         )
-    }
+      )
+      .toResultM
 
-  private[thylacine] def getSortedValues: ResultOrErrIo[List[T]] =
-    ResultOrErrIo.fromCalculation(index.toList.sortBy(_._1).map(_._2))
+  private[thylacine] def getSortedValues: ResultOrErrF[F, List[T]] =
+    index.toList.sortBy(_._1).map(_._2).toResultM
 }

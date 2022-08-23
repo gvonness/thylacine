@@ -20,12 +20,14 @@ package thylacine.model.integration.slq
 import bengal.stm._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior._
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 import thylacine.model.integration.slq.SamplingSimulation._
-import thylacine.model.interface.SlqTelemetryUpdate
 
+import ai.entrolution.thylacine.model.core.values.VectorContainer
+import ai.entrolution.thylacine.model.integration.ModelParameterIntegrator
+import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
 import breeze.linalg.DenseVector
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global

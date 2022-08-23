@@ -21,14 +21,17 @@ import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.VectorContainer
+import ai.entrolution.thylacine.model.distributions.CauchyDistribution
+
 case class CauchyPrior(
     private[thylacine] override val identifier: ModelParameterIdentifier,
-    private[thylacine] val priorData: BelievedData,
+    private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
-) extends Prior[CauchyBeliefModel] {
+) extends Prior[CauchyDistribution] {
 
-  protected override lazy val priorModel: CauchyBeliefModel =
-    CauchyBeliefModel(priorData)
+  protected override lazy val priorModel: CauchyDistribution =
+    CauchyDistribution(priorData)
 
   private[thylacine] override lazy val getValidated: CauchyPrior =
     if (validated) this
@@ -48,7 +51,7 @@ object CauchyPrior {
     assert(values.size == confidenceIntervals.size)
     CauchyPrior(
       identifier = ModelParameterIdentifier(label),
-      priorData = BelievedData(
+      priorData = RecordedData(
         values = VectorContainer(values),
         symmetricConfidenceIntervals = VectorContainer(confidenceIntervals)
       )

@@ -20,6 +20,12 @@ package thylacine.model.components.forwardmodel
 import thylacine.model.core.Erratum.ResultOrErrF
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.{
+  IndexedMatrixCollection,
+  IndexedVectorCollection,
+  MatrixContainer,
+  VectorContainer
+}
 import cats.effect.kernel.Async
 import cats.effect.implicits._
 import cats.syntax.all._

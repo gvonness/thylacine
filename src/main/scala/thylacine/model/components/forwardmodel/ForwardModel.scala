@@ -22,6 +22,8 @@ import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
 import thylacine.model.core.Erratum._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.modelparameters.ModelParameterRawMappings
+import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 import cats.effect.kernel.Async
 
 private[thylacine] trait ForwardModel

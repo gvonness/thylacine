@@ -23,6 +23,7 @@ import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.distributions.GaussianDistribution
 import cats.effect.IO
 
 import java.util.UUID
@@ -32,10 +33,10 @@ import java.util.UUID
 // construction.
 case class GaussianLinearLikelihood(
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] val observations: BelievedData,
+    private[thylacine] val observations: RecordedData,
     private[thylacine] override val forwardModel: LinearForwardModel,
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[LinearForwardModel, GaussianBeliefModel] {
+) extends Likelihood[LinearForwardModel, GaussianDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
@@ -47,8 +48,8 @@ case class GaussianLinearLikelihood(
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: GaussianBeliefModel =
-    GaussianBeliefModel(observations)
+  private[thylacine] override lazy val observationModel: GaussianDistribution =
+    GaussianDistribution(observations)
 
 }
 
@@ -63,7 +64,7 @@ object GaussianLinearLikelihood {
   )(implicit stm: STM[IO]): GaussianLinearLikelihood =
     GaussianLinearLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
-      observations = BelievedData(
+      observations = RecordedData(
         values = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),

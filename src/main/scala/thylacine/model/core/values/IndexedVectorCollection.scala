@@ -15,18 +15,22 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.values
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
+import thylacine.model.core.{CanValidate, GenericIdentifier}
+import ai.entrolution.thylacine.model.core.computation.Erratum
 
-private[thylacine] case class IndexedVectorCollection(
+import cats.effect.kernel.Async
+
+private[thylacine] case class IndexedVectorCollection[F[_]: Async](
     index: Map[ModelParameterIdentifier, VectorContainer],
     validated: Boolean = false
-) extends IndexedCollection[VectorContainer]
-    with CanValidate[IndexedVectorCollection] {
+) extends IndexedCollection[F, VectorContainer]
+    with CanValidate[IndexedVectorCollection[F]] {
 
-  private[thylacine] override lazy val getValidated: IndexedVectorCollection =
+  private[thylacine] override lazy val getValidated: IndexedVectorCollection[F] =
     if (validated) {
       this
     } else {
@@ -42,8 +46,8 @@ private[thylacine] case class IndexedVectorCollection(
   // Low-level API
   // -------------
   private[thylacine] def rawMergeWith(
-      other: IndexedVectorCollection
-  ): IndexedVectorCollection = {
+      other: IndexedVectorCollection[F]
+  ): IndexedVectorCollection[F] = {
     val keyIntersection = index.keySet.intersect(other.index.keySet)
     if (keyIntersection.nonEmpty) {
       throw new RuntimeException(
@@ -55,8 +59,8 @@ private[thylacine] case class IndexedVectorCollection(
   }
 
   private[thylacine] def rawSumWith(
-      other: IndexedVectorCollection
-  ): IndexedVectorCollection = {
+      other: IndexedVectorCollection[F]
+  ): IndexedVectorCollection[F] = {
     val keySet = getValidated.index.keySet ++ other.getValidated.index.keySet
 
     val newIndex =
@@ -78,19 +82,19 @@ private[thylacine] case class IndexedVectorCollection(
 
   private[thylacine] def rawScalarMultiplyWith(
       input: Double
-  ): IndexedVectorCollection =
+  ): IndexedVectorCollection[F] =
     this.copy(
       index = index.view.mapValues(_.rawScalarProductWith(input)).toMap
     )
 
   private[thylacine] def rawSubtract(
-      other: IndexedVectorCollection
-  ): IndexedVectorCollection =
+      other: IndexedVectorCollection[F]
+  ): IndexedVectorCollection[F] =
     rawSumWith(other.rawScalarMultiplyWith(-1.0))
 
   private[thylacine] def rawNudgeComponents(
       diff: Double
-  ): Map[ModelParameterIdentifier, List[IndexedVectorCollection]] = {
+  ): Map[ModelParameterIdentifier, List[IndexedVectorCollection[F]]] = {
     val differentials: Map[GenericIdentifier, List[VectorContainer]] =
       index.map { i =>
         i._1 -> i._2.rawNudgeComponents(diff)
@@ -106,42 +110,43 @@ private[thylacine] case class IndexedVectorCollection(
 }
 
 private[thylacine] object IndexedVectorCollection {
+  import Erratum.ResultOrErrF.Implicits._
 
   // A particular type of this collection is of the model
   // parameters directly.
-  private[thylacine] type ModelParameterCollection = IndexedVectorCollection
+  private[thylacine] type ModelParameterCollection[F[_]] = IndexedVectorCollection[F]
 
-  private[thylacine] val empty: IndexedVectorCollection =
-    IndexedVectorCollection(
+  private[thylacine] def empty[F[_]: Async]: IndexedVectorCollection[F] =
+    IndexedVectorCollection[F](
       index = Map(),
       validated = true
     )
 
-  private[thylacine] def apply(
+  private[thylacine] def apply[F[_]: Async](
       identifier: ModelParameterIdentifier,
       vector: VectorContainer
-  ): IndexedVectorCollection =
-    IndexedVectorCollection(
+  ): IndexedVectorCollection[F] =
+    IndexedVectorCollection[F](
       index = Map(identifier -> vector.getValidated),
       validated = true
     )
 
-  private[thylacine] def apply(
+  private[thylacine] def apply[F[_]: Async](
       identifierLabel: String,
       values: Vector[Double]
-  ): IndexedVectorCollection =
+  ): IndexedVectorCollection[F] =
     apply(ModelParameterIdentifier(identifierLabel), VectorContainer(values))
 
-  private[thylacine] def apply(
+  private[thylacine] def apply[F[_]: Async](
       labeledLists: Map[String, Vector[Double]]
-  ): IndexedVectorCollection =
+  ): IndexedVectorCollection[F] =
     if (labeledLists.nonEmpty)
-      labeledLists.map(i => apply(i._1, i._2)).reduce(_ rawMergeWith _)
+      labeledLists.map(i => apply[F](i._1, i._2)).reduce(_ rawMergeWith _)
     else
-      empty
+      empty[F]
 
-  private[thylacine] def merge(
-      modelParameters: Seq[IndexedVectorCollection]
-  ): ResultOrErrIo[IndexedVectorCollection] =
-    ResultOrErrIo.fromCalculation(modelParameters.reduce(_ rawMergeWith _))
+  private[thylacine] def merge[F[_]: Async](
+      modelParameters: Seq[IndexedVectorCollection[F]]
+  ): ResultOrErrF[F, IndexedVectorCollection[F]] =
+    modelParameters.reduce(_ rawMergeWith _).toResultM
 }

@@ -24,6 +24,8 @@ import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
 import cats.effect.unsafe.implicits.global
 import cats.effect.{Deferred, IO}
 import cats.implicits._

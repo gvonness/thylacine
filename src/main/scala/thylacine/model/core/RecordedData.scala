@@ -17,11 +17,13 @@
 package ai.entrolution
 package thylacine.model.core
 
-private[thylacine] case class BelievedData(
+import thylacine.model.core.values.{MatrixContainer, VectorContainer}
+
+private[thylacine] case class RecordedData(
     data: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
-) extends CanValidate[BelievedData] {
+) extends CanValidate[RecordedData] {
   if (!validated) {
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
     assert(data.dimension == covariance.rowTotalNumber)
@@ -29,11 +31,11 @@ private[thylacine] case class BelievedData(
 
   private[thylacine] val dimension: Int = data.dimension
 
-  private[thylacine] override lazy val getValidated: BelievedData =
+  private[thylacine] override lazy val getValidated: RecordedData =
     if (validated) {
       this
     } else {
-      BelievedData(
+      RecordedData(
         data.getValidated,
         covariance.getValidated,
         validated = true
@@ -41,12 +43,12 @@ private[thylacine] case class BelievedData(
     }
 }
 
-private[thylacine] object BelievedData {
+private[thylacine] object RecordedData {
 
   private[thylacine] def apply(
       values: VectorContainer,
       symmetricConfidenceIntervals: VectorContainer
-  ): BelievedData = {
+  ): RecordedData = {
     val validatedValues: VectorContainer = values.getValidated
     val validatedConfidenceIntervals: VectorContainer =
       symmetricConfidenceIntervals.getValidated
@@ -54,7 +56,7 @@ private[thylacine] object BelievedData {
     assert(validatedValues.dimension == validatedConfidenceIntervals.dimension)
     assert(validatedConfidenceIntervals.values.values.forall(_ > 0))
 
-    BelievedData(
+    RecordedData(
       data = validatedValues,
       covariance = MatrixContainer(
         values = validatedConfidenceIntervals.values.map(i => (i._1, i._1) -> Math.pow(i._2 / 2, 2)),
@@ -66,6 +68,6 @@ private[thylacine] object BelievedData {
     )
   }
 
-  def apply(values: Vector[Double], symmetricConfidenceIntervals: Vector[Double]): BelievedData =
+  def apply(values: Vector[Double], symmetricConfidenceIntervals: Vector[Double]): RecordedData =
     apply(VectorContainer(values), VectorContainer(symmetricConfidenceIntervals))
 }

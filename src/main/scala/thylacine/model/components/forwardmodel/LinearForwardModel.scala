@@ -24,13 +24,14 @@ import thylacine.model.core._
 
 import Erratum.ResultOrErrF.Implicits._
 import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
+import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 import breeze.linalg.{DenseMatrix, DenseVector}
 import cats.effect.IO
 import cats.effect.kernel.Async
 
 // A linear forward model may work across more than
 // one model parameter generator
-case class LinearForwardModel[F[_] : STM : Async](
+case class LinearForwardModel[F[_]: STM: Async](
     transform: IndexedMatrixCollection,
     vectorOffset: Option[VectorContainer],
     maxResultsToCache: Int,
@@ -56,10 +57,10 @@ case class LinearForwardModel[F[_] : STM : Async](
   override protected val orderedParameterIdentifiersWithDimension
       : ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]] =
     transform.index
-        .map(i => (i._1, i._2.columnTotalNumber))
-        .toVector
-        .sortBy(_._1.value)
-        .toResultM
+      .map(i => (i._1, i._2.columnTotalNumber))
+      .toVector
+      .sortBy(_._1.value)
+      .toResultM
 
   override val rangeDimension: Int =
     transform.index.head._2.rowTotalNumber

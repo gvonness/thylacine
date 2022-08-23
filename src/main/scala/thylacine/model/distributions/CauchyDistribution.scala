@@ -15,9 +15,10 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.distributions
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.{RecordedData, CanValidate}
+import ai.entrolution.thylacine.model.core.values.{MatrixContainer, VectorContainer}
 
 import breeze.linalg._
 import breeze.stats.distributions._
@@ -26,12 +27,12 @@ import org.apache.commons.math3.random.MersenneTwister
 import org.apache.commons.math3.special.Gamma.gamma
 import org.apache.commons.math3.util.FastMath
 
-private[thylacine] case class CauchyBeliefModel(
+private[thylacine] case class CauchyDistribution(
     mean: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
-) extends BeliefModel
-    with CanValidate[CauchyBeliefModel] {
+) extends Distribution
+    with CanValidate[CauchyDistribution] {
   if (!validated) {
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
     assert(covariance.rowTotalNumber == mean.dimension)
@@ -41,11 +42,11 @@ private[thylacine] case class CauchyBeliefModel(
     new ThreadLocalRandomGenerator(new MersenneTwister(this.hashCode()))
   )
 
-  private[thylacine] override lazy val getValidated: CauchyBeliefModel =
+  private[thylacine] override lazy val getValidated: CauchyDistribution =
     if (validated) {
       this
     } else {
-      CauchyBeliefModel(mean.getValidated, covariance.getValidated, validated = true)
+      CauchyDistribution(mean.getValidated, covariance.getValidated, validated = true)
     }
 
   private lazy val multiplier = gamma((1 + domainDimension) / 2.0) / (gamma(
@@ -98,12 +99,12 @@ private[thylacine] case class CauchyBeliefModel(
 
 }
 
-private[thylacine] object CauchyBeliefModel {
+private[thylacine] object CauchyDistribution {
 
-  private[thylacine] def apply(input: BelievedData): CauchyBeliefModel = {
+  private[thylacine] def apply(input: RecordedData): CauchyDistribution = {
     val validatedData = input.getValidated
 
-    CauchyBeliefModel(
+    CauchyDistribution(
       validatedData.data,
       validatedData.covariance,
       validated = true

@@ -5,6 +5,10 @@ import thylacine.model.components.forwardmodel.ForwardModel
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.VectorContainer
+import ai.entrolution.thylacine.model.distributions
+import ai.entrolution.thylacine.model.distributions.UniformDistribution
+
 import java.util.UUID
 
 case class UniformLikelihood[T <: ForwardModel](
@@ -13,7 +17,7 @@ case class UniformLikelihood[T <: ForwardModel](
     private[thylacine] val lowerBounds: VectorContainer,
     private[thylacine] override val forwardModel: T,
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[T, UniformBeliefModel] {
+) extends Likelihood[T, UniformDistribution] {
   if (!validated) {
     assert(lowerBounds.dimension == upperBounds.dimension)
   }
@@ -29,8 +33,8 @@ case class UniformLikelihood[T <: ForwardModel](
       )
     }
 
-  private[thylacine] override lazy val observationModel: UniformBeliefModel =
-    UniformBeliefModel(upperBounds = upperBounds, lowerBounds = lowerBounds)
+  private[thylacine] override lazy val observationModel: UniformDistribution =
+    distributions.UniformDistribution(upperBounds = upperBounds, lowerBounds = lowerBounds)
 
 }
 

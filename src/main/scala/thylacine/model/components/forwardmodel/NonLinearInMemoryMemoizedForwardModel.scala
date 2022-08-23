@@ -19,10 +19,10 @@ package thylacine.model.components.forwardmodel
 
 import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 
 import ai.entrolution.bengal.stm.STM
 import ai.entrolution.thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
+import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 import cats.effect.IO
 
 case class NonLinearInMemoryMemoizedForwardModel(

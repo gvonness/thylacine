@@ -21,14 +21,16 @@ import thylacine.model.components.forwardmodel._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.distributions.CauchyDistribution
+
 import java.util.UUID
 
 case class CauchyLikelihood(
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] val observations: BelievedData,
+    private[thylacine] val observations: RecordedData,
     private[thylacine] override val forwardModel: ForwardModel,
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[ForwardModel, CauchyBeliefModel] {
+) extends Likelihood[ForwardModel, CauchyDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
@@ -40,8 +42,8 @@ case class CauchyLikelihood(
       this.copy(observations = observations.getValidated, forwardModel = forwardModel.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: CauchyBeliefModel =
-    CauchyBeliefModel(observations)
+  private[thylacine] override lazy val observationModel: CauchyDistribution =
+    CauchyDistribution(observations)
 
 }
 
@@ -54,7 +56,7 @@ object CauchyLikelihood {
   ): CauchyLikelihood =
     CauchyLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
-      observations = BelievedData(
+      observations = RecordedData(
         values = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),

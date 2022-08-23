@@ -23,7 +23,6 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.ModelParameterOptimizer
 
 import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
 import cats.effect.kernel.Async

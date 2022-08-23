@@ -22,15 +22,21 @@ import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.VectorContainer
+import ai.entrolution.thylacine.model.distributions
+import ai.entrolution.thylacine.model.distributions.UniformDistribution
+
 case class UniformPrior(
     private[thylacine] override val identifier: ModelParameterIdentifier,
     private[thylacine] val maxBounds: Vector[Double],
     private[thylacine] val minBounds: Vector[Double],
     private[thylacine] override val validated: Boolean = false
-) extends Prior[UniformBeliefModel] {
+) extends Prior[UniformDistribution] {
 
-  protected override lazy val priorModel: UniformBeliefModel =
-    UniformBeliefModel(upperBounds = VectorContainer(maxBounds), lowerBounds = VectorContainer(minBounds)).getValidated
+  protected override lazy val priorModel: UniformDistribution =
+    distributions
+      .UniformDistribution(upperBounds = VectorContainer(maxBounds), lowerBounds = VectorContainer(minBounds))
+      .getValidated
 
   private[thylacine] override lazy val getValidated: UniformPrior =
     if (validated) this

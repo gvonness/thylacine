@@ -15,11 +15,9 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.values.modelparameters
 
-import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core.GenericScalarValuedMapping
 
 import cats.effect.kernel.Async
 

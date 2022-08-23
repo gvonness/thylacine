@@ -15,20 +15,21 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.distributions
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.{RecordedData, CanValidate}
+import ai.entrolution.thylacine.model.core.values.{MatrixContainer, VectorContainer}
 
 import breeze.linalg._
 import breeze.stats.distributions._
 import org.apache.commons.math3.random.MersenneTwister
 
-private[thylacine] case class GaussianBeliefModel(
+private[thylacine] case class GaussianDistribution(
     mean: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
-) extends BeliefModel
-    with CanValidate[GaussianBeliefModel] {
+) extends Distribution
+    with CanValidate[GaussianDistribution] {
   if (!validated) {
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
     assert(covariance.rowTotalNumber == mean.dimension)
@@ -38,11 +39,11 @@ private[thylacine] case class GaussianBeliefModel(
     new ThreadLocalRandomGenerator(new MersenneTwister(this.hashCode()))
   )
 
-  private[thylacine] override lazy val getValidated: GaussianBeliefModel =
+  private[thylacine] override lazy val getValidated: GaussianDistribution =
     if (validated) {
       this
     } else {
-      GaussianBeliefModel(mean.getValidated, covariance.getValidated, validated = true)
+      GaussianDistribution(mean.getValidated, covariance.getValidated, validated = true)
     }
 
   override val domainDimension: Int = mean.dimension
@@ -70,12 +71,12 @@ private[thylacine] case class GaussianBeliefModel(
 
 }
 
-private[thylacine] object GaussianBeliefModel {
+private[thylacine] object GaussianDistribution {
 
-  private[thylacine] def apply(input: BelievedData): GaussianBeliefModel = {
+  private[thylacine] def apply(input: RecordedData): GaussianDistribution = {
     val validatedData = input.getValidated
 
-    GaussianBeliefModel(
+    GaussianDistribution(
       validatedData.data,
       validatedData.covariance,
       validated = true

@@ -21,16 +21,18 @@ import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.VectorContainer
+import ai.entrolution.thylacine.model.distributions.GaussianDistribution
 import breeze.stats.distributions.MultivariateGaussian
 
 case class GaussianPrior(
     private[thylacine] override val identifier: ModelParameterIdentifier,
-    private[thylacine] val priorData: BelievedData,
+    private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
-) extends Prior[GaussianBeliefModel] {
+) extends Prior[GaussianDistribution] {
 
-  protected override lazy val priorModel: GaussianBeliefModel =
-    GaussianBeliefModel(priorData)
+  protected override lazy val priorModel: GaussianDistribution =
+    GaussianDistribution(priorData)
 
   private lazy val rawDistribution: MultivariateGaussian =
     priorModel.rawDistribution
@@ -53,7 +55,7 @@ object GaussianPrior {
     assert(values.size == confidenceIntervals.size)
     GaussianPrior(
       identifier = ModelParameterIdentifier(label),
-      priorData = BelievedData(
+      priorData = RecordedData(
         values = VectorContainer(values),
         symmetricConfidenceIntervals = VectorContainer(confidenceIntervals)
       )
@@ -70,7 +72,7 @@ object GaussianPrior {
     assert(covarianceContainer.isSquare && valueContainer.dimension == covarianceContainer.rowTotalNumber)
     GaussianPrior(
       identifier = ModelParameterIdentifier(label),
-      priorData = BelievedData(
+      priorData = RecordedData(
         data = valueContainer,
         covariance = covarianceContainer
       )

@@ -20,6 +20,7 @@ package thylacine.model.integration.slq
 import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.VectorContainer
 import cats.implicits._
 
 private[thylacine] case class PointInCube(

@@ -19,11 +19,12 @@ package thylacine.model.components.posterior
 
 import thylacine.model.components.likelihood._
 import thylacine.model.components.prior._
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.modelparameters.{ModelParameterPdf, ModelParameterRawMappings}
 import cats.effect.implicits._
 import cats.implicits._
 

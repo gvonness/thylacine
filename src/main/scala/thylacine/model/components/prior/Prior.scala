@@ -17,12 +17,18 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
-private[thylacine] trait Prior[+BM <: BeliefModel]
+import ai.entrolution.thylacine.model.components.posterior.PosteriorTerm
+import ai.entrolution.thylacine.model.core.values.IndexedVectorCollection
+import ai.entrolution.thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
+import ai.entrolution.thylacine.model.distributions.Distribution
+import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
+
+private[thylacine] trait Prior[+BM <: Distribution]
     extends ModelParameterPdf
     with PosteriorTerm
     with ModelParameterSampler

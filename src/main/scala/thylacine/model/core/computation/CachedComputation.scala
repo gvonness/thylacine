@@ -1,22 +1,21 @@
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.computation
 
 import bengal.stm.STM
 import bengal.stm.model._
 import bengal.stm.syntax.all._
-import thylacine.model.core.CachedComputation._
 import thylacine.model.core.Erratum.ResultOrErrF
 import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
-import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
 case class CachedComputation[F[_]: STM: Async, T](
-    computation: ModelParameterCollection => T,
+    computation: ModelParameterCollection[F] => T,
     cacheDepth: Option[Int] = None
-)(scalarClock: TxnVar[F, Int], computationCache: TxnVarMap[F, Int, ComputationResult[T]]) {
+)(scalarClock: TxnVar[F, Int], computationCache: TxnVarMap[F, Int, ComputationResult[T]])
+    extends Computation[F, T] {
 
   private val getTime: ResultOrErrF[F, Int] =
     scalarClock.get.commit.toResultM
@@ -93,7 +92,7 @@ case class CachedComputation[F[_]: STM: Async, T](
       .toResultM
 
   private def retrieveComputationFromStoreFor(
-      input: ModelParameterCollection
+      input: ModelParameterCollection[F]
   ): ResultOrErrF[F, Option[T]] =
     for {
       time <- tickAndGet
@@ -110,7 +109,7 @@ case class CachedComputation[F[_]: STM: Async, T](
            }
     } yield ec
 
-  private def updateComputationStoreWith(input: ModelParameterCollection, result: T): ResultOrErrF[F, Unit] =
+  private def updateComputationStoreWith(input: ModelParameterCollection[F], result: T): ResultOrErrF[F, Unit] =
     for {
       time <- getTime
       key  <- getInMemoryKey(input).toResultM
@@ -118,8 +117,8 @@ case class CachedComputation[F[_]: STM: Async, T](
       _    <- cleanComputationStore(computationCache)
     } yield ()
 
-  def performComputation(
-      input: ModelParameterCollection
+  override private[stm] def performComputation(
+      input: ModelParameterCollection[F]
   ): ResultOrErrF[F, T] =
     if (cacheDepth.exists(_ > 0)) {
       for {
@@ -139,7 +138,7 @@ case class CachedComputation[F[_]: STM: Async, T](
 object CachedComputation {
 
   def applyF[F[_]: STM: Async, T](
-      computation: ModelParameterCollection => T,
+      computation: ModelParameterCollection[F] => T,
       cacheDepth: Option[Int] = None
   ): F[CachedComputation[F, T]] =
     for {
@@ -153,7 +152,7 @@ object CachedComputation {
       computationCache = computationCache
     )
 
-  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
+  private[thylacine] def getInMemoryKey[F[_]: Async](input: ModelParameterCollection[F]): Int =
     input.hashCode()
 
   private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {

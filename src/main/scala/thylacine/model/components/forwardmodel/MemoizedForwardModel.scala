@@ -24,6 +24,7 @@ import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
+import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, VectorContainer}
 import cats.effect.kernel.Async
 
 // For all but the simplest inferences, the majority of computation

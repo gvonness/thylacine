@@ -19,7 +19,7 @@ package thylacine.model.components.forwardmodel
 
 import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.{IndexedVectorCollection, VectorContainer}
+import ai.entrolution.thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 
 case class NonLinearFiniteDifferenceForwardModel(
     evaluation: Map[String, Vector[Double]] => Vector[Double],

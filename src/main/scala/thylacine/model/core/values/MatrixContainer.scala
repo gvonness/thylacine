@@ -15,7 +15,9 @@
  */
 
 package ai.entrolution
-package thylacine.model.core
+package thylacine.model.core.values
+
+import thylacine.model.core.CanValidate
 
 import breeze.linalg._
 import cats.implicits._

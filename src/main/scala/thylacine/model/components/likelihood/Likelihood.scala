@@ -18,11 +18,15 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import thylacine.model.components.forwardmodel._
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
-private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
+import ai.entrolution.thylacine.model.components.posterior.PosteriorTerm
+import ai.entrolution.thylacine.model.core.values.modelparameters.ModelParameterPdf
+import ai.entrolution.thylacine.model.distributions.Distribution
+
+private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: Distribution]
     extends ModelParameterPdf
     with PosteriorTerm
     with CanValidate[Likelihood[_, _]] {

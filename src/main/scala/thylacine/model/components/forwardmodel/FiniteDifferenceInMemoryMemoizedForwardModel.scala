@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.forwardmodel
 
 import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
-import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection}
+import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection}
 
 import cats.effect.kernel.Async
 
@@ -29,7 +29,7 @@ private[thylacine] trait FiniteDifferenceInMemoryMemoizedForwardModel
   // Finite difference calculation for the Jacobian is relatively intensive when compared to simple evaluation of
   // the forward model. This combined with giving the freedom to split inference parameters across any number of
   // identifiers requires us to parallelize very aggressively
-  override final protected def computeJacobianAt[F[_] : Async](
+  override final protected def computeJacobianAt[F[_]: Async](
       input: IndexedVectorCollection
   ): ResultOrErrF[F, IndexedMatrixCollection] =
     finiteDifferencejacobianAt(input)
