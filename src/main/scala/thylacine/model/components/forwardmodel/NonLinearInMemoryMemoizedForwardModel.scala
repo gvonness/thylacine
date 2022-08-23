@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 
@@ -67,7 +67,8 @@ case class NonLinearInMemoryMemoizedForwardModel(
     ResultOrErrIo.fromCalculation {
       jacobian(
         input.index.map(i => i._1.value -> i._2.scalaVector)
-      ).map(ms => IndexedMatrixCollection(ms._1, ms._2))
-        .reduce(_ rawMergeWith _)
+      ).map { case (label, matrixValue) =>
+        IndexedMatrixCollection(ModelParameterIdentifier(label), matrixValue)
+      }.reduce(_ rawMergeWith _)
     }
 }

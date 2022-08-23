@@ -38,7 +38,9 @@ private[thylacine] case class IndexedMatrixCollection(
   private[thylacine] lazy val genericScalaRepresentation: Map[String, Vector[Vector[Double]]] =
     index.map(i => i._1.value -> i._2.genericScalaRepresentation)
 
-  private[thylacine] def rawMergeWith(other: IndexedMatrixCollection): IndexedMatrixCollection =
+  private[thylacine] def rawMergeWith(
+      other: IndexedMatrixCollection
+  ): IndexedMatrixCollection =
     IndexedMatrixCollection(index ++ other.index).getValidated
 }
 
@@ -52,6 +54,11 @@ private[thylacine] object IndexedMatrixCollection {
       index = Map(identifier -> MatrixContainer(values))
     )
 
-  private[thylacine] def apply(identifierLabel: String, values: Vector[Vector[Double]]): IndexedMatrixCollection =
-    apply(ModelParameterIdentifier(identifierLabel), values)
+  private[thylacine] def squareIdentity(
+      identifier: ModelParameterIdentifier,
+      dimension: Int
+  ): IndexedMatrixCollection =
+    IndexedMatrixCollection(
+      index = Map(identifier -> MatrixContainer.squareIdentity(dimension))
+    )
 }

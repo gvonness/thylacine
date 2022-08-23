@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.util.MathOps
 
@@ -72,12 +72,10 @@ private[thylacine] object SamplingSimulation {
     private val indexedModelParameters: Map[Int, ModelParameterCollection] =
       (1 to numberOfResults).zip(logPdfResults.map(_._2)).toMap
 
-    private val sampleStaircases
-        : ResultOrErrIo[Vector[Vector[(BigDecimal, BigDecimal)]]] =
+    private val sampleStaircases: ResultOrErrIo[Vector[Vector[(BigDecimal, BigDecimal)]]] =
       samplingWeights.traverse(MathOps.cdfStaircase)
 
-    private val indexedStaircase
-        : ResultOrErrIo[Map[Int, Vector[((BigDecimal, BigDecimal), Int)]]] =
+    private val indexedStaircase: ResultOrErrIo[Map[Int, Vector[((BigDecimal, BigDecimal), Int)]]] =
       for {
         cdfStaircases <- sampleStaircases
       } yield (1 to numberOfAbscissas)

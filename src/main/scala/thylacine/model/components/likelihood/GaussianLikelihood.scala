@@ -25,7 +25,7 @@ import java.util.UUID
 
 case class GaussianLikelihood[T <: ForwardModel](
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] override val observations: BelievedData,
+    private[thylacine] val observations: BelievedData,
     private[thylacine] override val forwardModel: T,
     private[thylacine] override val validated: Boolean = false
 ) extends Likelihood[T, GaussianBeliefModel] {

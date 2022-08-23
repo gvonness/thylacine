@@ -19,7 +19,7 @@ package thylacine.model.components.posterior
 
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.implicits._

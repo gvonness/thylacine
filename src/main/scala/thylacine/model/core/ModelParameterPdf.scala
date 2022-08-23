@@ -17,33 +17,34 @@
 package ai.entrolution
 package thylacine.model.core
 
+import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
 import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 
-import cats.effect.IO
+import cats.effect.kernel.Async
 
-private[thylacine] trait ModelParameterPdf extends GenericScalarValuedMapping {
+private[thylacine] abstract class ModelParameterPdf[F[_]: Async] extends GenericScalarValuedMapping {
 
   private[thylacine] def logPdfAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[Double]
+  ): ResultOrErrF[F, Double]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[Double] =
+  ): ResultOrErrF[F, Double] =
     logPdfAt(input).map(Math.exp)
 
   private[thylacine] def logPdfGradientAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[ModelParameterCollection]
+  ): ResultOrErrF[F, ModelParameterCollection]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfGradientAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection] =
     for {
       pdf      <- pdfAt(input)
       gradLogs <- logPdfGradientAt(input)
@@ -51,27 +52,23 @@ private[thylacine] trait ModelParameterPdf extends GenericScalarValuedMapping {
       IndexedVectorCollection(gl._1, VectorContainer(pdf * gl._2.rawVector))
     }.reduce(_ rawMergeWith _)
 
-  final def logPdfAt(input: Map[String, Vector[Double]]): IO[Double] =
-    ResultOrErrIo.toIo(logPdfAt(IndexedVectorCollection(input)))
+  final def logPdfAt(input: Map[String, Vector[Double]]): F[Double] =
+    logPdfAt(IndexedVectorCollection(input)).liftToF
 
-  final def pdfAt(input: Map[String, Vector[Double]]): IO[Double] =
+  final def pdfAt(input: Map[String, Vector[Double]]): F[Double] =
     logPdfAt(input).map(Math.exp)
 
   final def logPdfGradientAt(
       input: Map[String, Vector[Double]]
-  ): IO[Map[String, Vector[Double]]] =
-    ResultOrErrIo.toIo {
-      for {
-        logPdfRes <- logPdfGradientAt(IndexedVectorCollection(input))
-      } yield logPdfRes.genericScalaRepresentation
-    }
+  ): F[Map[String, Vector[Double]]] =
+    logPdfGradientAt(IndexedVectorCollection(input))
+      .map(_.genericScalaRepresentation)
+      .liftToF
 
   final def pdfGradientAt(
       input: Map[String, Vector[Double]]
-  ): IO[Map[String, Vector[Double]]] =
-    ResultOrErrIo.toIo {
-      for {
-        logPdfRes <- pdfGradientAt(IndexedVectorCollection(input))
-      } yield logPdfRes.genericScalaRepresentation
-    }
+  ): F[Map[String, Vector[Double]]] =
+    pdfGradientAt(IndexedVectorCollection(input))
+      .map(_.genericScalaRepresentation)
+      .liftToF
 }

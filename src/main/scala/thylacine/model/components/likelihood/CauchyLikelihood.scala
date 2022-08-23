@@ -25,7 +25,7 @@ import java.util.UUID
 
 case class CauchyLikelihood(
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] override val observations: BelievedData,
+    private[thylacine] val observations: BelievedData,
     private[thylacine] override val forwardModel: ForwardModel,
     private[thylacine] override val validated: Boolean = false
 ) extends Likelihood[ForwardModel, CauchyBeliefModel] {
@@ -37,10 +37,7 @@ case class CauchyLikelihood(
     if (validated) {
       this
     } else {
-      this.copy(observations = observations.getValidated,
-                forwardModel = forwardModel.getValidated,
-                validated = true
-      )
+      this.copy(observations = observations.getValidated, forwardModel = forwardModel.getValidated, validated = true)
     }
 
   private[thylacine] override lazy val observationModel: CauchyBeliefModel =

@@ -20,7 +20,7 @@ package thylacine.model.sampling.hmcmc
 import bengal.stm.STM
 import thylacine.config.HmcmcConfig
 import thylacine.model.components.posterior.NonAnalyticPosterior
-import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.IndexedVectorCollection
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 

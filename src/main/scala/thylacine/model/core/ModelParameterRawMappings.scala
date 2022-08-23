@@ -17,7 +17,8 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.Erratum.ResultOrErrF
+import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 
@@ -25,17 +26,16 @@ import breeze.linalg.DenseVector
 
 private[thylacine] trait ModelParameterRawMappings {
 
-  protected def orderedParameterIdentifiersWithDimension
-      : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]]
+  protected def orderedParameterIdentifiersWithDimension[F[_]]: ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]]
 
-  private[thylacine] final def rawVectorToModelParameterCollection(
+  private[thylacine] final def rawVectorToModelParameterCollection[F[_]](
       input: DenseVector[Double]
-  ): ResultOrErrIo[ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection] =
     vectorValuesToModelParameterCollection(input.toArray.toVector)
 
-  private[thylacine] final def vectorValuesToModelParameterCollection(
+  private[thylacine] final def vectorValuesToModelParameterCollection[F[_]](
       input: Vector[Double]
-  ): ResultOrErrIo[ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection] =
     orderedParameterIdentifiersWithDimension.map {
       _.foldLeft(
         (input, IndexedVectorCollection.empty)
@@ -50,11 +50,11 @@ private[thylacine] trait ModelParameterRawMappings {
       }
     }.map(_._2)
 
-  private[thylacine] final def modelParameterCollectionToRawVector(
+  private[thylacine] final def modelParameterCollectionToRawVector[F[_]](
       input: ModelParameterCollection
-  ): ResultOrErrIo[DenseVector[Double]] =
+  ): ResultOrErrF[F, DenseVector[Double]] =
     orderedParameterIdentifiersWithDimension.flatMap { op =>
-      op.foldLeft(ResultOrErrIo.fromValue(Vector[Vector[Double]]())) { (i, j) =>
+      op.foldLeft(Vector[Vector[Double]]().toResultM) { (i, j) =>
         for {
           current  <- i
           toAppend <- input.retrieveIndex(j._1)
@@ -62,8 +62,8 @@ private[thylacine] trait ModelParameterRawMappings {
       }.map(i => DenseVector(i.reverse.reduce(_ ++ _).toArray))
     }
 
-  private[thylacine] final def modelParameterCollectionToVectorValues(
+  private[thylacine] final def modelParameterCollectionToVectorValues[F[_]](
       input: ModelParameterCollection
-  ): ResultOrErrIo[Vector[Double]] =
+  ): ResultOrErrF[F, Vector[Double]] =
     modelParameterCollectionToRawVector(input).map(_.toArray.toVector)
 }

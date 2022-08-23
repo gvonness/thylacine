@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
@@ -59,8 +59,7 @@ private[thylacine] trait Prior[+BM <: BeliefModel]
              )
     } yield res
 
-  override final def sampleModelParameters
-      : ResultOrErrIo[ModelParameterCollection] =
+  override final def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
     for {
       vectorResult <- rawSampleModelParameters
     } yield IndexedVectorCollection(identifier, vectorResult)

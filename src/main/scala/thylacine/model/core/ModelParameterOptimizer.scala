@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.IO

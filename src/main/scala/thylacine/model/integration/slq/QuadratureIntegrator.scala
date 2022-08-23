@@ -17,7 +17,8 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+
 import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.collection.parallel.CollectionConverters._
@@ -32,9 +33,7 @@ private[thylacine] case class QuadratureIntegrator(
 
   private lazy val integrandGraphs: Vector[Vector[(BigDecimal, BigDecimal)]] =
     quadratures.map(
-      _.zip(logPdfs).map(i =>
-        (BigDecimal(i._1.toString), BigDecimal((i._2 - minLogPdf).toString))
-      )
+      _.zip(logPdfs).map(i => (BigDecimal(i._1.toString), BigDecimal((i._2 - minLogPdf).toString)))
     )
 
   // Can be used in a number of places and is worth memoizing
@@ -46,8 +45,7 @@ private[thylacine] case class QuadratureIntegrator(
     }
 
   // Can be used in a number of places and is worth memoizing
-  private[thylacine] lazy val negativeEntropyStats
-      : ResultOrErrIo[Vector[BigDecimal]] =
+  private[thylacine] lazy val negativeEntropyStats: ResultOrErrIo[Vector[BigDecimal]] =
     Try {
       integrandGraphs.map { ig =>
         ig.par

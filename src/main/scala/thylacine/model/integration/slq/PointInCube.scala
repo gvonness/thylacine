@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core._
 
 import cats.implicits._
@@ -71,9 +71,7 @@ private[thylacine] case class PointInCube(
     if (index > 0 && index <= dimension) {
       val (foreList, aftList) = pointInIntervals.splitAt(index - 1)
       ResultOrErrIo.fromCalculation(
-        this.copy(pointInIntervals =
-          foreList ++ List(newInput.getValidated) ++ aftList.tail
-        )
+        this.copy(pointInIntervals = foreList ++ List(newInput.getValidated) ++ aftList.tail)
       )
     } else {
       ResultOrErrIo.fromErratum(
@@ -126,12 +124,8 @@ private[thylacine] object PointInCube {
                                       interval2
                                     )
                     (newInterval1, newInterval2) = intervalPair
-                    newPic1 <- pic1.replaceIndex(dimensionOfLargestSeparation,
-                                                 newInterval1
-                               )
-                    newPic2 <- pic2.replaceIndex(dimensionOfLargestSeparation,
-                                                 newInterval2
-                               )
+                    newPic1 <- pic1.replaceIndex(dimensionOfLargestSeparation, newInterval1)
+                    newPic2 <- pic2.replaceIndex(dimensionOfLargestSeparation, newInterval2)
                   } yield (newPic1, newPic2)
                 } else {
                   ResultOrErrIo.fromValue((pic1, pic2))

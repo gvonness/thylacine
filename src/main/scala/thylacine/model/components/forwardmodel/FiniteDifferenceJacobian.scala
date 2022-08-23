@@ -17,29 +17,26 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core.Erratum.ResultOrErrIo
-import thylacine.model.core.{
-  IndexedMatrixCollection,
-  IndexedVectorCollection,
-  MatrixContainer,
-  VectorContainer
-}
+import thylacine.model.core.Erratum.ResultOrErrF
+import thylacine.model.core._
 
-import cats.implicits._
+import cats.effect.kernel.Async
+import cats.effect.implicits._
+import cats.syntax.all._
 
 private[thylacine] trait FiniteDifferenceJacobian {
   protected def differential: Double
 
-  private[thylacine] def evalAt(
+  private[thylacine] def evalAt[F[_]](
       input: IndexedVectorCollection
-  ): ResultOrErrIo[VectorContainer]
+  ): ResultOrErrF[F, VectorContainer]
 
   // Finite difference calculation for the Jacobian is relatively intensive when compared to simple evaluation of
   // the forward model. This combined with giving the freedom to split inference parameters across any number of
   // identifiers requires us to parallelize very aggressively
-  protected final def finiteDifferencejacobianAt(
+  protected final def finiteDifferencejacobianAt[F[_]: Async](
       input: IndexedVectorCollection
-  ): ResultOrErrIo[IndexedMatrixCollection] =
+  ): ResultOrErrF[F, IndexedMatrixCollection] =
     for {
       currentEval <- evalAt(input)
       result <- input
@@ -58,12 +55,7 @@ private[thylacine] trait FiniteDifferenceJacobian {
                           .values
                           .map(k => (k._1, indexAndNudge._1) -> k._2)
                       }
-                      .map(r =>
-                        kv._1 -> MatrixContainer(r.reduce(_ ++ _),
-                                                 currentEval.dimension,
-                                                 kv._2.size
-                        )
-                      )
+                      .map(r => kv._1 -> MatrixContainer(r.reduce(_ ++ _), currentEval.dimension, kv._2.size))
                   }
                   .map(r => IndexedMatrixCollection(r.toMap))
     } yield result

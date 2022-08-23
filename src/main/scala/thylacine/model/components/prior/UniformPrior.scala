@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core._
@@ -30,7 +30,7 @@ case class UniformPrior(
 ) extends Prior[UniformBeliefModel] {
 
   protected override lazy val priorModel: UniformBeliefModel =
-    UniformBeliefModel(maxBounds = VectorContainer(maxBounds), minBounds = VectorContainer(minBounds)).getValidated
+    UniformBeliefModel(upperBounds = VectorContainer(maxBounds), lowerBounds = VectorContainer(minBounds)).getValidated
 
   private[thylacine] override lazy val getValidated: UniformPrior =
     if (validated) this

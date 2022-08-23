@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 
 private[thylacine] trait BeliefModel extends GenericScalarValuedMapping {
   private[thylacine] def logPdfAt(input: VectorContainer): ResultOrErrIo[Double]

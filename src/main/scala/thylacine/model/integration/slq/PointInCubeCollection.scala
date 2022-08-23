@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core._
 import thylacine.util.MathOps
 
@@ -116,16 +116,14 @@ private[thylacine] case class PointInCubeCollection(
       symmetrizedCubes <- pointsInCube.traverse(_.symmetrize)
     } yield PointInCubeCollection(symmetrizedCubes, validated = true)
 
-  private[thylacine] lazy val readyForSampling
-      : ResultOrErrIo[PointInCubeCollection] =
+  private[thylacine] lazy val readyForSampling: ResultOrErrIo[PointInCubeCollection] =
     for {
       init            <- getValidated.initialise
       initDisjoint    <- init.makeDisjoint
       initDisjointSym <- initDisjoint.symmetrize
     } yield initDisjointSym
 
-  private lazy val sampleMapping
-      : ResultOrErrIo[Vector[((BigDecimal, BigDecimal), PointInCube)]] = {
+  private lazy val sampleMapping: ResultOrErrIo[Vector[((BigDecimal, BigDecimal), PointInCube)]] = {
     for {
       cubeVolumes  <- pointsInCube.parTraverse(_.cubeVolume)
       cdfStaircase <- MathOps.cdfStaircase(cubeVolumes)
@@ -141,9 +139,7 @@ private[thylacine] case class PointInCubeCollection(
       rawSampleMap <- sampleMapping
       selectedCubes <- rawSampleMap.parTraverse { sm =>
                          ResultOrErrIo.fromCalculation {
-                           if (
-                             randomIndex >= sm._1._1 && randomIndex < sm._1._2
-                           )
+                           if (randomIndex >= sm._1._1 && randomIndex < sm._1._2)
                              Some(sm._2)
                            else None
                          }

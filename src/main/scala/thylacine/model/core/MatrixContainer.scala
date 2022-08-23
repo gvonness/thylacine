@@ -37,7 +37,8 @@ private[thylacine] case class MatrixContainer(
   }
 
   private[thylacine] override lazy val getValidated: MatrixContainer =
-    if (validated) this else this.copy(values = values.filter(_._2 != 0d), validated = true)
+    if (validated) this
+    else this.copy(values = values.filter(_._2 != 0d), validated = true)
 
   private[thylacine] lazy val isSquare: Boolean =
     rowTotalNumber == columnTotalNumber
@@ -102,6 +103,16 @@ private[thylacine] object MatrixContainer {
       values = Map(),
       rowTotalNumber = rowDimension,
       columnTotalNumber = columnDimension,
+      validated = true
+    )
+
+  private[thylacine] def squareIdentity(
+      dimension: Int
+  ): MatrixContainer =
+    MatrixContainer(
+      values = (1 to dimension).map(i => (i, i) -> 1d).toMap,
+      rowTotalNumber = dimension,
+      columnTotalNumber = dimension,
       validated = true
     )
 

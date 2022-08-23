@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 
 import breeze.linalg._
 import breeze.stats.distributions._

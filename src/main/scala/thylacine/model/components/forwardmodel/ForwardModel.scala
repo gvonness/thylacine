@@ -17,10 +17,12 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core._
+import bengal.stm.STM
+import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
 import thylacine.model.core.Erratum._
+import thylacine.model.core._
 
-import cats.effect.IO
+import cats.effect.kernel.Async
 
 private[thylacine] trait ForwardModel
     extends GenericMapping
@@ -29,27 +31,23 @@ private[thylacine] trait ForwardModel
 
   // Note that input validation should be done within
   // the surrounding likelihood
-  private[thylacine] def evalAt(
+  private[thylacine] def evalAt[F[_]: STM: Async](
       input: IndexedVectorCollection
-  ): ResultOrErrIo[VectorContainer]
+  ): ResultOrErrF[F, VectorContainer]
 
-  final def evalAt(input: Map[String, Vector[Double]]): IO[Vector[Double]] =
-    ResultOrErrIo.toIo {
-      for {
-        result <- evalAt(IndexedVectorCollection(input))
-      } yield result.scalaVector
-    }
+  final def evalAt[F[_]: STM: Async](input: Map[String, Vector[Double]]): F[Vector[Double]] =
+    evalAt(IndexedVectorCollection(input))
+      .map(_.scalaVector)
+      .liftToF
 
   // Note that input validation should be done within
   // the surrounding likelihood
-  private[thylacine] def jacobianAt(
+  private[thylacine] def jacobianAt[F[_]: STM: Async](
       input: IndexedVectorCollection
-  ): ResultOrErrIo[IndexedMatrixCollection]
+  ): ResultOrErrF[F, IndexedMatrixCollection]
 
-  final def jacobianAt(input: Map[String, Vector[Double]]): IO[Map[String, Vector[Vector[Double]]]] =
-    ResultOrErrIo.toIo {
-      for {
-        result <- jacobianAt(IndexedVectorCollection(input))
-      } yield result.genericScalaRepresentation
-    }
+  final def jacobianAt[F[_]: STM: Async](input: Map[String, Vector[Double]]): F[Map[String, Vector[Vector[Double]]]] =
+    jacobianAt(IndexedVectorCollection(input))
+      .map(_.genericScalaRepresentation)
+      .liftToF
 }

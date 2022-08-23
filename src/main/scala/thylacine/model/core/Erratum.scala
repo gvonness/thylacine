@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.model.core
 
 import cats.data.EitherT
-import cats.effect._
-import cats.effect.unsafe.IORuntime
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
 import scala.concurrent.{Future, TimeoutException}
 import scala.util.{Failure, Success, Try}
@@ -35,8 +35,8 @@ private[thylacine] sealed trait Erratum {
 }
 
 private[thylacine] object Erratum {
-  private[thylacine] type ResultOrErr[T]   = Either[Erratum, T]
-  private[thylacine] type ResultOrErrIo[T] = EitherT[IO, Erratum, T]
+  private[thylacine] type ResultOrErr[T]        = Either[Erratum, T]
+  private[thylacine] type ResultOrErrF[F[_], T] = EitherT[F, Erratum, T]
 
   private[thylacine] case class TransientErratum(message: String) extends Erratum
 
@@ -66,65 +66,90 @@ private[thylacine] object Erratum {
 
   private[thylacine] case class MinorErratum(message: String) extends PersistentErratum
 
-  private[thylacine] object ResultOrErrIo {
+  private[thylacine] object ResultOrErrF {
 
-    private[thylacine] def toIo[T](spec: ResultOrErrIo[T]): IO[T] =
-      spec.value.flatMap {
-        case Right(res) => IO.pure(res)
-        case Left(err)  => IO.raiseError(new RuntimeException(err.message))
+    object Implicits {
+
+      implicit class ToF[F[_]: Async, T](input: ResultOrErrF[F, T]) {
+
+        lazy val liftToF: F[T] =
+          input.value.flatMap {
+            case Right(res) => Async[F].pure(res)
+            case Left(err)  => Async[F].raiseError(new RuntimeException(err.message))
+          }
       }
 
-    private[thylacine] def materialize[T](input: ResultOrErrIo[T])(implicit runtime: IORuntime): T =
-      toIo(input).unsafeRunSync()
+      implicit class FromResultOrErrorF[F[_], T](input: F[ResultOrErr[T]]) {
 
-    private[thylacine] def fromCalculation[T](calculation: => T): ResultOrErrIo[T] =
-      fromIo(IO(calculation))
-
-    private[thylacine] def fromValue[T](value: T): ResultOrErrIo[T] =
-      fromResultOrErrorIo(IO.pure[ResultOrErr[T]](Right(value)))
-
-    private[thylacine] def fromErratum[T](erratum: Erratum): ResultOrErrIo[T] =
-      fromResultOrErrorIo(IO.pure[ResultOrErr[T]](Left(erratum)))
-
-    private[thylacine] def fromResultOrErr[T](resultOrErr: ResultOrErr[T]): ResultOrErrIo[T] =
-      fromResultOrErrorIo(IO.pure(resultOrErr))
-
-    private[thylacine] def fromFuture[T](future: => Future[T]): ResultOrErrIo[T] =
-      fromResultOrErrorIo {
-        IO.fromFuture(IO(future))
-          .map(Right(_))
-          .handleErrorWith(fromThrowable(_).value)
+        lazy val toResultM: ResultOrErrF[F, T] =
+          EitherT(input)
       }
 
-    private[thylacine] def fromThrowable[T](ex: Throwable): ResultOrErrIo[T] =
-      ex match {
-        case ex: TimeoutException =>
-          fromErratum(TransientErratum(ex))
-        case e: Throwable =>
-          fromErratum(UnexpectedErratum(e))
+      implicit class FromResultOrError[T](input: ResultOrErr[T]) {
+
+        def toResultM[F[_]: Async]: ResultOrErrF[F, T] =
+          Async[F].pure(input).toResultM
       }
 
-    private[thylacine] def fromIo[T](spec: IO[T]): ResultOrErrIo[T] =
-      fromResultOrErrorIo {
-        spec
-          .map(Right(_))
-          .handleErrorWith(fromThrowable(_).value)
+      implicit class FromErratum(erratum: Erratum) {
+
+        def toResultM[F[_]: Async, T]: ResultOrErrF[F, T] =
+          Async[F]
+            .pure[ResultOrErr[T]](Left(erratum))
+            .toResultM
       }
 
-    private[thylacine] def fromTryIo[T](spec: IO[Try[T]]): ResultOrErrIo[T] =
-      fromResultOrErrorIo {
-        spec.flatMap {
-          case Success(value)     => fromValue(value).value
-          case Failure(exception) => fromThrowable(exception).value
-        }
+      implicit class FromThrowable(ex: Throwable) {
+
+        def toResultM[F[_]: Async, T]: ResultOrErrF[F, T] =
+          ex match {
+            case ex: TimeoutException =>
+              TransientErratum(ex).toResultM
+            case e: Throwable =>
+              UnexpectedErratum(e).toResultM
+          }
       }
 
-    private[thylacine] def fromResultOrErrorIo[T](
-        resultOrErrorIo: IO[ResultOrErr[T]]
-    ): ResultOrErrIo[T] =
-      EitherT(resultOrErrorIo)
+      implicit class FromF[F[_]: Async, T](input: F[T]) {
 
-    private[thylacine] val unit: ResultOrErrIo[Unit] =
-      ResultOrErrIo.fromValue(())
+        lazy val toResultM: ResultOrErrF[F, T] =
+          input
+            .map(Either.right[Erratum, T])
+            .handleErrorWith(i => i.toResultM[F, T].value)
+            .toResultM
+      }
+
+      implicit class FromCalculation[T](input: () => T) {
+
+        def toResultM[F[_]: Async]: ResultOrErrF[F, T] =
+          Async[F].delay(input()).toResultM
+      }
+
+      implicit class FromValue[T](input: T) {
+
+        def toResultM[F[_]: Async]: ResultOrErrF[F, T] =
+          Async[F].pure(input).toResultM
+      }
+
+      implicit class FromFuture[T](input: () => Future[T]) {
+
+        def toResultM[F[_]: Async]: ResultOrErrF[F, T] =
+          Async[F].fromFuture(Async[F].delay(input())).toResultM
+      }
+
+      implicit class FromTryF[F[_]: Async, T](input: F[Try[T]]) {
+
+        lazy val toResultM: ResultOrErrF[F, T] =
+          input.flatMap {
+            case Success(value)     => value.toResultM.value
+            case Failure(exception) => exception.toResultM[F, T].value
+          }.toResultM
+      }
+    }
+
+    import Implicits._
+
+    private[thylacine] def unit[F[_]: Async]: ResultOrErrF[F, Unit] =
+      ().toResultM
   }
 }

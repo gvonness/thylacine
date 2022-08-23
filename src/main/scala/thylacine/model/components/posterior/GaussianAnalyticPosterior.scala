@@ -20,7 +20,7 @@ package thylacine.model.components.posterior
 import thylacine.model.components.likelihood._
 import thylacine.model.components.posterior.GaussianAnalyticPosterior._
 import thylacine.model.components.prior._
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._

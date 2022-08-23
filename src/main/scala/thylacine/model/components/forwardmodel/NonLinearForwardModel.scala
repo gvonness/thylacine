@@ -17,11 +17,10 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core.Erratum.ResultOrErrIo
+import bengal.stm.STM
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 
-import ai.entrolution.bengal.stm.STM
 import cats.effect.IO
 
 case class NonLinearForwardModel(
@@ -61,8 +60,9 @@ case class NonLinearForwardModel(
     ResultOrErrIo.fromCalculation {
       jacobian(
         input.index.map(i => i._1.value -> i._2.scalaVector)
-      ).map(ms => IndexedMatrixCollection(ms._1, ms._2))
-        .reduce(_ rawMergeWith _)
+      ).map { case (label, matrixValue) =>
+        IndexedMatrixCollection(ModelParameterIdentifier(label), matrixValue)
+      }.reduce(_ rawMergeWith _)
     }
 }
 
@@ -82,7 +82,9 @@ object NonLinearForwardModel {
       rangeDimension: Int,
       differential: Double,
       maxResultsToCache: Int
-  )(implicit stm: STM[IO]): NonLinearFiniteDifferenceInMemoryMemoizedForwardModel =
+  )(implicit
+      stm: STM[IO]
+  ): NonLinearFiniteDifferenceInMemoryMemoizedForwardModel =
     NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
       evaluation,
       domainDimensions,

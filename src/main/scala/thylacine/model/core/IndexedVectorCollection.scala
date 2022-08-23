@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 
 private[thylacine] case class IndexedVectorCollection(
@@ -36,8 +36,7 @@ private[thylacine] case class IndexedVectorCollection(
       )
     }
 
-  private[thylacine] lazy val genericScalaRepresentation
-      : Map[String, Vector[Double]] =
+  private[thylacine] lazy val genericScalaRepresentation: Map[String, Vector[Double]] =
     index.map(i => i._1.value -> i._2.scalaVector)
 
   // Low-level API
@@ -51,9 +50,7 @@ private[thylacine] case class IndexedVectorCollection(
         s"Can not merge indexed vector collections with the same labels: $keyIntersection"
       )
     } else {
-      IndexedVectorCollection(getValidated.index ++ other.getValidated.index,
-                              validated = true
-      )
+      IndexedVectorCollection(getValidated.index ++ other.getValidated.index, validated = true)
     }
   }
 

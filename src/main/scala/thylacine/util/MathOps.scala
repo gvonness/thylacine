@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.util
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, UnexpectedErratum}
+import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo, UnexpectedErratum}
 
 private[thylacine] object MathOps {
 

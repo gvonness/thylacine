@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core._
 
 private[thylacine] case class PointInInterval(
@@ -97,9 +97,7 @@ private[thylacine] object PointInInterval {
     val averageBoundary = (pii1.point + pii2.point) / 2.0
 
     val boundaryValueSpec: ResultOrErrIo[Double] =
-      if (
-        largerPii.lowerBound <= averageBoundary && smallerPii.upperBound > averageBoundary
-      ) {
+      if (largerPii.lowerBound <= averageBoundary && smallerPii.upperBound > averageBoundary) {
         ResultOrErrIo.fromValue(averageBoundary)
       } else if (largerPii.lowerBound <= averageBoundary) {
         ResultOrErrIo.fromValue(smallerPii.upperBound)
@@ -117,13 +115,9 @@ private[thylacine] object PointInInterval {
       boundaryValue <- boundaryValueSpec
     } yield
       if (isPii1Larger) {
-        (pii1.copy(lowerBound = boundaryValue),
-         pii2.copy(upperBound = boundaryValue)
-        )
+        (pii1.copy(lowerBound = boundaryValue), pii2.copy(upperBound = boundaryValue))
       } else {
-        (pii1.copy(upperBound = boundaryValue),
-         pii2.copy(lowerBound = boundaryValue)
-        )
+        (pii1.copy(upperBound = boundaryValue), pii2.copy(lowerBound = boundaryValue))
       }
   }
 }

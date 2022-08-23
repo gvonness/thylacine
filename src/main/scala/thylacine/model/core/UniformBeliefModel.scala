@@ -17,23 +17,23 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 
 import scala.collection.parallel.CollectionConverters._
 import scala.{Vector => ScalaVector}
 
 private[thylacine] case class UniformBeliefModel(
-    maxBounds: VectorContainer,
-    minBounds: VectorContainer,
+    upperBounds: VectorContainer,
+    lowerBounds: VectorContainer,
     validated: Boolean = false
 ) extends BeliefModel
     with CanValidate[UniformBeliefModel] {
 
   private lazy val zippedBounds: ScalaVector[(Double, Double)] =
-    minBounds.scalaVector.zip(maxBounds.scalaVector)
+    lowerBounds.scalaVector.zip(upperBounds.scalaVector)
 
   if (!validated) {
-    assert(maxBounds.dimension == minBounds.dimension)
+    assert(upperBounds.dimension == lowerBounds.dimension)
     assert(!zippedBounds.exists(i => i._2 <= i._1))
   }
 
@@ -41,14 +41,16 @@ private[thylacine] case class UniformBeliefModel(
     if (validated) {
       this
     } else {
-      UniformBeliefModel(maxBounds.getValidated, minBounds.getValidated, validated = true)
+      UniformBeliefModel(upperBounds.getValidated, lowerBounds.getValidated, validated = true)
     }
 
-  override val domainDimension: Int = maxBounds.dimension
+  override val domainDimension: Int = upperBounds.dimension
 
   private[thylacine] lazy val negLogVolume: ResultOrErrIo[Double] =
     ResultOrErrIo.fromValue {
-      -zippedBounds.map(zb => Math.log(zb._2 - zb._1)).sum
+      -zippedBounds.map { case (lowerBound, upperBound) =>
+        Math.log(upperBound - lowerBound)
+      }.sum
     }
 
   private lazy val negInfinity: ResultOrErrIo[Double] =
@@ -58,8 +60,11 @@ private[thylacine] case class UniformBeliefModel(
     ResultOrErrIo.fromValue(VectorContainer.zeros(domainDimension))
 
   private[thylacine] def insideBounds(input: VectorContainer): Boolean =
-    !zippedBounds.zip(input.scalaVector).exists { boundingVolumeTest =>
-      boundingVolumeTest._2 < boundingVolumeTest._1._1 || boundingVolumeTest._2 >= boundingVolumeTest._1._2
+    zippedBounds.zip(input.scalaVector).forall {
+      case ((lowerBound, upperBound), value) if value >= lowerBound && value < upperBound =>
+        true
+      case _ =>
+        false
     }
 
   private[thylacine] override def logPdfAt(
@@ -71,18 +76,34 @@ private[thylacine] case class UniformBeliefModel(
       negInfinity
     }
 
-  // Technically undefined (obviously) where the PDF is zero but this gets us the right semantics
+  //We artificially set the gradient here to guide optimisers and
+  //samplers using gradient information
   private[thylacine] override def logPdfGradientAt(
       input: VectorContainer
   ): ResultOrErrIo[VectorContainer] =
-    zeroVector
+    ResultOrErrIo.fromCalculation {
+      VectorContainer {
+        zippedBounds.zip(input.scalaVector).map {
+          case ((lowerBound, _), value) if value < lowerBound =>
+            lowerBound - value
+          case ((_, upperBound), value) if value > upperBound =>
+            upperBound - value
+          case _ =>
+            0d
+        }
+      }
+    }
 
   private lazy val samplingScalingAndShift: ScalaVector[(Double, Double)] =
-    zippedBounds.map(i => (i._2 - i._1, i._1))
+    zippedBounds.map { case (lowerBound, upperBound) =>
+      (upperBound - lowerBound, lowerBound)
+    }
 
   private[thylacine] def getRawSample: VectorContainer =
     VectorContainer(
-      samplingScalingAndShift.par.map(i => Math.random() * i._1 + i._2).toVector
+      samplingScalingAndShift.par.map { case (scale, offset) =>
+        Math.random() * scale + offset
+      }.toVector
     )
 
 }

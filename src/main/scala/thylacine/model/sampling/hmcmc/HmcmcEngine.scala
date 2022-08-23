@@ -20,7 +20,7 @@ package thylacine.model.sampling.hmcmc
 import bengal.stm._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 

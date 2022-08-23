@@ -43,10 +43,7 @@ private[thylacine] case class Simplex(start: GraphPoint, end: GraphPoint) {
     if (start >= length) {
       (prev, start - length)
     } else {
-      getInterpolationPoints(start + ds,
-                             ds,
-                             List(getInterp(start / length)) ++ prev
-      )
+      getInterpolationPoints(start + ds, ds, List(getInterp(start / length)) ++ prev)
     }
 }
 

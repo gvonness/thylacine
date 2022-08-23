@@ -25,8 +25,7 @@ private[thylacine] case class QuadratureAbscissaCollection(
   private[thylacine] val size: Int =
     if (abscissas.nonEmpty) abscissas.head.abscissa.size else 0
 
-  private[thylacine] lazy val extendAllAbscissaByOne
-      : QuadratureAbscissaCollection =
+  private[thylacine] lazy val extendAllAbscissaByOne: QuadratureAbscissaCollection =
     QuadratureAbscissaCollection(abscissas.map(_.extendAbscissaByOne))
 
   private[thylacine] lazy val getQuadratures: Vector[Vector[Double]] =

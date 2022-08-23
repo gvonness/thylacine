@@ -33,9 +33,7 @@ private[thylacine] case class QuadratureAbscissa(
   private[thylacine] lazy val extendAbscissaByOne: QuadratureAbscissa = {
     val newSample: Double = getNext(maxSample, existing = samplePool)
 
-    QuadratureAbscissa((samplePool - maxSample) + newSample,
-                       maxSample +: abscissa
-    )
+    QuadratureAbscissa((samplePool - maxSample) + newSample, maxSample +: abscissa)
   }
 
   private[thylacine] lazy val getTrapezoidalQuadrature: Vector[Double] = {
@@ -64,9 +62,8 @@ private[thylacine] object QuadratureAbscissa {
   }
 
   private[thylacine] def apply(numSamples: Int): QuadratureAbscissa = {
-    val randomVector = (1 until numSamples).foldLeft(Set[Double](1.0)) {
-      (i, _) =>
-        i + getNext(max = 1.0, existing = i)
+    val randomVector = (1 until numSamples).foldLeft(Set[Double](1.0)) { (i, _) =>
+      i + getNext(max = 1.0, existing = i)
     }
 
     QuadratureAbscissa(

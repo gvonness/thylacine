@@ -19,22 +19,23 @@ package thylacine.model.components.forwardmodel
 
 import bengal.stm.STM
 import thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
-import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
+import Erratum.ResultOrErrF.Implicits._
+import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
 import breeze.linalg.{DenseMatrix, DenseVector}
 import cats.effect.IO
+import cats.effect.kernel.Async
 
 // A linear forward model may work across more than
 // one model parameter generator
-case class LinearForwardModel(
+case class LinearForwardModel[F[_] : STM : Async](
     transform: IndexedMatrixCollection,
     vectorOffset: Option[VectorContainer],
     maxResultsToCache: Int,
     override val validated: Boolean = false
-)(implicit stm: STM[IO])
-    extends InMemoryMemoizedForwardModel {
+) extends InMemoryMemoizedForwardModel {
   if (!validated) {
     assert(transform.index.map(_._2.rowTotalNumber).toSet.size == 1)
     assert(
@@ -45,7 +46,7 @@ case class LinearForwardModel(
   override protected val cacheConfig: ForwardModelCachingConfig =
     ForwardModelCachingConfig(evalCacheDepth = Some(maxResultsToCache), jacobianCacheDepth = None)
 
-  private[thylacine] override lazy val getValidated: LinearForwardModel =
+  private[thylacine] override lazy val getValidated: LinearForwardModel[F] =
     if (validated) {
       this
     } else {
@@ -53,13 +54,12 @@ case class LinearForwardModel(
     }
 
   override protected val orderedParameterIdentifiersWithDimension
-      : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
-    ResultOrErrIo.fromCalculation(
-      transform.index
+      : ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]] =
+    transform.index
         .map(i => (i._1, i._2.columnTotalNumber))
         .toVector
         .sortBy(_._1.value)
-    )
+        .toResultM
 
   override val rangeDimension: Int =
     transform.index.head._2.rowTotalNumber
@@ -125,7 +125,19 @@ object LinearForwardModel {
       maxResultsToCache: Int
   )(implicit stm: STM[IO]): LinearForwardModel =
     LinearForwardModel(
-      transform = IndexedMatrixCollection(label, values),
+      transform = IndexedMatrixCollection(ModelParameterIdentifier(label), values),
+      vectorOffset = None,
+      maxResultsToCache = maxResultsToCache
+    )
+
+  def identity(
+      label: String,
+      dimension: Int,
+      maxResultsToCache: Int
+  )(implicit stm: STM[IO]): LinearForwardModel =
+    LinearForwardModel(
+      transform = IndexedMatrixCollection
+        .squareIdentity(ModelParameterIdentifier(label), dimension),
       vectorOffset = None,
       maxResultsToCache = maxResultsToCache
     )

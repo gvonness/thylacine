@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 
@@ -34,8 +34,7 @@ case class CauchyPrior(
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
+  protected override def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
     ResultOrErrIo.fromCalculation(priorModel.getRawSample)
 }
 

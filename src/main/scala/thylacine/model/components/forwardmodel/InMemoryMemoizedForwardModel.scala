@@ -20,223 +20,276 @@ package thylacine.model.components.forwardmodel
 import bengal.stm._
 import thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel._
 import thylacine.model.core._
-import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
 
-import cats.effect.IO
-import cats.effect.unsafe.implicits.global
-import cats.implicits._
+import ai.entrolution.bengal.stm.model.{TxnVar, _}
+import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF.Implicits._
+import bengal.stm.syntax.all._
 
-private[thylacine] abstract class InMemoryMemoizedForwardModel(implicit val stm: STM[IO]) extends MemoizedForwardModel {
+import cats.effect.implicits._
+import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
-  import stm._
+private[thylacine] trait InMemoryMemoizedForwardModel extends ForwardModel {
 
-  private val scalarClock: TxnVar[Int] =
-    TxnVar.of(0).unsafeRunSync()
+  private def scalarClockF[F[_]: STM: Async]: F[TxnVar[F, Int]] =
+    TxnVar.of(0)
 
-  private val getTime: ResultOrErrIo[Int] =
-    ResultOrErrIo.fromIo(scalarClock.get.commit)
-
-  private val tickAndGet: ResultOrErrIo[Int] =
-    ResultOrErrIo.fromIo((scalarClock.modify(_ + 1) >> scalarClock.get).commit)
-
-  private val evalCache: TxnVar[Map[Int, ComputationResult[VectorContainer]]] =
+  private def evalCacheF[F[_]: STM: Async]: F[TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]] =
     TxnVar.of {
       Map[Int, ComputationResult[VectorContainer]]()
-    }.unsafeRunSync()
+    }
 
-  private val jacobianCache: TxnVar[Map[Int, ComputationResult[IndexedMatrixCollection]]] =
+  private def jacobianCacheF[F[_]: STM: Async]: F[TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]] =
     TxnVar.of {
       Map[Int, ComputationResult[IndexedMatrixCollection]]()
-    }.unsafeRunSync()
-
-  private def retrieveKeyFromEvalStore(
-      key: Int
-  ): ResultOrErrIo[Option[VectorContainer]] =
-    ResultOrErrIo.fromIo(
-      evalCache.get.map(_.get(key).map(_.result)).commit
-    )
-
-  private def retrieveKeyFromJacobianStore(
-      key: Int
-  ): ResultOrErrIo[Option[IndexedMatrixCollection]] =
-    ResultOrErrIo.fromIo(
-      jacobianCache.get.map(_.get(key).map(_.result)).commit
-    )
-
-  private def updateAccessTimeForKeyInEvalStore(
-      key: Int,
-      time: Int
-  ): ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      for {
-        _ <- evalCache.modify { ec =>
-               ec.get(key) match {
-                 case Some(res) if time > res.lastAccessed =>
-                   ec + (key -> res.updateLastAccess(time))
-                 case _ => ()
-               }
-               ec
-             }.commit.start
-      } yield ()
     }
 
-  private def updateAccessTimeForKeyInJacobianStore(
+  private def getTime[F[_]: STM: Async](scalarClock: TxnVar[F, Int]): ResultOrErrF[F, Int] =
+    scalarClock.get.commit.toResultM
+
+  private def tickAndGet[F[_]: STM: Async](scalarClock: TxnVar[F, Int]): ResultOrErrF[F, Int] =
+    (for {
+      _           <- scalarClock.modify(_ + 1)
+      innerResult <- scalarClock.get
+    } yield innerResult).commit.toResultM
+
+  private def retrieveKeyFromEvalStore[F[_]: STM: Async](
+      key: Int
+  )(evalCache: TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]): ResultOrErrF[F, Option[VectorContainer]] =
+    evalCache.get
+      .map(_.get(key).map(_.result))
+      .commit
+      .toResultM
+
+  private def retrieveKeyFromJacobianStore[F[_]: STM: Async](
+      key: Int
+  )(
+      jacobianCache: TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]
+  ): ResultOrErrF[F, Option[IndexedMatrixCollection]] =
+    jacobianCache.get
+      .map(_.get(key).map(_.result))
+      .commit
+      .toResultM
+
+  private def updateAccessTimeForKeyInEvalStore[F[_]: STM: Async](
       key: Int,
       time: Int
-  ): ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      for {
-        _ <- jacobianCache.modify { ec =>
-               ec.get(key) match {
-                 case Some(res) if time > res.lastAccessed =>
-                   ec + (key -> res.updateLastAccess(time))
-                 case _ => ()
-               }
-               ec
-             }.commit.start
-      } yield ()
-    }
+  )(evalCache: TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]): ResultOrErrF[F, Unit] =
+    evalCache.modify { ec =>
+      ec.get(key) match {
+        case Some(res) if time > res.lastAccessed =>
+          ec + (key -> res.updateLastAccess(time))
+        case _ => ()
+      }
+      ec
+    }.commit.start
+      .flatMap(_ => Async[F].unit)
+      .toResultM
 
-  private def upsertResultIntoEvalStore(
+  private def updateAccessTimeForKeyInJacobianStore[F[_]: STM: Async](
+      key: Int,
+      time: Int
+  )(
+      jacobianCache: TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]
+  ): ResultOrErrF[F, Unit] =
+    jacobianCache.modify { ec =>
+      ec.get(key) match {
+        case Some(res) if time > res.lastAccessed =>
+          ec + (key -> res.updateLastAccess(time))
+        case _ => ()
+      }
+      ec
+    }.commit.start
+      .flatMap(_ => Async[F].unit)
+      .toResultM
+
+  private def upsertResultIntoEvalStore[F[_]: STM: Async](
       key: Int,
       newResult: ComputationResult[VectorContainer]
-  ): ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      for {
-        _ <- evalCache.modify { ec =>
-               ec.get(key) match {
-                 case None =>
-                   ec + (key -> newResult)
-                 case Some(oldResult) if newResult.lastAccessed > oldResult.lastAccessed =>
-                   ec + (key -> newResult)
-                 case _ =>
-                   ec
-               }
-             }.commit.start
-      } yield ()
-    }
+  )(evalCache: TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]): ResultOrErrF[F, Unit] =
+    evalCache.modify { ec =>
+      ec.get(key) match {
+        case None =>
+          ec + (key -> newResult)
+        case Some(oldResult) if newResult.lastAccessed > oldResult.lastAccessed =>
+          ec + (key -> newResult)
+        case _ =>
+          ec
+      }
+    }.commit.start
+      .flatMap(_ => Async[F].unit)
+      .toResultM
 
-  private def upsertResultIntoJacobianStore(
+  private def upsertResultIntoJacobianStore[F[_]: STM: Async](
       key: Int,
       newResult: ComputationResult[IndexedMatrixCollection]
-  ): ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      for {
-        _ <- jacobianCache.modify { ec =>
-               ec.get(key) match {
-                 case None =>
-                   ec + (key -> newResult)
-                 case Some(oldResult) if newResult.lastAccessed > oldResult.lastAccessed =>
-                   ec + (key -> newResult)
-                 case _ =>
-                   ec
-               }
-             }.commit.start
-      } yield ()
-    }
+  )(
+      jacobianCache: TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]
+  ): ResultOrErrF[F, Unit] =
+    jacobianCache.modify { ec =>
+      ec.get(key) match {
+        case None =>
+          ec + (key -> newResult)
+        case Some(oldResult) if newResult.lastAccessed > oldResult.lastAccessed =>
+          ec + (key -> newResult)
+        case _ =>
+          ec
+      }
+    }.commit.start
+      .flatMap(_ => Async[F].unit)
+      .toResultM
 
-  private def cleanEvalStore: ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      for {
-        _ <- evalCache.modify { ec =>
-               if (ec.size > cacheConfig.evalCacheDepth.getOrElse(0)) {
-                 ec.toSeq
-                   .sortBy(_._2.lastAccessed)
-                   .takeRight(cacheConfig.evalCacheDepth.getOrElse(0))
-                   .toMap
-               } else {
-                 ec
-               }
-             }.commit.start
-      } yield ()
-    }
+  private def cleanEvalStore[F[_]: STM: Async](
+      evalCache: TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]
+  ): ResultOrErrF[F, Unit] =
+    evalCache.modify { ec =>
+      if (ec.size > cacheConfig.evalCacheDepth.getOrElse(0)) {
+        ec.toSeq
+          .sortBy(_._2.lastAccessed)
+          .takeRight(cacheConfig.evalCacheDepth.getOrElse(0))
+          .toMap
+      } else {
+        ec
+      }
+    }.commit.start
+      .flatMap(_ => Async[F].unit)
+      .toResultM
 
-  private def cleanJacobianStore: ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      for {
-        _ <- jacobianCache.modify { ec =>
-               if (ec.size > cacheConfig.jacobianCacheDepth.getOrElse(0)) {
-                 ec.toSeq
-                   .sortBy(_._2.lastAccessed)
-                   .takeRight(cacheConfig.jacobianCacheDepth.getOrElse(0))
-                   .toMap
-               } else {
-                 ec
-               }
-             }.commit.start
-      } yield ()
-    }
+  private def cleanJacobianStore[F[_]: STM: Async](
+      jacobianCache: TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]
+  ): ResultOrErrF[F, Unit] =
+    jacobianCache.modify { ec =>
+      if (ec.size > cacheConfig.jacobianCacheDepth.getOrElse(0)) {
+        ec.toSeq
+          .sortBy(_._2.lastAccessed)
+          .takeRight(cacheConfig.jacobianCacheDepth.getOrElse(0))
+          .toMap
+      } else {
+        ec
+      }
+    }.commit.start
+      .flatMap(_ => Async[F].unit)
+      .toResultM
 
-  override protected def retrieveEvalFromStoreFor(
+  override protected def retrieveEvalFromStoreFor[F[_]: STM: Async](
       input: ModelParameterCollection
-  ): ResultOrErrIo[Option[VectorContainer]] =
+  )(
+      scalarClock: TxnVar[F, Int],
+      evalCache: TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]
+  ): ResultOrErrF[F, Option[VectorContainer]] =
     for {
-      time <- tickAndGet
-      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
-      ec   <- retrieveKeyFromEvalStore(key)
+      time <- tickAndGet(scalarClock)
+      key  <- getInMemoryKey(input).toResultM
+      ec   <- retrieveKeyFromEvalStore(key)(evalCache)
       _ <- ec match {
              case Some(_) =>
                updateAccessTimeForKeyInEvalStore(
                  key,
                  time
-               )
+               )(evalCache)
              case _ =>
-               ResultOrErrIo.unit
+               ResultOrErrF.unit
            }
     } yield ec
 
-  override protected def retrieveJacobianFromStoreFor(
+  override protected def retrieveJacobianFromStoreFor[F[_]: STM: Async](
       input: ModelParameterCollection
-  ): ResultOrErrIo[Option[IndexedMatrixCollection]] =
+  )(
+      scalarClock: TxnVar[F, Int],
+      jacobianCache: TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]
+  ): ResultOrErrF[F, Option[IndexedMatrixCollection]] =
     for {
-      time <- tickAndGet
-      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
-      ec   <- retrieveKeyFromJacobianStore(key)
+      time <- tickAndGet(scalarClock)
+      key  <- getInMemoryKey(input).toResultM
+      ec   <- retrieveKeyFromJacobianStore(key)(jacobianCache)
       _ <- ec match {
              case Some(_) =>
                updateAccessTimeForKeyInJacobianStore(
                  key,
                  time
-               )
+               )(jacobianCache)
              case _ =>
-               ResultOrErrIo.unit
+               ResultOrErrF.unit
            }
     } yield ec
 
-  override protected def updateEvalStoreWith(
+  override protected def updateEvalStoreWith[F[_]: STM: Async](
       input: ModelParameterCollection,
       eval: VectorContainer
-  ): ResultOrErrIo[Unit] =
+  )(
+      scalarClock: TxnVar[F, Int],
+      evalCache: TxnVar[F, Map[Int, ComputationResult[VectorContainer]]]
+  ): ResultOrErrF[F, Unit] =
     for {
-      time <- getTime
-      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
-      _    <- upsertResultIntoEvalStore(key, ComputationResult(eval, time))
-      _    <- cleanEvalStore
+      time <- getTime(scalarClock)
+      key  <- getInMemoryKey(input).toResultM
+      _    <- upsertResultIntoEvalStore(key, ComputationResult(eval, time))(evalCache)
+      _    <- cleanEvalStore(evalCache)
     } yield ()
 
-  override protected def updateJacobianStoreWith(
+  override protected def updateJacobianStoreWith[F[_]: STM: Async](
       input: ModelParameterCollection,
       jacobian: IndexedMatrixCollection
-  ): ResultOrErrIo[Unit] =
+  )(
+      scalarClock: TxnVar[F, Int],
+      jacobianCache: TxnVar[F, Map[Int, ComputationResult[IndexedMatrixCollection]]]
+  ): ResultOrErrF[F, Unit] =
     for {
-      time <- getTime
-      key  <- ResultOrErrIo.fromCalculation(getInMemoryKey(input))
-      _    <- upsertResultIntoJacobianStore(key, ComputationResult(jacobian, time))
-      _    <- cleanJacobianStore
+      time <- getTime(scalarClock)
+      key  <- getInMemoryKey(input).toResultM
+      _    <- upsertResultIntoJacobianStore(key, ComputationResult(jacobian, time))(jacobianCache)
+      _    <- cleanJacobianStore(jacobianCache)
     } yield ()
+
+  private[thylacine] override final def evalAt[F[_] : STM : Async](
+                                                                    input: ModelParameterCollection
+                                                                  ): ResultOrErrF[F, VectorContainer] =
+    if (cacheConfig.evalCacheEnabled) {
+      for {
+        oCachedResult <- retrieveEvalFromStoreFor(input)
+        result <- oCachedResult.map(_.toResultM).getOrElse {
+          for {
+            innerResult <- computeEvalAt(input)
+            _ <- updateEvalStoreWith(input, innerResult)
+          } yield innerResult
+        }
+      } yield result
+    } else {
+      computeEvalAt(input)
+    }
+
+  private[thylacine] override final def jacobianAt[F[_] : STM : Async](
+                                                                        input: ModelParameterCollection
+                                                                      ): ResultOrErrF[F, IndexedMatrixCollection] =
+    if (cacheConfig.jacobianCacheEnabled) {
+      for {
+        oCachedResult <- retrieveJacobianFromStoreFor(input)
+        result <- oCachedResult
+          .map(_.toResultM)
+          .getOrElse {
+            for {
+              innerResult <- computeJacobianAt(input)
+              _ <- updateJacobianStoreWith(input, innerResult)
+            } yield innerResult
+          }
+      } yield result
+    } else {
+      computeJacobianAt(input)
+    }
 }
 
 private[thylacine] object InMemoryMemoizedForwardModel {
-
-  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
-    input.hashCode()
-
-  private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {
-
-    private[thylacine] def updateLastAccess(accessedAt: Int): ComputationResult[T] =
-      this.copy(lastAccessed = accessedAt)
-  }
+//
+//  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
+//    input.hashCode()
+//
+//  private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {
+//
+//    private[thylacine] def updateLastAccess(accessedAt: Int): ComputationResult[T] =
+//      this.copy(lastAccessed = accessedAt)
+//  }
 
   case class ForwardModelCachingConfig(evalCacheDepth: Option[Int], jacobianCacheDepth: Option[Int]) {
     lazy val evalCacheEnabled: Boolean     = evalCacheDepth.exists(_ > 0)

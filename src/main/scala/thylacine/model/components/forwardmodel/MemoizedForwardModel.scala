@@ -17,11 +17,14 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core._
+import bengal.stm.STM
+import thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
+import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
 import thylacine.model.core.Erratum._
 import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core._
 
-import ai.entrolution.thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
+import cats.effect.kernel.Async
 
 // For all but the simplest inferences, the majority of computation
 // will be tied up in forward model, and as such posterior
@@ -33,41 +36,21 @@ private[thylacine] trait MemoizedForwardModel extends ForwardModel {
 
   protected def cacheConfig: ForwardModelCachingConfig
 
-  protected def retrieveEvalFromStoreFor(
+  protected def computeEvalAt[F[_]: STM: Async](
       input: ModelParameterCollection
-  ): ResultOrErrIo[Option[VectorContainer]]
+  ): ResultOrErrF[F, VectorContainer]
 
-  protected def retrieveJacobianFromStoreFor(
+  protected def computeJacobianAt[F[_]: STM: Async](
       input: ModelParameterCollection
-  ): ResultOrErrIo[Option[IndexedMatrixCollection]]
+  ): ResultOrErrF[F, IndexedMatrixCollection]
 
-  protected def updateEvalStoreWith(
-      input: ModelParameterCollection,
-      eval: VectorContainer
-  ): ResultOrErrIo[Unit]
-
-  protected def updateJacobianStoreWith(
-      input: ModelParameterCollection,
-      jacobian: IndexedMatrixCollection
-  ): ResultOrErrIo[Unit]
-
-  protected def computeEvalAt(
+  private[thylacine] override final def evalAt[F[_]: STM: Async](
       input: ModelParameterCollection
-  ): ResultOrErrIo[VectorContainer]
-
-  protected def computeJacobianAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[IndexedMatrixCollection]
-
-  private[thylacine] override final def evalAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[VectorContainer] =
+  ): ResultOrErrF[F, VectorContainer] =
     if (cacheConfig.evalCacheEnabled) {
       for {
         oCachedResult <- retrieveEvalFromStoreFor(input)
-        result <- oCachedResult.map { res =>
-                    ResultOrErrIo.fromValue(res)
-                  }.getOrElse {
+        result <- oCachedResult.map(_.toResultM).getOrElse {
                     for {
                       innerResult <- computeEvalAt(input)
                       _           <- updateEvalStoreWith(input, innerResult)
@@ -78,20 +61,20 @@ private[thylacine] trait MemoizedForwardModel extends ForwardModel {
       computeEvalAt(input)
     }
 
-  private[thylacine] override final def jacobianAt(
+  private[thylacine] override final def jacobianAt[F[_]: STM: Async](
       input: ModelParameterCollection
-  ): ResultOrErrIo[IndexedMatrixCollection] =
+  ): ResultOrErrF[F, IndexedMatrixCollection] =
     if (cacheConfig.jacobianCacheEnabled) {
       for {
         oCachedResult <- retrieveJacobianFromStoreFor(input)
-        result <- oCachedResult.map { res =>
-                    ResultOrErrIo.fromValue(res)
-                  }.getOrElse {
-                    for {
-                      innerResult <- computeJacobianAt(input)
-                      _           <- updateJacobianStoreWith(input, innerResult)
-                    } yield innerResult
-                  }
+        result <- oCachedResult
+                    .map(_.toResultM)
+                    .getOrElse {
+                      for {
+                        innerResult <- computeJacobianAt(input)
+                        _           <- updateJacobianStoreWith(input, innerResult)
+                      } yield innerResult
+                    }
       } yield result
     } else {
       computeJacobianAt(input)

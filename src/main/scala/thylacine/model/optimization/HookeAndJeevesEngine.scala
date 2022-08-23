@@ -17,23 +17,22 @@
 package ai.entrolution
 package thylacine.model.optimization
 
-import bengal.stm._
+import bengal.stm.STM
+import bengal.stm.model._
+import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.Erratum.ResultOrErrIo
 import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.ModelParameterOptimizer
 
-import cats.effect.IO
-import cats.effect.unsafe.implicits.global
+import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
+import cats.effect.kernel.Async
 import cats.implicits._
 
 import scala.util.Random
 import scala.{Vector => ScalaVector}
 
-private[thylacine] abstract class HookeAndJeevesEngine(implicit stm: STM[IO]) extends ModelParameterOptimizer {
-
-  import stm._
+private[thylacine] abstract class HookeAndJeevesEngine[F[_] : STM : Async] extends ModelParameterOptimizer {
 
   protected def posterior: Posterior[Prior[_], _]
   protected def convergenceThreshold: Double
@@ -43,14 +42,14 @@ private[thylacine] abstract class HookeAndJeevesEngine(implicit stm: STM[IO]) ex
   protected def newScaleCallback: Double => Unit
   protected def isConvergedCallback: Unit => Unit
 
-  private val currentBest: TxnVar[(Double, ScalaVector[Double])] =
-    TxnVar.of((0d, ScalaVector[Double]())).unsafeRunSync()
+  private val currentBestF: F[TxnVar[F, (Double, ScalaVector[Double])]] =
+    TxnVar.of((0d, ScalaVector[Double]()))
 
-  private val currentScale: TxnVar[Double] =
-    TxnVar.of(0d).unsafeRunSync()
+  private val currentScaleF: F[TxnVar[F, Double]] =
+    TxnVar.of(0d)
 
-  private val isConverged: TxnVar[Boolean] =
-    TxnVar.of(false).unsafeRunSync()
+  private val isConvergedF: F[TxnVar[F, Boolean]] =
+    TxnVar.of(false)
 
   private def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
     input.tail
@@ -63,8 +62,11 @@ private[thylacine] abstract class HookeAndJeevesEngine(implicit stm: STM[IO]) ex
       .max
 
   private def initialize(
-      numberOfPriorSamples: Int
-  ): ResultOrErrIo[Unit] =
+      numberOfPriorSamples: Int,
+      currentScale: TxnVar[F, Double],
+      currentBest: TxnVar[F, Double],
+      isConverged: TxnVar[F, Boolean]
+  ): ResultOrErrF[F, Unit] =
     for {
       samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ => posterior.samplePriors)
       samplesRaw <-
@@ -75,13 +77,12 @@ private[thylacine] abstract class HookeAndJeevesEngine(implicit stm: STM[IO]) ex
           .parTraverse(s => posterior.logPdfAt(s._1).map(lpdf => (lpdf, s._2)))
           .map(_.maxBy(_._1))
       maxDifference = findMaxDimensionalDifference(samplesRaw)
-      _ <- ResultOrErrIo.fromIo {
-             (for {
+      _ <- (for {
                _ <- currentScale.set(maxDifference)
                _ <- currentBest.set(bestSample)
                _ <- isConverged.set(false)
-             } yield ()).commit
-           }
+             } yield ()).commit.
+
     } yield ()
 
   private def nudgeAndEvaluate(

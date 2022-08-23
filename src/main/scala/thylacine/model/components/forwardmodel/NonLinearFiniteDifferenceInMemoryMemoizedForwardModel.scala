@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core.Erratum.ResultOrErrIo
+import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.{IndexedVectorCollection, VectorContainer}
 

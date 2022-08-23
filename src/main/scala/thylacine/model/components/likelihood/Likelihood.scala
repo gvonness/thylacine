@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import thylacine.model.components.forwardmodel._
-import thylacine.model.core.Erratum._
+import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
 
@@ -27,7 +27,6 @@ private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
     with PosteriorTerm
     with CanValidate[Likelihood[_, _]] {
 
-  private[thylacine] def observations: BelievedData
   private[thylacine] def observationModel: BM
   private[thylacine] def forwardModel: FM
 
@@ -52,7 +51,7 @@ private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
     } yield forwardJac.index.toList.map { fj =>
       IndexedVectorCollection(
         fj._1,
-        VectorContainer(fj._2.rawMatrix.t * measGrad.rawVector)
+        VectorContainer((measGrad.rawVector.t * fj._2.rawMatrix).t)
       )
     }.reduce(_ rawMergeWith _)
 }
