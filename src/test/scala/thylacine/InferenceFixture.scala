@@ -20,9 +20,8 @@ package thylacine
 import thylacine.config.HookeAndJeevesConfig
 import thylacine.implicits.stm
 import thylacine.model.components.likelihood.GaussianLinearLikelihood
-import thylacine.model.components.posterior.{GaussianAnalyticPosterior, UnNormalisedPosterior}
+import thylacine.model.components.posterior.{GaussianAnalyticPosterior, HookeAndJeevesOptimisedPosterior, UnNormalisedPosterior}
 import thylacine.model.components.prior.{GaussianPrior, UniformPrior}
-import thylacine.model.optimization.HookeAndJeevesOptimisedPosterior
 
 import cats.effect.unsafe.implicits.global
 

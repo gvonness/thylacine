@@ -15,13 +15,13 @@
  */
 
 package ai.entrolution
-package thylacine.model.optimization
+package thylacine.model.components.posterior
 
+import bengal.stm.STM
 import thylacine.config.HookeAndJeevesConfig
-import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
+import ai.entrolution.thylacine.model.optimization.hookeandjeeves.HookeAndJeevesEngine
 
-import ai.entrolution.bengal.stm.STM
 import cats.effect.IO
 
 case class HookeAndJeevesOptimisedPosterior(

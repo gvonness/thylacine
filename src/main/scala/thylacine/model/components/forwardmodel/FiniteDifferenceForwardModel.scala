@@ -17,10 +17,10 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import thylacine.model.core.Erratum.ResultOrErrF
+import bengal.stm.STM
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection}
 
-import ai.entrolution.bengal.stm.STM
-import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection}
 import cats.effect.kernel.Async
 
 private[thylacine] trait FiniteDifferenceForwardModel extends ForwardModel with FiniteDifferenceJacobian {
@@ -30,7 +30,7 @@ private[thylacine] trait FiniteDifferenceForwardModel extends ForwardModel with 
   // identifiers requires us to parallelize very aggressively
   private[thylacine] final def jacobianAt[F[_]: STM: Async](
       input: IndexedVectorCollection[F]
-  ): ResultOrErrF[F, IndexedMatrixCollection] =
+  ): ResultOrErrF[F, IndexedMatrixCollection[F]] =
     finiteDifferencejacobianAt(input)
 
 }

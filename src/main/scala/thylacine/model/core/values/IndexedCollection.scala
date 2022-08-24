@@ -17,9 +17,10 @@
 package ai.entrolution
 package thylacine.model.core.values
 
-import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
-import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
+import thylacine.model.core.computation.Erratum.UnexpectedErratum
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
 
 import cats.effect.kernel.Async
 

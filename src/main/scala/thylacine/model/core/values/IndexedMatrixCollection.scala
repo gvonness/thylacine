@@ -20,13 +20,15 @@ package thylacine.model.core.values
 import thylacine.model.core.CanValidate
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 
-private[thylacine] case class IndexedMatrixCollection(
+import cats.effect.kernel.Async
+
+private[thylacine] case class IndexedMatrixCollection[F[_] : Async](
     index: Map[ModelParameterIdentifier, MatrixContainer],
     validated: Boolean = false
-) extends IndexedCollection[MatrixContainer]
-    with CanValidate[IndexedMatrixCollection] {
+) extends IndexedCollection[F, MatrixContainer]
+    with CanValidate[IndexedMatrixCollection[F]] {
 
-  private[thylacine] override lazy val getValidated: IndexedMatrixCollection =
+  private[thylacine] override lazy val getValidated: IndexedMatrixCollection[F] =
     if (validated) {
       this
     } else {

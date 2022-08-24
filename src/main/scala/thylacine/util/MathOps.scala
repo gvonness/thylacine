@@ -17,64 +17,65 @@
 package ai.entrolution
 package thylacine.util
 
-import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo, UnexpectedErratum}
+import thylacine.model.core.computation.Erratum.UnexpectedErratum
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+
+import cats.effect.kernel.Async
 
 private[thylacine] object MathOps {
 
-  private[thylacine] def trapezoidalQuadrature(
+  private[thylacine] def trapezoidalQuadrature[F[_]: Async](
       abscissa: Vector[Double],
       values: Vector[Double]
-  ): ResultOrErrIo[Double] =
+  ): ResultOrErrF[F, Double] =
     if (abscissa.size == values.size && abscissa.size > 1) {
       trapezoidalQuadrature(abscissa.zip(values))
     } else {
-      ResultOrErrIo.fromErratum(
-        UnexpectedErratum("Malformed abscissa for trapezoidal quadrature")
-      )
+      UnexpectedErratum("Malformed abscissa for trapezoidal quadrature").toResultM
     }
 
-  private[thylacine] def trapezoidalQuadrature(
+  private[thylacine] def trapezoidalQuadrature[F[_]: Async](
       graphPoints: Vector[(Double, Double)]
-  ): ResultOrErrIo[Double] =
+  ): ResultOrErrF[F, Double] =
     if (
       graphPoints.size > 1 && graphPoints
         .map(_._1)
         .toSet
         .size == graphPoints.size
     ) {
-      ResultOrErrIo.fromCalculation {
-        val sorted = graphPoints.sortBy(_._1)
-        sorted
-          .dropRight(1)
-          .zip(sorted.tail)
-          .map { graphPointPair =>
-            0.5 * (graphPointPair._1._2 + graphPointPair._2._2) * (graphPointPair._2._1 - graphPointPair._1._1)
-          }
-          .sum
-      }
+      val sorted = graphPoints.sortBy(_._1)
+      sorted
+        .dropRight(1)
+        .zip(sorted.tail)
+        .map { graphPointPair =>
+          0.5 * (graphPointPair._1._2 + graphPointPair._2._2) * (graphPointPair._2._1 - graphPointPair._1._1)
+        }
+        .sum
+        .toResultM
     } else {
-      ResultOrErrIo.fromErratum(
-        UnexpectedErratum("Malformed abscissa for trapezoidal quadrature")
-      )
+      UnexpectedErratum("Malformed abscissa for trapezoidal quadrature").toResultM
     }
 
   // Creates a discretised CDF that facilitates sampling over a
   // discrete set of outcomes via uniform sampling on [0, 1)
-  private[thylacine] def cdfStaircase(
+  private[thylacine] def cdfStaircase[F[_]: Async](
       values: Vector[BigDecimal]
-  ): ResultOrErrIo[Vector[(BigDecimal, BigDecimal)]] =
+  ): ResultOrErrF[F, Vector[(BigDecimal, BigDecimal)]] =
     for {
-      cdfReversed <- ResultOrErrIo.fromCalculation {
-                       values.foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
+      cdfReversed <- values
+                       .foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
                          (i.head + j) +: i
                        }
-                     }
-      normalisedCdf <- ResultOrErrIo.fromCalculation {
-                         cdfReversed.map(_ / cdfReversed.head).reverse
-                       }
-      result <- ResultOrErrIo.fromCalculation {
-                  normalisedCdf.dropRight(1).zip(normalisedCdf.tail)
-                }
+                       .toResultM
+      normalisedCdf <- cdfReversed
+                         .map(_ / cdfReversed.head)
+                         .reverse
+                         .toResultM
+      result <- normalisedCdf
+                  .dropRight(1)
+                  .zip(normalisedCdf.tail)
+                  .toResultM
     } yield result
 
 }

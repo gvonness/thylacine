@@ -17,10 +17,9 @@
 package ai.entrolution
 package thylacine.model.core.values
 
-import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
+import thylacine.model.core.computation.ResultOrErrF
 import thylacine.model.core.{CanValidate, GenericIdentifier}
-import ai.entrolution.thylacine.model.core.computation.Erratum
 
 import cats.effect.kernel.Async
 
@@ -110,7 +109,7 @@ private[thylacine] case class IndexedVectorCollection[F[_]: Async](
 }
 
 private[thylacine] object IndexedVectorCollection {
-  import Erratum.ResultOrErrF.Implicits._
+  import ResultOrErrF.Implicits._
 
   // A particular type of this collection is of the model
   // parameters directly.

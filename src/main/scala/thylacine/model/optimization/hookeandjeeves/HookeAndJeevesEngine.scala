@@ -15,16 +15,15 @@
  */
 
 package ai.entrolution
-package thylacine.model.optimization
+package thylacine.model.optimization.hookeandjeeves
 
 import bengal.stm.STM
 import bengal.stm.model._
 import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.optimization.ModelParameterOptimizer
 
-import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
 import cats.effect.kernel.Async
 import cats.implicits._
 
