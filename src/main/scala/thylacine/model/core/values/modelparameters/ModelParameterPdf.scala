@@ -18,31 +18,36 @@ package ai.entrolution
 package thylacine.model.core.values.modelparameters
 
 import thylacine.model.core.GenericScalarValuedMapping
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values._
 
 import cats.effect.kernel.Async
+import cats.syntax.all._
 
 private[thylacine] abstract class ModelParameterPdf[F[_]: Async] extends GenericScalarValuedMapping {
 
   private[thylacine] def logPdfAt(
-      input: ModelParameterCollection
+      input: ModelParameterCollection[F]
   ): ResultOrErrF[F, Double]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfAt(
-      input: ModelParameterCollection
+      input: ModelParameterCollection[F]
   ): ResultOrErrF[F, Double] =
     logPdfAt(input).map(Math.exp)
 
   private[thylacine] def logPdfGradientAt(
-      input: ModelParameterCollection
-  ): ResultOrErrF[F, ModelParameterCollection]
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, ModelParameterCollection[F]]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfGradientAt(
-      input: ModelParameterCollection
-  ): ResultOrErrF[F, ModelParameterCollection] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     for {
       pdf      <- pdfAt(input)
       gradLogs <- logPdfGradientAt(input)

@@ -1,8 +1,6 @@
 package ai.entrolution
 package thylacine.model.core.computation
 
-import thylacine.model.core.Erratum.{TransientErratum, UnexpectedErratum}
-
 import cats.data.EitherT
 import cats.effect.kernel.Async
 import cats.syntax.all._

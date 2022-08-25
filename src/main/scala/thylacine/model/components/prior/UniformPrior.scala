@@ -17,14 +17,13 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core._
+import thylacine.model.core.values.VectorContainer
+import thylacine.model.distributions
+import thylacine.model.distributions.UniformDistribution
 
-import ai.entrolution.thylacine.model.core.values.VectorContainer
-import ai.entrolution.thylacine.model.distributions
-import ai.entrolution.thylacine.model.distributions.UniformDistribution
+import ai.entrolution.thylacine.model.core.computation.ResultOrErrF
+import ai.entrolution.thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 case class UniformPrior(
     private[thylacine] override val identifier: ModelParameterIdentifier,
@@ -44,7 +43,7 @@ case class UniformPrior(
 
   private[thylacine] final override def pdfAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[Double] =
+  ): ResultOrErrF[Double] =
     for {
       vector <- input.retrieveIndex(identifier)
       result <- if (priorModel.insideBounds(vector)) {

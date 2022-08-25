@@ -17,23 +17,25 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum._
+import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
+import thylacine.model.distributions.Distribution
+import thylacine.model.sampling.ModelParameterSampler
 
-import ai.entrolution.thylacine.model.components.posterior.PosteriorTerm
-import ai.entrolution.thylacine.model.core.values.IndexedVectorCollection
-import ai.entrolution.thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
-import ai.entrolution.thylacine.model.distributions.Distribution
-import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
+import cats.effect.kernel.Async
 
-private[thylacine] trait Prior[+BM <: Distribution]
+private[thylacine] abstract class Prior[F[_]: Async, +BM <: Distribution[F]]
     extends ModelParameterPdf
     with PosteriorTerm
     with ModelParameterSampler
     with ModelParameterGenerator
-    with CanValidate[Prior[_]] {
+    with CanValidate[Prior[F, _]] {
 
   protected def priorModel: BM
 
@@ -47,22 +49,20 @@ private[thylacine] trait Prior[+BM <: Distribution]
   override final val generatorDimension: Int = priorModel.domainDimension
 
   override final def logPdfAt(
-      input: IndexedVectorCollection
-  ): ResultOrErrIo[Double] =
+      input: IndexedVectorCollection[F]
+  ): ResultOrErrF[F, Double] =
     for {
       vector <- input.retrieveIndex(identifier)
       res    <- priorModel.logPdfAt(vector)
     } yield res
 
   override final def logPdfGradientAt(
-      input: IndexedVectorCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
+      input: IndexedVectorCollection[F]
+  ): ResultOrErrF[F, ModelParameterCollection] =
     for {
       vector  <- input.retrieveIndex(identifier)
       gradLog <- priorModel.logPdfGradientAt(vector)
-      res <- ResultOrErrIo.fromCalculation(
-               IndexedVectorCollection(identifier, gradLog)
-             )
+      res     <- IndexedVectorCollection[F](identifier, gradLog).toResultM
     } yield res
 
   override final def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =

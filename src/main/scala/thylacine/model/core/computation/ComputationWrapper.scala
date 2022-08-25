@@ -1,7 +1,6 @@
 package ai.entrolution
 package thylacine.model.core.computation
 
-import thylacine.model.core.Erratum.ResultOrErrF
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.kernel.Async

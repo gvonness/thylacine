@@ -4,8 +4,9 @@ package thylacine.model.core.computation
 import bengal.stm.STM
 import bengal.stm.model._
 import bengal.stm.syntax.all._
-import thylacine.model.core.Erratum.ResultOrErrF
-import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
+import thylacine.model.core.computation.CachedComputation.{ComputationResult, getInMemoryKey}
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.implicits._
 import cats.effect.kernel.Async
@@ -15,7 +16,7 @@ case class CachedComputation[F[_]: STM: Async, T](
     computation: ModelParameterCollection[F] => T,
     cacheDepth: Option[Int] = None
 )(scalarClock: TxnVar[F, Int], computationCache: TxnVarMap[F, Int, ComputationResult[T]])
-    extends Computation[F, T] {
+    extends ComputationWrapper[F, T] {
 
   private val getTime: ResultOrErrF[F, Int] =
     scalarClock.get.commit.toResultM
