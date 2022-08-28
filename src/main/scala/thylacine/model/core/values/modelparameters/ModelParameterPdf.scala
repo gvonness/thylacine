@@ -17,16 +17,16 @@
 package ai.entrolution
 package thylacine.model.core.values.modelparameters
 
-import thylacine.model.core.GenericScalarValuedMapping
 import thylacine.model.core.computation.ResultOrErrF
 import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values._
+import thylacine.model.core.{AsyncImplicits, GenericScalarValuedMapping}
 
-import cats.effect.kernel.Async
 import cats.syntax.all._
 
-private[thylacine] abstract class ModelParameterPdf[F[_]: Async] extends GenericScalarValuedMapping {
+private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapping {
+  this: AsyncImplicits[F] =>
 
   private[thylacine] def logPdfAt(
       input: ModelParameterCollection[F]

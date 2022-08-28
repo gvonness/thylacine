@@ -1,24 +1,29 @@
 package ai.entrolution
 package thylacine.model.integration
 
-import cats.effect.IO
+import thylacine.model.core.AsyncImplicits
+import thylacine.model.core.computation.ResultOrErrF
 
-private[thylacine] trait ModelParameterIntegrator {
+import cats.effect.kernel.Async
+import cats.syntax.all._
+
+private[thylacine] trait ModelParameterIntegrator[F[_]] {
+  this: AsyncImplicits[F] =>
 
   protected def integrateOverModelParameters(
       integrand: BigDecimal => BigDecimal
-  ): ResultOrErrIo[BigDecimal]
+  ): ResultOrErrF[F, BigDecimal]
 
   // BigDecimal is used as part of the public API, as these integrations
   // can cover a very large set of magnitudes
-  final def integrate(integrand: BigDecimal => BigDecimal): IO[BigDecimal] =
+  final def integrate(integrand: BigDecimal => BigDecimal): F[BigDecimal] =
     for {
       integrationRes <- integrateOverModelParameters(integrand).value
       result <- integrationRes match {
                   case Right(res) =>
-                    IO.pure(res)
+                    Async[F].pure(res)
                   case Left(erratum) =>
-                    IO.raiseError(new RuntimeException(erratum.toString))
+                    Async[F].raiseError(new RuntimeException(erratum.toString))
                 }
     } yield result
 }

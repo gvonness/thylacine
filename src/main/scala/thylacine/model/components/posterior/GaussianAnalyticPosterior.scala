@@ -20,28 +20,31 @@ package thylacine.model.components.posterior
 import thylacine.model.components.likelihood._
 import thylacine.model.components.posterior.GaussianAnalyticPosterior._
 import thylacine.model.components.prior._
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
+import thylacine.model.core.computation.Erratum.UnexpectedErratum
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.{MatrixContainer, VectorContainer}
+import thylacine.model.sampling.ModelParameterSampler
 
-import ai.entrolution.thylacine.model.core.values.{MatrixContainer, VectorContainer}
-import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
 import breeze.linalg._
-import breeze.stats.distributions.{MultivariateGaussian, RandBasis, ThreadLocalRandomGenerator}
-import cats.effect.IO
-import cats.effect.unsafe.implicits.global
+import breeze.stats.distributions._
+import cats.effect.kernel.Async
+import cats.syntax.all._
 import org.apache.commons.math3.random.MersenneTwister
 
 import scala.{Vector => ScalaVector}
 
-case class GaussianAnalyticPosterior(
-    private[thylacine] override val priors: Set[GaussianPrior],
-    private[thylacine] override val likelihoods: Set[GaussianLinearLikelihood],
+case class GaussianAnalyticPosterior[F[_]: Async](
+    private[thylacine] override val priors: Set[GaussianPrior[F]],
+    private[thylacine] override val likelihoods: Set[GaussianLinearLikelihood[F]],
     private[thylacine] override val validated: Boolean
-) extends Posterior[GaussianPrior, GaussianLinearLikelihood]
-    with ModelParameterSampler
-    with CanValidate[GaussianAnalyticPosterior] {
+) extends AsyncImplicits[F]
+    with Posterior[F, GaussianPrior[F], GaussianLinearLikelihood[F]]
+    with ModelParameterSampler[F]
+    with CanValidate[GaussianAnalyticPosterior[F]] {
   if (!validated) {
     // Ensure there are no conflicting identifiers.
     assert(priors.size == priors.map(_.identifier).size)
@@ -50,15 +53,15 @@ case class GaussianAnalyticPosterior(
     )
     assert(
       priors
-        .map((i: GaussianPrior) => i.posteriorTermIdentifier)
+        .map((i: GaussianPrior[F]) => i.posteriorTermIdentifier)
         .intersect(likelihoods.map(_.posteriorTermIdentifier))
         .isEmpty
     )
   }
 
-  lazy val maxLogPdf: IO[Double] = logPdfAt(mean)
+  lazy val maxLogPdf: F[Double] = mean.flatMap(logPdfAt)
 
-  private[thylacine] override lazy val getValidated: GaussianAnalyticPosterior =
+  private[thylacine] override lazy val getValidated: GaussianAnalyticPosterior[F] =
     if (validated) {
       this
     } else {
@@ -71,8 +74,8 @@ case class GaussianAnalyticPosterior(
 
   private[thylacine] override val isAnalytic: Boolean = true
 
-  private lazy val rawDistribution: MultivariateGaussian = {
-    val priorsAdded: ResultOrErrIo[AnalyticPosteriorAccumulation] =
+  private lazy val rawDistribution: ResultOrErrF[F, MultivariateGaussian] = {
+    val priorsAdded: ResultOrErrF[F, AnalyticPosteriorAccumulation[F]] =
       priors.toVector
         .foldLeft(
           orderedParameterIdentifiersWithDimension.map { idPlusDim =>
@@ -82,59 +85,57 @@ case class GaussianAnalyticPosterior(
           }
         )((acc, p) => acc.flatMap(_.add(p)))
 
-    val allAdded: ResultOrErrIo[AnalyticPosteriorAccumulation] =
+    val allAdded: ResultOrErrF[F, AnalyticPosteriorAccumulation[F]] =
       likelihoods.toVector
         .foldLeft(priorsAdded)((acc, l) => acc.flatMap(_.add(l)))
 
-    ResultOrErrIo.materialize(allAdded.flatMap(_.gRawDistribution))
+    allAdded.flatMap(_.gRawDistribution)
   }
 
-  lazy val mean: Map[String, ScalaVector[Double]] =
-    ResultOrErrIo.materialize {
-      for {
-        mean   <- ResultOrErrIo.fromCalculation(rawDistribution.mean)
-        result <- rawVectorToModelParameterCollection(mean)
-      } yield result.genericScalaRepresentation
-    }
+  lazy val mean: F[Map[String, ScalaVector[Double]]] =
+    (for {
+      distribution <- rawDistribution
+      result       <- rawVectorToModelParameterCollection(distribution.mean)
+    } yield result.genericScalaRepresentation).liftToF
 
   // For testing only
-  lazy val covarianceStridedVector: ScalaVector[Double] =
-    rawDistribution.covariance.toArray.toVector
+  lazy val covarianceStridedVector: F[ScalaVector[Double]] =
+    rawDistribution.map(_.covariance.toArray.toVector).liftToF
 
   private[thylacine] override def logPdfAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[Double] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, Double] =
     for {
       rawVector <- modelParameterCollectionToRawVector(input)
-      result    <- ResultOrErrIo.fromCalculation(rawDistribution.logPdf(rawVector))
+      result    <- rawDistribution.map(_.logPdf(rawVector))
     } yield result
 
-  override protected def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
+  override protected def sampleModelParameters: ResultOrErrF[F, ModelParameterCollection[F]] =
     for {
       vectorContainer <- rawSampleModelParameters
       result          <- rawVectorToModelParameterCollection(vectorContainer.rawVector)
     } yield result
 
-  override protected def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation(VectorContainer(rawDistribution.sample()))
+  override protected def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
+    rawDistribution.map(dist => VectorContainer(dist.sample()))
 
-  def init(): IO[Unit] =
+  def init: F[Unit] =
     sample.void
 }
 
 object GaussianAnalyticPosterior {
 
-  def apply(
-      priors: Set[GaussianPrior],
-      likelihoods: Set[GaussianLinearLikelihood]
-  ): GaussianAnalyticPosterior =
+  def apply[F[_]: Async](
+      priors: Set[GaussianPrior[F]],
+      likelihoods: Set[GaussianLinearLikelihood[F]]
+  ): GaussianAnalyticPosterior[F] =
     GaussianAnalyticPosterior(priors = priors, likelihoods = likelihoods, validated = false)
 
   // Contains the logic for merging and ordered set of
   // Gaussian Priors and Linear Likelihoods to produce a single
   // Multivariate Gaussian distribution that represents the
   // Posterior distribution
-  private[thylacine] case class AnalyticPosteriorAccumulation(
+  private[thylacine] case class AnalyticPosteriorAccumulation[F[_]: Async](
       priorMean: Option[VectorContainer] = None,
       priorCovariance: Option[MatrixContainer] = None,
       data: Option[VectorContainer] = None,
@@ -143,7 +144,7 @@ object GaussianAnalyticPosterior {
       orderedParameterIdentifiersWithDimension: ScalaVector[(ModelParameterIdentifier, Int)]
   ) {
 
-    private[thylacine] lazy val gRawDistribution: ResultOrErrIo[MultivariateGaussian] =
+    private[thylacine] lazy val gRawDistribution: ResultOrErrF[F, MultivariateGaussian] =
       (for {
         pmContainer <- priorMean
         pcContainer <- priorCovariance
@@ -168,24 +169,20 @@ object GaussianAnalyticPosterior {
           )
         )
 
-        ResultOrErrIo.fromValue(
-          MultivariateGaussian(newMean, (newCovariance + newCovariance.t) * 0.5)
-        )
+        MultivariateGaussian(newMean, (newCovariance + newCovariance.t) * 0.5).toResultM
       }).getOrElse(
-        ResultOrErrIo.fromErratum(
-          UnexpectedErratum(
-            "Can't create posterior Gaussian distribution: A term is missing"
-          )
-        )
+        UnexpectedErratum(
+          "Can't create posterior Gaussian distribution: A term is missing"
+        ).toResultM
       )
 
     private[thylacine] def add(
-        prior: GaussianPrior
-    ): ResultOrErrIo[AnalyticPosteriorAccumulation] = {
+        prior: GaussianPrior[F]
+    ): ResultOrErrF[F, AnalyticPosteriorAccumulation[F]] = {
       val incomingPriorMean       = prior.priorData.data
       val incomingPriorCovariance = prior.priorData.covariance
-      ResultOrErrIo.fromCalculation {
-        this.copy(
+      this
+        .copy(
           priorMean = Some(
             this.priorMean
               .map(_ rawConcatenateWith incomingPriorMean)
@@ -197,12 +194,12 @@ object GaussianAnalyticPosterior {
               .getOrElse(incomingPriorCovariance)
           )
         )
-      }
+        .toResultM
     }
 
     private[thylacine] def add(
-        likelihood: GaussianLinearLikelihood
-    ): ResultOrErrIo[AnalyticPosteriorAccumulation] = {
+        likelihood: GaussianLinearLikelihood[F]
+    ): ResultOrErrF[F, AnalyticPosteriorAccumulation[F]] = {
       val incomingData           = likelihood.observations.data
       val incomingDataCovariance = likelihood.observations.covariance
 
@@ -210,38 +207,33 @@ object GaussianAnalyticPosterior {
         incomingTransformationMatrixCollection <-
           likelihood.forwardModel.getJacobian
         incomingTransformationMatrix <-
-          ResultOrErrIo.fromCalculation {
-            orderedParameterIdentifiersWithDimension.map { id =>
-              incomingTransformationMatrixCollection.index.getOrElse(
-                id._1,
-                MatrixContainer.zeros(likelihood.forwardModel.rangeDimension, id._2)
-              )
-            }.reduce(_ columnMergeWith _)
-          }
-        result <- ResultOrErrIo.fromCalculation {
-                    this.copy(
-                      data = Some(
-                        this.data
-                          .map(_ rawConcatenateWith incomingData)
-                          .getOrElse(incomingData)
-                      ),
-                      likelihoodCovariance = Some(
-                        this.likelihoodCovariance
-                          .map(
-                            _ diagonalMergeWith incomingDataCovariance
-                          )
-                          .getOrElse(incomingDataCovariance)
-                      ),
-                      likelihoodTransformations = Some(
-                        this.likelihoodTransformations
-                          .map(
-                            _ rowMergeWith incomingTransformationMatrix
-                          )
-                          .getOrElse(incomingTransformationMatrix)
-                      )
-                    )
-                  }
-      } yield result
+          orderedParameterIdentifiersWithDimension.map { id =>
+            incomingTransformationMatrixCollection.index.getOrElse(
+              id._1,
+              MatrixContainer.zeros(likelihood.forwardModel.rangeDimension, id._2)
+            )
+          }.reduce(_ columnMergeWith _).toResultM
+      } yield this.copy(
+        data = Some(
+          this.data
+            .map(_ rawConcatenateWith incomingData)
+            .getOrElse(incomingData)
+        ),
+        likelihoodCovariance = Some(
+          this.likelihoodCovariance
+            .map(
+              _ diagonalMergeWith incomingDataCovariance
+            )
+            .getOrElse(incomingDataCovariance)
+        ),
+        likelihoodTransformations = Some(
+          this.likelihoodTransformations
+            .map(
+              _ rowMergeWith incomingTransformationMatrix
+            )
+            .getOrElse(incomingTransformationMatrix)
+        )
+      )
     }
 
   }

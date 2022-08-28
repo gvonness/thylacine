@@ -20,40 +20,43 @@ package thylacine.model.components.likelihood
 import thylacine.model.components.forwardmodel._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.values.VectorContainer
+import thylacine.model.distributions.GaussianDistribution
 
-import ai.entrolution.thylacine.model.distributions.GaussianDistribution
+import cats.effect.kernel.Async
 
 import java.util.UUID
 
-case class GaussianLikelihood[T <: ForwardModel](
+case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
     private[thylacine] val observations: RecordedData,
     private[thylacine] override val forwardModel: T,
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[T, GaussianDistribution] {
+) extends AsyncImplicits[F]
+    with Likelihood[F, T, GaussianDistribution[F]] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: GaussianLikelihood[T] =
+  private[thylacine] override lazy val getValidated: GaussianLikelihood[F, T] =
     if (validated) {
       this
     } else {
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: GaussianDistribution =
+  private[thylacine] override lazy val observationModel: GaussianDistribution[F] =
     GaussianDistribution(observations)
 
 }
 
 object GaussianLikelihood {
 
-  def apply[T <: ForwardModel](
+  def apply[F[_]: Async, T <: ForwardModel[F]](
       forwardModel: T,
       measurements: Vector[Double],
       uncertainties: Vector[Double]
-  ): GaussianLikelihood[T] =
+  ): GaussianLikelihood[F, T] =
     GaussianLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = RecordedData(

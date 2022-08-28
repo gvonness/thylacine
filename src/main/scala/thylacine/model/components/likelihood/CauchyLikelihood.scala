@@ -20,40 +20,43 @@ package thylacine.model.components.likelihood
 import thylacine.model.components.forwardmodel._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.values.VectorContainer
+import thylacine.model.distributions.CauchyDistribution
 
-import ai.entrolution.thylacine.model.distributions.CauchyDistribution
+import cats.effect.kernel.Async
 
 import java.util.UUID
 
-case class CauchyLikelihood(
+case class CauchyLikelihood[F[_]: Async](
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
     private[thylacine] val observations: RecordedData,
-    private[thylacine] override val forwardModel: ForwardModel,
+    private[thylacine] override val forwardModel: ForwardModel[F],
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[ForwardModel, CauchyDistribution] {
+) extends AsyncImplicits[F]
+    with Likelihood[F, ForwardModel[F], CauchyDistribution[F]] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: CauchyLikelihood =
+  private[thylacine] override lazy val getValidated: CauchyLikelihood[F] =
     if (validated) {
       this
     } else {
       this.copy(observations = observations.getValidated, forwardModel = forwardModel.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: CauchyDistribution =
+  private[thylacine] override lazy val observationModel: CauchyDistribution[F] =
     CauchyDistribution(observations)
 
 }
 
 object CauchyLikelihood {
 
-  def apply(
-      forwardModel: ForwardModel,
+  def apply[F[_]: Async](
+      forwardModel: ForwardModel[F],
       measurements: Vector[Double],
       uncertainties: Vector[Double]
-  ): CauchyLikelihood =
+  ): CauchyLikelihood[F] =
     CauchyLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = RecordedData(

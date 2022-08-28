@@ -18,18 +18,19 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import thylacine.model.components.forwardmodel._
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core._
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.modelparameters.ModelParameterPdf
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.distributions.Distribution
 
-import ai.entrolution.thylacine.model.components.posterior.PosteriorTerm
-import ai.entrolution.thylacine.model.core.values.modelparameters.ModelParameterPdf
-import ai.entrolution.thylacine.model.distributions.Distribution
-
-private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: Distribution]
-    extends ModelParameterPdf
+private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +BM <: Distribution[F]]
+    extends ModelParameterPdf[F]
     with PosteriorTerm
-    with CanValidate[Likelihood[_, _]] {
+    with CanValidate[Likelihood[F, _, _]] {
+  this: AsyncImplicits[F] =>
 
   private[thylacine] def observationModel: BM
   private[thylacine] def forwardModel: FM
@@ -38,16 +39,16 @@ private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: Distribution]
     forwardModel.domainDimension
 
   private[thylacine] override final def logPdfAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[Double] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, Double] =
     for {
       mappedVec <- forwardModel.evalAt(input)
       res       <- observationModel.logPdfAt(mappedVec)
     } yield res
 
   private[thylacine] override final def logPdfGradientAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     for {
       mappedVec  <- forwardModel.evalAt(input)
       forwardJac <- forwardModel.jacobianAt(input)

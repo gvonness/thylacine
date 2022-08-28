@@ -17,70 +17,24 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import bengal.stm._
-import thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel._
-import thylacine.model.core._
-import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core.StmImplicits
+import thylacine.model.core.computation.{CachedComputation, ResultOrErrF}
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.{IndexedMatrixCollection, VectorContainer}
 
-import ai.entrolution.bengal.stm.model.{TxnVar, _}
-import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF.Implicits._
-import bengal.stm.syntax.all._
+private[thylacine] trait InMemoryMemoizedForwardModel[F[_]] extends ForwardModel[F] {
+  this: StmImplicits[F] =>
 
-import cats.effect.implicits._
-import ai.entrolution.thylacine.model.core.Erratum.ResultOrErrF
-import ai.entrolution.thylacine.model.core.computation.{CachedComputation, ResultOrErrF}
-import ai.entrolution.thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, VectorContainer}
-import cats.effect.kernel.Async
-import cats.syntax.all._
-
-private[thylacine] abstract class InMemoryMemoizedForwardModel[F[_]: STM: Async](
-    evalCache: CachedComputation[F, VectorContainer],
-    jacobianCache: CachedComputation[F, IndexedMatrixCollection]
-) extends ForwardModel {
+  protected val evalCache: CachedComputation[F, VectorContainer]
+  protected val jacobianCache: CachedComputation[F, IndexedMatrixCollection[F]]
 
   private[thylacine] override final def evalAt(
       input: ModelParameterCollection[F]
   ): ResultOrErrF[F, VectorContainer] =
     evalCache.performComputation(input)
 
-  private[thylacine] override final def jacobianAt(
+  private[thylacine] override def jacobianAt(
       input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, IndexedMatrixCollection] =
-    if (cacheConfig.jacobianCacheEnabled) {
-      for {
-        oCachedResult <- retrieveJacobianFromStoreFor(input)
-        result <- oCachedResult
-                    .map(_.toResultM)
-                    .getOrElse {
-                      for {
-                        innerResult <- computeJacobianAt(input)
-                        _           <- updateJacobianStoreWith(input, innerResult)
-                      } yield innerResult
-                    }
-      } yield result
-    } else {
-      computeJacobianAt(input)
-    }
-}
-
-private[thylacine] object InMemoryMemoizedForwardModel {
-//
-//  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
-//    input.hashCode()
-//
-//  private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {
-//
-//    private[thylacine] def updateLastAccess(accessedAt: Int): ComputationResult[T] =
-//      this.copy(lastAccessed = accessedAt)
-//  }
-
-  case class ForwardModelCachingConfig(evalCacheDepth: Option[Int], jacobianCacheDepth: Option[Int]) {
-    lazy val evalCacheEnabled: Boolean     = evalCacheDepth.exists(_ > 0)
-    lazy val jacobianCacheEnabled: Boolean = jacobianCacheDepth.exists(_ > 0)
-  }
-
-  object ForwardModelCachingConfig {
-    val empty: ForwardModelCachingConfig = ForwardModelCachingConfig(None, None)
-  }
+  ): ResultOrErrF[F, IndexedMatrixCollection[F]] =
+    jacobianCache.performComputation(input)
 }

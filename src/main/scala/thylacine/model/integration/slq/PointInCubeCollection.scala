@@ -17,17 +17,21 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core._
+import thylacine.model.core.computation.Erratum.UnexpectedErratum
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.VectorContainer
 import thylacine.util.MathOps
 
-import ai.entrolution.thylacine.model.core.values.VectorContainer
-import cats.implicits._
+import cats.effect.implicits._
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
-private[thylacine] case class PointInCubeCollection(
-    pointsInCube: Vector[PointInCube],
+private[thylacine] case class PointInCubeCollection[F[_]: Async](
+    pointsInCube: Vector[PointInCube[F]],
     validated: Boolean = false
-) extends CanValidate[PointInCubeCollection] {
+) extends CanValidate[PointInCubeCollection[F]] {
   if (!validated) {
     assert(pointsInCube.size > 1)
   }
@@ -45,7 +49,7 @@ private[thylacine] case class PointInCubeCollection(
   private[thylacine] lazy val pointsOnly: Vector[VectorContainer] =
     pointsInCube.map(_.point)
 
-  private[thylacine] override lazy val getValidated: PointInCubeCollection =
+  private[thylacine] override lazy val getValidated: PointInCubeCollection[F] =
     if (validated) {
       this
     } else {
@@ -60,71 +64,59 @@ private[thylacine] case class PointInCubeCollection(
   // the collection along the dimension in question. This ensures
   // that the valid solution space around the point collection is
   // well covered.
-  private lazy val initialise: ResultOrErrIo[PointInCubeCollection] =
+  private lazy val initialise: ResultOrErrF[F, PointInCubeCollection] =
     for {
       picList <-
         pointsInCube.traverse { // Do not do this in parallel as it will exhaust VM memory
           pic =>
             for {
               absoluteDifferences <-
-                pointsOnly.parTraverse { i =>
-                  ResultOrErrIo.fromCalculation {
-                    i.rawSubtract(pic.point).rawAbsoluteValueOfComponents
-                  }
-                }
+                pointsOnly.parTraverse(_.rawSubtract(pic.point).rawAbsoluteValueOfComponents.toResultM)
               piiList <-
                 (1 to dimension)
                   .zip(pic.point.scalaVector.toList)
                   .toVector
                   .parTraverse { k =>
                     for {
-                      maxDiff <- ResultOrErrIo.fromCalculation {
-                                   absoluteDifferences
-                                     .maxBy(
-                                       _.values.getOrElse(k._1, 0d)
-                                     )
-                                     .values
-                                     .getOrElse(k._1, 0d)
-                                 }
-                      result <-
-                        ResultOrErrIo.fromCalculation {
-                          PointInInterval(
-                            point = k._2,
-                            lowerBound = k._2 - maxDiff,
-                            upperBound = k._2 + maxDiff,
-                            validated = true
-                          )
-                        }
+                      maxDiff <- absoluteDifferences
+                                   .maxBy(
+                                     _.values.getOrElse(k._1, 0d)
+                                   )
+                                   .values
+                                   .getOrElse(k._1, 0d)
+                                   .toResultM
+                      result <- PointInInterval(
+                                  point = k._2,
+                                  lowerBound = k._2 - maxDiff,
+                                  upperBound = k._2 + maxDiff,
+                                  validated = true
+                                ).toResultM
                     } yield result
                   }
-              newPic <- ResultOrErrIo.fromCalculation(
-                          PointInCube(piiList, validated = true)
-                        )
+              newPic <- PointInCube(piiList, validated = true).toResultM
             } yield newPic
         }
-      newPicCollection <- ResultOrErrIo.fromCalculation(
-                            PointInCubeCollection(picList, validated = true)
-                          )
+      newPicCollection <- PointInCubeCollection(picList, validated = true).toResultM
     } yield newPicCollection
 
-  private lazy val makeDisjoint: ResultOrErrIo[PointInCubeCollection] =
+  private lazy val makeDisjoint: ResultOrErrF[F, PointInCubeCollection[F]] =
     for {
       result <- PointInCube.makeDisjoint(pointsInCube)
     } yield PointInCubeCollection(result, validated = true)
 
-  private lazy val symmetrize: ResultOrErrIo[PointInCubeCollection] =
+  private lazy val symmetrize: ResultOrErrF[F, PointInCubeCollection[F]] =
     for {
-      symmetrizedCubes <- pointsInCube.traverse(_.symmetrize)
+      symmetrizedCubes <- pointsInCube.parTraverse(_.symmetrize)
     } yield PointInCubeCollection(symmetrizedCubes, validated = true)
 
-  private[thylacine] lazy val readyForSampling: ResultOrErrIo[PointInCubeCollection] =
+  private[thylacine] lazy val readyForSampling: ResultOrErrF[F, PointInCubeCollection[F]] =
     for {
       init            <- getValidated.initialise
       initDisjoint    <- init.makeDisjoint
       initDisjointSym <- initDisjoint.symmetrize
     } yield initDisjointSym
 
-  private lazy val sampleMapping: ResultOrErrIo[Vector[((BigDecimal, BigDecimal), PointInCube)]] = {
+  private lazy val sampleMapping: ResultOrErrF[F, Vector[((BigDecimal, BigDecimal), PointInCube[F])]] = {
     for {
       cubeVolumes  <- pointsInCube.parTraverse(_.cubeVolume)
       cdfStaircase <- MathOps.cdfStaircase(cubeVolumes)
@@ -133,32 +125,27 @@ private[thylacine] case class PointInCubeCollection(
 
   private[thylacine] def getSample(
       scaleParameter: Double
-  ): ResultOrErrIo[VectorContainer] =
+  ): ResultOrErrF[F, VectorContainer] =
     for {
-      randomIndex <-
-        ResultOrErrIo.fromCalculation(BigDecimal(Math.random().toString))
+      randomIndex  <- BigDecimal(Math.random().toString).toResultM
       rawSampleMap <- sampleMapping
       selectedCubes <- rawSampleMap.parTraverse { sm =>
-                         ResultOrErrIo.fromCalculation {
-                           if (randomIndex >= sm._1._1 && randomIndex < sm._1._2)
-                             Some(sm._2)
-                           else None
-                         }
+                         (if (randomIndex >= sm._1._1 && randomIndex < sm._1._2)
+                            Some(sm._2)
+                          else None).toResultM
                        }.map(_.flatten)
       result <- selectedCubes.headOption match {
                   case Some(head) => head.getSample(scaleParameter)
                   case _ =>
-                    ResultOrErrIo.fromErratum(
-                      UnexpectedErratum(
-                        s"Failed to resolve volume index for cube collection sampling: $randomIndex"
-                      )
-                    )
+                    UnexpectedErratum(
+                      s"Failed to resolve volume index for cube collection sampling: $randomIndex"
+                    ).toResultM
                 }
     } yield result
 }
 
 private[thylacine] object PointInCubeCollection {
 
-  private[thylacine] val empty: PointInCubeCollection =
+  private[thylacine] def empty[F[_]: Async]: PointInCubeCollection[F] =
     PointInCubeCollection(Vector(), validated = true)
 }

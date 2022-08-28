@@ -26,7 +26,7 @@ import cats.effect.kernel.Async
 private[thylacine] case class IndexedVectorCollection[F[_]: Async](
     index: Map[ModelParameterIdentifier, VectorContainer],
     validated: Boolean = false
-) extends IndexedCollection[F, VectorContainer]
+) extends IndexedCollection[VectorContainer]
     with CanValidate[IndexedVectorCollection[F]] {
 
   private[thylacine] override lazy val getValidated: IndexedVectorCollection[F] =

@@ -22,56 +22,62 @@ import thylacine.model.components.forwardmodel._
 import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.values.VectorContainer
+import thylacine.model.distributions.GaussianDistribution
 
-import ai.entrolution.thylacine.model.distributions.GaussianDistribution
-import cats.effect.IO
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
 import java.util.UUID
 
 // Gaussian linear likelihoods are one of the few likelihoods that can lead to an analytic posterior.
 // Thus, it gets a dedicated case class that is leveraged to do an analytic check in the posterior
 // construction.
-case class GaussianLinearLikelihood(
+case class GaussianLinearLikelihood[F[_]: Async](
     private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
     private[thylacine] val observations: RecordedData,
-    private[thylacine] override val forwardModel: LinearForwardModel,
+    private[thylacine] override val forwardModel: LinearForwardModel[F],
     private[thylacine] override val validated: Boolean = false
-) extends Likelihood[LinearForwardModel, GaussianDistribution] {
+) extends AsyncImplicits[F]
+    with Likelihood[F, LinearForwardModel[F], GaussianDistribution[F]] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: GaussianLinearLikelihood =
+  private[thylacine] override lazy val getValidated: GaussianLinearLikelihood[F] =
     if (validated) {
       this
     } else {
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: GaussianDistribution =
+  private[thylacine] override lazy val observationModel: GaussianDistribution[F] =
     GaussianDistribution(observations)
 
 }
 
 object GaussianLinearLikelihood {
 
-  def apply(
+  def of[F[_]: STM: Async](
       coefficients: Vector[Vector[Double]],
       measurements: Vector[Double],
       uncertainties: Vector[Double],
-      prior: Prior[_],
-      maxResultsToCache: Int
-  )(implicit stm: STM[IO]): GaussianLinearLikelihood =
-    GaussianLinearLikelihood(
+      prior: Prior[F, _],
+      evalCacheDepth: Option[Int]
+  ): F[GaussianLinearLikelihood[F]] =
+    for {
+      linearForwardModel <- LinearForwardModel
+                              .of[F](
+                                identifier = prior.identifier,
+                                values = coefficients,
+                                evalCacheDepth = evalCacheDepth
+                              )
+    } yield GaussianLinearLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = RecordedData(
         values = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
-      forwardModel = LinearForwardModel(
-        identifier = prior.identifier,
-        values = coefficients,
-        maxResultsToCache = maxResultsToCache
-      )
+      forwardModel = linearForwardModel
     )
 }

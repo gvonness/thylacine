@@ -17,14 +17,17 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
+import thylacine.model.core.computation.Erratum.UnexpectedErratum
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
 
+import cats.effect.kernel.Async
 import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.collection.parallel.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 
-private[thylacine] case class QuadratureIntegrator(
+private[thylacine] case class QuadratureIntegrator[F[_]: Async](
     logPdfs: Vector[Double],
     quadratures: Vector[Vector[Double]]
 ) {
@@ -45,7 +48,7 @@ private[thylacine] case class QuadratureIntegrator(
     }
 
   // Can be used in a number of places and is worth memoizing
-  private[thylacine] lazy val negativeEntropyStats: ResultOrErrIo[Vector[BigDecimal]] =
+  private[thylacine] lazy val negativeEntropyStats: ResultOrErrF[F, Vector[BigDecimal]] =
     Try {
       integrandGraphs.map { ig =>
         ig.par
@@ -64,18 +67,16 @@ private[thylacine] case class QuadratureIntegrator(
         .toVector
     } match {
       case Success(value) =>
-        ResultOrErrIo.fromValue(value)
+        value.toResultM
       case Failure(ex) =>
-        ResultOrErrIo.fromErratum(
-          UnexpectedErratum(
-            s"Error processing entropy stats: ${ex.getMessage} $ex"
-          )
-        )
+        UnexpectedErratum(
+          s"Error processing entropy stats: ${ex.getMessage} $ex"
+        ).toResultM
     }
 
   private[thylacine] def getIntegrationStats(
       integrand: BigDecimal => BigDecimal
-  ): ResultOrErrIo[Vector[BigDecimal]] =
+  ): ResultOrErrF[F, Vector[BigDecimal]] =
     Try {
       integrandGraphs.map { ig =>
         ig.par
@@ -94,18 +95,16 @@ private[thylacine] case class QuadratureIntegrator(
         .toVector
     } match {
       case Success(value) =>
-        ResultOrErrIo.fromValue(value)
+        value.toResultM
       case Failure(ex) =>
-        ResultOrErrIo.fromErratum(
-          UnexpectedErratum(
-            s"Error processing entropy stats: ${ex.getMessage} $ex"
-          )
-        )
+        UnexpectedErratum(
+          s"Error processing entropy stats: ${ex.getMessage} $ex"
+        ).toResultM
     }
 }
 
 private[thylacine] object QuadratureIntegrator {
 
-  private[thylacine] val empty: QuadratureIntegrator =
+  private[thylacine] def empty[F[_]: Async]: QuadratureIntegrator[F] =
     QuadratureIntegrator(Vector(), Vector())
 }

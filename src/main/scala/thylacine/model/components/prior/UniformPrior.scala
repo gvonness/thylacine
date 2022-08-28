@@ -17,58 +17,62 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
+import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.values.VectorContainer
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 import thylacine.model.distributions
 import thylacine.model.distributions.UniformDistribution
 
-import ai.entrolution.thylacine.model.core.computation.ResultOrErrF
-import ai.entrolution.thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import cats.effect.kernel.Async
 
-case class UniformPrior(
+case class UniformPrior[F[_]: Async](
     private[thylacine] override val identifier: ModelParameterIdentifier,
     private[thylacine] val maxBounds: Vector[Double],
     private[thylacine] val minBounds: Vector[Double],
     private[thylacine] override val validated: Boolean = false
-) extends Prior[UniformDistribution] {
+) extends AsyncImplicits[F]
+    with Prior[F, UniformDistribution[F]] {
 
-  protected override lazy val priorModel: UniformDistribution =
+  protected override lazy val priorModel: UniformDistribution[F] =
     distributions
       .UniformDistribution(upperBounds = VectorContainer(maxBounds), lowerBounds = VectorContainer(minBounds))
       .getValidated
 
-  private[thylacine] override lazy val getValidated: UniformPrior =
+  private[thylacine] override lazy val getValidated: UniformPrior[F] =
     if (validated) this
     else this.copy(validated = true)
 
   private[thylacine] final override def pdfAt(
-      input: ModelParameterCollection
-  ): ResultOrErrF[Double] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, Double] =
     for {
       vector <- input.retrieveIndex(identifier)
       result <- if (priorModel.insideBounds(vector)) {
                   priorModel.negLogVolume.map(Math.exp)
                 } else {
-                  ResultOrErrIo.fromValue(0d)
+                  0d.toResultM
                 }
     } yield result
 
   private[thylacine] final override def pdfGradientAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     priorModel.zeroVector.map(IndexedVectorCollection(identifier, _))
 
-  protected override def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation(priorModel.getRawSample)
+  protected override def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
+    priorModel.getRawSample.toResultM
 }
 
 object UniformPrior {
 
-  def apply(
+  def apply[F[_]: Async](
       label: String,
       maxBounds: Vector[Double],
       minBounds: Vector[Double]
-  ): UniformPrior =
+  ): UniformPrior[F] =
     UniformPrior(
       identifier = ModelParameterIdentifier(label),
       maxBounds = maxBounds,

@@ -17,38 +17,32 @@
 package ai.entrolution
 package thylacine.model.components.forwardmodel
 
-import bengal.stm.STM
-import thylacine.model.core.Erratum.ResultOrErrF.Implicits._
-import thylacine.model.core.Erratum._
 import thylacine.model.core._
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values._
 
-import ai.entrolution.thylacine.model.core.values.modelparameters.ModelParameterRawMappings
-import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
-import cats.effect.kernel.Async
-
-private[thylacine] trait ForwardModel
-    extends GenericMapping
-    with ModelParameterRawMappings
-    with CanValidate[ForwardModel] {
+private[thylacine] trait ForwardModel[F[_]] extends GenericMapping with CanValidate[ForwardModel[F]] {
+  this: AsyncImplicits[F] =>
 
   // Note that input validation should be done within
   // the surrounding likelihood
-  private[thylacine] def evalAt[F[_]: STM: Async](
-      input: IndexedVectorCollection
+  private[thylacine] def evalAt(
+      input: IndexedVectorCollection[F]
   ): ResultOrErrF[F, VectorContainer]
 
-  final def evalAt[F[_]: STM: Async](input: Map[String, Vector[Double]]): F[Vector[Double]] =
+  final def evalAt(input: Map[String, Vector[Double]]): F[Vector[Double]] =
     evalAt(IndexedVectorCollection(input))
       .map(_.scalaVector)
       .liftToF
 
   // Note that input validation should be done within
   // the surrounding likelihood
-  private[thylacine] def jacobianAt[F[_]: STM: Async](
-      input: IndexedVectorCollection
-  ): ResultOrErrF[F, IndexedMatrixCollection]
+  private[thylacine] def jacobianAt(
+      input: IndexedVectorCollection[F]
+  ): ResultOrErrF[F, IndexedMatrixCollection[F]]
 
-  final def jacobianAt[F[_]: STM: Async](input: Map[String, Vector[Double]]): F[Map[String, Vector[Vector[Double]]]] =
+  final def jacobianAt(input: Map[String, Vector[Double]]): F[Map[String, Vector[Vector[Double]]]] =
     jacobianAt(IndexedVectorCollection(input))
       .map(_.genericScalaRepresentation)
       .liftToF

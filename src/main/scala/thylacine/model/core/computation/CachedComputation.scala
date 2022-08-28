@@ -13,7 +13,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 case class CachedComputation[F[_]: STM: Async, T](
-    computation: ModelParameterCollection[F] => T,
+    computation: ModelParameterCollection[F] => ResultOrErrF[F, T],
     cacheDepth: Option[Int] = None
 )(scalarClock: TxnVar[F, Int], computationCache: TxnVarMap[F, Int, ComputationResult[T]])
     extends ComputationWrapper[F, T] {
@@ -126,20 +126,20 @@ case class CachedComputation[F[_]: STM: Async, T](
         oCachedResult <- retrieveComputationFromStoreFor(input)
         result <- oCachedResult.map(_.toResultM).getOrElse {
                     for {
-                      innerResult <- computation(input).toResultM
+                      innerResult <- computation(input)
                       _           <- updateComputationStoreWith(input, innerResult).start
                     } yield innerResult
                   }
       } yield result
     } else {
-      computation(input).toResultM
+      computation(input)
     }
 }
 
 object CachedComputation {
 
-  def applyF[F[_]: STM: Async, T](
-      computation: ModelParameterCollection[F] => T,
+  def of[F[_]: STM: Async, T](
+      computation: ModelParameterCollection[F] => ResultOrErrF[F, T],
       cacheDepth: Option[Int] = None
   ): F[CachedComputation[F, T]] =
     for {

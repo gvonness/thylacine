@@ -2,14 +2,21 @@ package ai.entrolution
 package thylacine.model.distributions
 
 import thylacine.model.core.CanValidate
-import ai.entrolution.thylacine.model.core.values.VectorContainer
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.VectorContainer
 
-private[thylacine] case class UniformDistribution(
+import cats.effect.kernel.Async
+
+import scala.collection.immutable.{Vector => ScalaVector}
+import scala.collection.parallel.CollectionConverters._
+
+private[thylacine] case class UniformDistribution[F[_]: Async](
     upperBounds: VectorContainer,
     lowerBounds: VectorContainer,
     validated: Boolean = false
-) extends Distribution
-    with CanValidate[UniformDistribution] {
+) extends Distribution[F]
+    with CanValidate[UniformDistribution[F]] {
 
   private lazy val zippedBounds: ScalaVector[(Double, Double)] =
     lowerBounds.scalaVector.zip(upperBounds.scalaVector)
@@ -19,7 +26,7 @@ private[thylacine] case class UniformDistribution(
     assert(!zippedBounds.exists(i => i._2 <= i._1))
   }
 
-  private[thylacine] override lazy val getValidated: UniformDistribution =
+  private[thylacine] override lazy val getValidated: UniformDistribution[F] =
     if (validated) {
       this
     } else {
@@ -28,18 +35,18 @@ private[thylacine] case class UniformDistribution(
 
   override val domainDimension: Int = upperBounds.dimension
 
-  private[thylacine] lazy val negLogVolume: ResultOrErrIo[Double] =
-    ResultOrErrIo.fromValue {
-      -zippedBounds.map { case (lowerBound, upperBound) =>
-        Math.log(upperBound - lowerBound)
-      }.sum
-    }
+  private[thylacine] lazy val negLogVolume: ResultOrErrF[F, Double] =
+    (-zippedBounds.map { case (lowerBound, upperBound) =>
+      Math.log(upperBound - lowerBound)
+    }.sum).toResultM
 
-  private lazy val negInfinity: ResultOrErrIo[Double] =
-    ResultOrErrIo.fromValue(Double.NegativeInfinity)
+  private lazy val negInfinity: ResultOrErrF[F, Double] =
+    Double.NegativeInfinity.toResultM
 
-  private[thylacine] lazy val zeroVector: ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromValue(VectorContainer.zeros(domainDimension))
+  private[thylacine] lazy val zeroVector: ResultOrErrF[F, VectorContainer] =
+    VectorContainer
+      .zeros(domainDimension)
+      .toResultM
 
   private[thylacine] def insideBounds(input: VectorContainer): Boolean =
     zippedBounds.zip(input.scalaVector).forall {
@@ -51,7 +58,7 @@ private[thylacine] case class UniformDistribution(
 
   private[thylacine] override def logPdfAt(
       input: VectorContainer
-  ): ResultOrErrIo[Double] =
+  ): ResultOrErrF[F, Double] =
     if (insideBounds(input)) {
       negLogVolume
     } else {
@@ -62,19 +69,17 @@ private[thylacine] case class UniformDistribution(
   //samplers using gradient information
   private[thylacine] override def logPdfGradientAt(
       input: VectorContainer
-  ): ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation {
-      VectorContainer {
-        zippedBounds.zip(input.scalaVector).map {
-          case ((lowerBound, _), value) if value < lowerBound =>
-            lowerBound - value
-          case ((_, upperBound), value) if value > upperBound =>
-            upperBound - value
-          case _ =>
-            0d
-        }
+  ): ResultOrErrF[F, VectorContainer] =
+    VectorContainer {
+      zippedBounds.zip(input.scalaVector).map {
+        case ((lowerBound, _), value) if value < lowerBound =>
+          lowerBound - value
+        case ((_, upperBound), value) if value > upperBound =>
+          upperBound - value
+        case _ =>
+          0d
       }
-    }
+    }.toResultM
 
   private lazy val samplingScalingAndShift: ScalaVector[(Double, Double)] =
     zippedBounds.map { case (lowerBound, upperBound) =>

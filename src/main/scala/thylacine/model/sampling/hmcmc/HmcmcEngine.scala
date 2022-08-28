@@ -18,28 +18,30 @@ package ai.entrolution
 package thylacine.model.sampling.hmcmc
 
 import bengal.stm._
+import bengal.stm.model._
+import bengal.stm.syntax.all._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
-import thylacine.model.core.IndexedVectorCollection._
-import thylacine.model.core._
+import thylacine.model.core.StmImplicits
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.sampling.ModelParameterSampler
 
-import ai.entrolution.thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
-import ai.entrolution.thylacine.model.sampling.ModelParameterSampler
-import cats.effect.unsafe.implicits.global
-import cats.effect.{Deferred, IO}
-import cats.implicits._
+import cats.effect.Deferred
+import cats.effect.implicits._
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
 import scala.collection.immutable.Queue
 
 /** Implementation of the Hamiltonian MCMC sampling algorithm
   */
-private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends ModelParameterSampler {
+private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
+  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
   import HmcmcEngine._
-  import stm._
-
-  protected def posterior: Posterior[Prior[_], _]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -55,7 +57,7 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
   protected def warmUpSimulationCount: Int
   protected def sampleParallelism: Int
 
-  protected def startingPoint: ResultOrErrIo[ModelParameterCollection]
+  protected def startingPoint: ResultOrErrF[F, ModelParameterCollection[F]]
 
   protected def sampleRequestUpdateCallback: Int => Unit
   protected def sampleRequestSetCallback: Int => Unit
@@ -68,23 +70,17 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
    * - - -- --- ----- -------- -------------
    */
 
-  private val sampleRequests: TxnVar[Queue[SampleRequest]] =
-    TxnVar.of(Queue[SampleRequest]()).unsafeRunSync()
+  protected val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]]
 
-  private val currentMcmcPositions: TxnVar[Queue[ModelParameterCollection]] =
-    TxnVar.of(Queue[IndexedVectorCollection]()).unsafeRunSync()
+  protected val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection[F]]]
 
-  private val burnInComplete: TxnVar[Boolean] =
-    TxnVar.of(false).unsafeRunSync()
+  protected val burnInComplete: TxnVar[F, Boolean]
 
-  private val simulationEpsilon: TxnVar[Double] =
-    TxnVar.of(0.1).unsafeRunSync()
+  protected val simulationEpsilon: TxnVar[F, Double]
 
-  private val epsilonAdjustmentResults: TxnVar[Queue[Double]] =
-    TxnVar.of(Queue[Double]()).unsafeRunSync()
+  protected val epsilonAdjustmentResults: TxnVar[F, Queue[Double]]
 
-  private val parallelismTokenPool: TxnVar[Int] =
-    TxnVar.of(2).unsafeRunSync()
+  protected val parallelismTokenPool: TxnVar[F, Int]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -95,7 +91,7 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
   private def updateSimulationEpsilon(
       success: Boolean,
       iteration: Int
-  ): ResultOrErrIo[Unit] = {
+  ): ResultOrErrF[F, Unit] = {
     def multiplier(goUp: Boolean) =
       Math.max(1d + (if (goUp) 1.0 else -1.0) * (1d - (Math
                  .min(iteration, warmUpSimulationCount)
@@ -103,69 +99,67 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
                .01
       )
 
-    ResultOrErrIo.fromIo {
-      for {
-        result <- (for {
-                    _ <- if (success) {
-                           epsilonAdjustmentResults.modify(
-                             _.enqueue(1.0).takeRight(maxEpsilonHistory)
-                           )
-                         } else {
-                           epsilonAdjustmentResults.modify(
-                             _.enqueue(0.0).takeRight(maxEpsilonHistory)
-                           )
-                         }
-                    epsilonHistory <- epsilonAdjustmentResults.get
-                    newMultiplier =
-                      multiplier(
-                        epsilonHistory.sum / epsilonHistory.size >= targetAcceptance
-                      )
-                    _      <- simulationEpsilon.modify(_ * newMultiplier)
-                    result <- simulationEpsilon.get
-                  } yield result).commit
-        _ <- IO(epsilonUpdateCallback(result))
-      } yield ()
-    }
+    (for {
+      result <- (for {
+                  _ <- if (success) {
+                         epsilonAdjustmentResults.modify(
+                           _.enqueue(1.0).takeRight(maxEpsilonHistory)
+                         )
+                       } else {
+                         epsilonAdjustmentResults.modify(
+                           _.enqueue(0.0).takeRight(maxEpsilonHistory)
+                         )
+                       }
+                  epsilonHistory <- epsilonAdjustmentResults.get
+                  newMultiplier =
+                    multiplier(
+                      epsilonHistory.sum / epsilonHistory.size >= targetAcceptance
+                    )
+                  _      <- simulationEpsilon.modify(_ * newMultiplier)
+                  result <- simulationEpsilon.get
+                } yield result).commit
+      _ <- Async[F].delay(epsilonUpdateCallback(result))
+    } yield ()).toResultM
   }
 
-  private def secureWorkRight: Txn[Unit] =
+  private val secureWorkRight: Txn[Unit] =
     for {
       tokenCount <- parallelismTokenPool.get
-      _          <- waitFor(tokenCount > 0)
+      _          <- STM[F].waitFor(tokenCount > 0)
       _          <- parallelismTokenPool.modify(_ - 1)
     } yield ()
 
-  private def getNextPosition: Txn[ModelParameterCollection] =
+  private val getNextPosition: Txn[ModelParameterCollection[F]] =
     for {
       positions <- currentMcmcPositions.get
-      _         <- waitFor(positions.nonEmpty)
+      _         <- STM[F].waitFor(positions.nonEmpty)
       (result, newQueue) = positions.dequeue
       _ <- currentMcmcPositions.set(newQueue)
     } yield result
 
   private def submitNextPosition(
-      position: ModelParameterCollection
+      position: ModelParameterCollection[F]
   ): Txn[Unit] =
     currentMcmcPositions.modify(_.enqueue(position))
 
   private def runLeapfrogAt(
-      input: ModelParameterCollection,
+      input: ModelParameterCollection[F],
       p: VectorContainer,
-      gradLogPdf: ModelParameterCollection,
+      gradLogPdf: ModelParameterCollection[F],
       iterationCount: Int = 1
-  ): ResultOrErrIo[(ModelParameterCollection, VectorContainer)] =
+  ): ResultOrErrF[F, (ModelParameterCollection[F], VectorContainer)] =
     if (iterationCount > stepsInSimulation) {
-      ResultOrErrIo.fromValue((input, p))
+      (input, p).toResultM
     } else {
       (for {
-        epsilon <- ResultOrErrIo.fromIo(simulationEpsilon.get.commit)
-        p       <- posterior.rawVectorToModelParameterCollection(p.rawVector)
+        epsilon <- simulationEpsilon.get.commit.toResultM
+        p       <- rawVectorToModelParameterCollection(p.rawVector)
         pNew =
           p.rawSumWith(gradLogPdf.rawScalarMultiplyWith(epsilon / 2))
         xNew = input.rawSumWith(pNew.rawScalarMultiplyWith(epsilon))
-        gNew <- posterior.logPdfGradientAt(xNew)
+        gNew <- logPdfGradientAt(xNew)
         pNewNew <-
-          posterior.modelParameterCollectionToRawVector(
+          modelParameterCollectionToRawVector(
             pNew.rawSumWith(
               gNew.rawScalarMultiplyWith(epsilon / 2)
             )
@@ -179,46 +173,46 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
     p.rawDotProductWith(p) / 2.0 - E
 
   private def runDynamicSimulationFrom(
-      input: ModelParameterCollection,
+      input: ModelParameterCollection[F],
       maxIterations: Int,
       logPdfOpt: Option[Double] = None,
-      gradLogPdfOpt: Option[ModelParameterCollection] = None,
+      gradLogPdfOpt: Option[ModelParameterCollection[F]] = None,
       burnIn: Boolean = false,
       iterationCount: Int = 1
-  ): ResultOrErrIo[ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     if (iterationCount <= maxIterations) {
       (for {
         logPdf <- logPdfOpt match {
-                    case Some(res) => ResultOrErrIo.fromValue(res)
-                    case _         => posterior.logPdfAt(input)
+                    case Some(res) => res.toResultM
+                    case _         => logPdfAt(input)
                   }
         gradLogPdf <- gradLogPdfOpt match {
-                        case Some(res) => ResultOrErrIo.fromValue(res)
-                        case _         => posterior.logPdfGradientAt(input)
+                        case Some(res) => res.toResultM
+                        case _         => logPdfGradientAt(input)
                       }
-        p           = VectorContainer.random(posterior.domainDimension)
+        p           = VectorContainer.random(domainDimension)
         hamiltonian = getHamiltonianValue(p, logPdf)
         xAndPNew <- runLeapfrogAt(input, p, gradLogPdf)
         (xNew, pNew) = xAndPNew
-        eNew <- posterior.logPdfAt(xNew)
+        eNew <- logPdfAt(xNew)
         hNew = getHamiltonianValue(pNew, eNew)
         dH   = hNew - hamiltonian
-        _ <- ResultOrErrIo.fromIo(IO(dhMonitorCallback(dH)).start)
+        _ <- Async[F].delay(dhMonitorCallback(dH)).start.toResultM
         result <- if (dH < 0 || Math.random() < Math.exp(-dH)) {
                     for {
                       _ <- if (burnIn) {
                              updateSimulationEpsilon(success = true, iterationCount)
                            } else {
-                             ResultOrErrIo.unit
+                             ResultOrErrF.unit
                            }
-                      newGradLogPdf <- posterior.logPdfGradientAt(xNew)
+                      newGradLogPdf <- logPdfGradientAt(xNew)
                     } yield (xNew, eNew, newGradLogPdf)
                   } else {
                     for {
                       _ <- if (burnIn) {
                              updateSimulationEpsilon(success = false, iterationCount)
                            } else {
-                             ResultOrErrIo.unit
+                             ResultOrErrF.unit
                            }
                     } yield (input, logPdf, gradLogPdf)
                   }
@@ -226,7 +220,7 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
         runDynamicSimulationFrom(r._1, maxIterations, Some(r._2), Some(r._3), burnIn, iterationCount + 1)
       }
     } else {
-      ResultOrErrIo.fromValue(input)
+      input.toResultM
     }
 
   /*
@@ -236,39 +230,37 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
    */
 
   private def setAndAcquireNewSample(
-      position: ModelParameterCollection
-  ): IO[ModelParameterCollection] =
+      position: ModelParameterCollection[F]
+  ): F[ModelParameterCollection[F]] =
     runDynamicSimulationFrom(position, simulationsBetweenSamples).value.flatMap {
       case Right(res) if res != position =>
-        submitNextPosition(res).commit >> IO.pure(res)
+        submitNextPosition(res).commit >> Async[F].pure(res)
       case Right(_) =>
         setAndAcquireNewSample(position)
       case Left(err) =>
-        IO.raiseError(new RuntimeException(err.message))
+        Async[F].raiseError(new RuntimeException(err.message))
     }
 
-  private def getNextRequest: Txn[SampleRequest] =
+  private val getNextRequest: Txn[SampleRequest[F]] =
     for {
       requests <- sampleRequests.get
-      _        <- stm.waitFor(requests.nonEmpty)
-      result   <- stm.pure(requests.dequeue)
+      _        <- STM[F].waitFor(requests.nonEmpty)
+      result   <- STM[F].delay(requests.dequeue)
       _        <- sampleRequests.set(result._2)
     } yield result._1
 
-  private def processRequest: ResultOrErrIo[Unit] =
-    ResultOrErrIo.fromIo {
-      secureWorkRight.commit >> (for {
-        request   <- getNextRequest.commit
-        position  <- getNextPosition.commit
-        newSample <- setAndAcquireNewSample(position)
-        remaining <- sampleRequests.get.map(_.size).commit
-        _         <- IO(sampleRequestUpdateCallback(remaining)).start
-        _         <- request.complete(newSample)
-        _         <- parallelismTokenPool.modify(_ + 1).commit
-      } yield ()).start.void
-    }
+  private val processRequest: ResultOrErrF[F, Unit] =
+    (secureWorkRight.commit >> (for {
+      request   <- getNextRequest.commit
+      position  <- getNextPosition.commit
+      newSample <- setAndAcquireNewSample(position)
+      remaining <- sampleRequests.get.map(_.size).commit
+      _         <- Async[F].delay(sampleRequestUpdateCallback(remaining)).start
+      _         <- request.complete(newSample)
+      _         <- parallelismTokenPool.modify(_ + 1).commit
+    } yield ()).start.void).toResultM
 
-  private def processingRecursion: ResultOrErrIo[Unit] =
+  private val processingRecursion: ResultOrErrF[F, Unit] =
     processRequest.flatMap(_ => processingRecursion)
 
   /*
@@ -277,20 +269,14 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
    * - - -- --- ----- -------- -------------
    */
 
-  private def samplePriors: ResultOrErrIo[ModelParameterCollection] =
-    for {
-      sampleCollection <-
-        posterior.priors.toVector.parTraverse(_.sampleModelParameters)
-    } yield sampleCollection.reduce(_ rawMergeWith _)
-
-  private def burnIn: ResultOrErrIo[ModelParameterCollection] =
+  private val burnIn: ResultOrErrF[F, ModelParameterCollection[F]] =
     for {
       possibleStartingPoint <- startingPoint
       priorSample <-
         if (possibleStartingPoint == IndexedVectorCollection.empty) {
           samplePriors
         } else {
-          ResultOrErrIo.fromValue(possibleStartingPoint)
+          possibleStartingPoint.toResultM
         }
       result <-
         runDynamicSimulationFrom(priorSample, warmUpSimulationCount, burnIn = true)
@@ -302,7 +288,7 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
    * - - -- --- ----- -------- -------------
    */
 
-  private[thylacine] def initialise: IO[Unit] =
+  private[thylacine] val initialise: F[Unit] =
     for {
       _             <- burnInComplete.set(false).commit
       _             <- epsilonAdjustmentResults.set(Queue()).commit
@@ -318,42 +304,40 @@ private[thylacine] abstract class HmcmcEngine(implicit stm: STM[IO]) extends Mod
                  _ <- burnInComplete.set(true)
                } yield ()).commit
              case Left(err) =>
-               IO.raiseError(new RuntimeException(err.message))
+               Async[F].raiseError(new RuntimeException(err.message))
            }
       _ <- processingRecursion.value.start
     } yield ()
 
-  private[thylacine] def waitForInitialisation: IO[Unit] =
+  private[thylacine] val waitForInitialisation: F[Unit] =
     (for {
       burnInCompleted <- burnInComplete.get
-      _               <- stm.waitFor(burnInCompleted)
+      _               <- STM[F].waitFor(burnInCompleted)
     } yield ()).commit
 
-  protected def getHmcmcSample: ResultOrErrIo[ModelParameterCollection] =
-    ResultOrErrIo.fromIo {
-      for {
-        deferred <- Deferred[IO, ModelParameterCollection]
-        newRequestSize <- (for {
-                            _                 <- sampleRequests.modify(_.enqueue(deferred))
-                            sampleRequestSize <- sampleRequests.get.map(_.size)
-                          } yield sampleRequestSize).commit
-        _      <- IO(sampleRequestSetCallback(newRequestSize)).start
-        result <- deferred.get
-      } yield result
-    }
+  protected val getHmcmcSample: ResultOrErrF[F, ModelParameterCollection[F]] =
+    (for {
+      deferred <- Deferred[F, ModelParameterCollection[F]]
+      newRequestSize <- (for {
+                          _                 <- sampleRequests.modify(_.enqueue(deferred))
+                          sampleRequestSize <- sampleRequests.get.map(_.size)
+                        } yield sampleRequestSize).commit
+      _      <- Async[F].delay(sampleRequestSetCallback(newRequestSize)).start
+      result <- deferred.get
+    } yield result).toResultM
 
-  override protected def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
+  override protected val sampleModelParameters: ResultOrErrF[F, ModelParameterCollection[F]] =
     getHmcmcSample
 
-  override protected def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
+  override protected val rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
     for {
       sample <- sampleModelParameters
-      result <- posterior.modelParameterCollectionToRawVector(sample)
+      result <- modelParameterCollectionToRawVector(sample)
     } yield VectorContainer(result)
 
 }
 
 private[thylacine] object HmcmcEngine {
 
-  private[thylacine] type SampleRequest = Deferred[IO, ModelParameterCollection]
+  private[thylacine] type SampleRequest[F[_]] = Deferred[F, ModelParameterCollection[F]]
 }

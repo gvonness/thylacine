@@ -15,34 +15,25 @@
  */
 
 package ai.entrolution
-package thylacine.model.components.forwardmodel
+package thylacine.model.core.computation
 
-import thylacine.model.core.Erratum.ResultOrErrF
-import thylacine.model.core._
+import thylacine.model.core.values._
 
-import ai.entrolution.thylacine.model.core.values.{
-  IndexedMatrixCollection,
-  IndexedVectorCollection,
-  MatrixContainer,
-  VectorContainer
-}
-import cats.effect.kernel.Async
 import cats.effect.implicits._
+import cats.effect.kernel.Async
 import cats.syntax.all._
 
-private[thylacine] trait FiniteDifferenceJacobian {
-  protected def differential: Double
-
-  private[thylacine] def evalAt[F[_]](
-      input: IndexedVectorCollection
-  ): ResultOrErrF[F, VectorContainer]
+private[thylacine] case class FiniteDifferenceJacobian[F[_]: Async](
+    private val evalAt: IndexedVectorCollection[F] => ResultOrErrF[F, VectorContainer],
+    differential: Double
+) {
 
   // Finite difference calculation for the Jacobian is relatively intensive when compared to simple evaluation of
   // the forward model. This combined with giving the freedom to split inference parameters across any number of
   // identifiers requires us to parallelize very aggressively
-  protected final def finiteDifferencejacobianAt[F[_]: Async](
-      input: IndexedVectorCollection
-  ): ResultOrErrF[F, IndexedMatrixCollection] =
+  private[stm] final def finiteDifferencejacobianAt(
+      input: IndexedVectorCollection[F]
+  ): ResultOrErrF[F, IndexedMatrixCollection[F]] =
     for {
       currentEval <- evalAt(input)
       result <- input

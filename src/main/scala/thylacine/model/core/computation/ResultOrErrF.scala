@@ -1,6 +1,8 @@
 package ai.entrolution
 package thylacine.model.core.computation
 
+import thylacine.model.core.computation.Erratum._
+
 import cats.data.EitherT
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -70,7 +72,7 @@ private[thylacine] object ResultOrErrF {
     implicit class FromValue[T](input: T) {
 
       def toResultM[F[_]: Async]: ResultOrErrF[F, T] =
-        Async[F].pure(input).toResultM
+        (() => input).toResultM
     }
 
     implicit class FromFuture[T](input: () => Future[T]) {

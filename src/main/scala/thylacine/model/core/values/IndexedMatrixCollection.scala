@@ -22,10 +22,10 @@ import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 
 import cats.effect.kernel.Async
 
-private[thylacine] case class IndexedMatrixCollection[F[_] : Async](
+private[thylacine] case class IndexedMatrixCollection[F[_]: Async](
     index: Map[ModelParameterIdentifier, MatrixContainer],
     validated: Boolean = false
-) extends IndexedCollection[F, MatrixContainer]
+) extends IndexedCollection[MatrixContainer]
     with CanValidate[IndexedMatrixCollection[F]] {
 
   private[thylacine] override lazy val getValidated: IndexedMatrixCollection[F] =
@@ -42,25 +42,32 @@ private[thylacine] case class IndexedMatrixCollection[F[_] : Async](
     index.map(i => i._1.value -> i._2.genericScalaRepresentation)
 
   private[thylacine] def rawMergeWith(
-      other: IndexedMatrixCollection
-  ): IndexedMatrixCollection =
+      other: IndexedMatrixCollection[F]
+  ): IndexedMatrixCollection[F] =
     IndexedMatrixCollection(index ++ other.index).getValidated
 }
 
 private[thylacine] object IndexedMatrixCollection {
 
-  private[thylacine] def apply(
+  private[thylacine] def apply[F[_]: Async](
       identifier: ModelParameterIdentifier,
       values: Vector[Vector[Double]]
-  ): IndexedMatrixCollection =
+  ): IndexedMatrixCollection[F] =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer(values))
     )
 
-  private[thylacine] def squareIdentity(
+  private[thylacine] def apply[F[_]: Async](
+      labelledValues: Map[String, Vector[Vector[Double]]]
+  ): IndexedMatrixCollection[F] =
+    IndexedMatrixCollection(
+      index = labelledValues.map(lvs => ModelParameterIdentifier(lvs._1) -> MatrixContainer(lvs._2))
+    )
+
+  private[thylacine] def squareIdentity[F[_]: Async](
       identifier: ModelParameterIdentifier,
       dimension: Int
-  ): IndexedMatrixCollection =
+  ): IndexedMatrixCollection[F] =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer.squareIdentity(dimension))
     )

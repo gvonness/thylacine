@@ -17,25 +17,29 @@
 package ai.entrolution
 package thylacine.model.components.posterior
 
-import thylacine.model.components.likelihood.Likelihood
-import thylacine.model.components.prior.Prior
-import thylacine.model.core.Erratum.{ResultOrErrF, ResultOrErrIo}
-import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.components.likelihood._
+import thylacine.model.components.prior._
+import thylacine.model.core.AsyncImplicits
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.implicits._
-import cats.implicits._
+import cats.syntax.all._
 
-case class UnNormalisedPosterior(
-    priors: Set[Prior[_]],
-    likelihoods: Set[Likelihood[_, _]]
-) extends NonAnalyticPosterior(priors, likelihoods) {
+private[thylacine] trait UnnormalisedPosterior[F[_]] extends Posterior[F, Prior[F, _], Likelihood[F, _, _]] {
+  this: AsyncImplicits[F] =>
+
+  priors: Set[Prior[F, _]]
+  likelihoods: Set[Likelihood[F, _, _]]
+
+  private[thylacine] override final val isAnalytic: Boolean = false
 
   override private[thylacine] def logPdfAt(
-      input: ModelParameterCollection
-  ): ResultOrErrIo[Double] =
+      input: ModelParameterCollection[F]
+  ): ResultOrErrF[F, Double] =
     for {
-      priorFib              <- priors.toList.traverse(_.logPdfAt(input)).start
-      likelihoodFib         <- likelihoods.toList.traverse(_.logPdfAt(input)).start
+      priorFib              <- priors.toList.parTraverse(_.logPdfAt(input)).start
+      likelihoodFib         <- likelihoods.toList.parTraverse(_.logPdfAt(input)).start
       priorEvaluations      <- priorFib.joinWithNever
       likelihoodEvaluations <- likelihoodFib.joinWithNever
     } yield (priorEvaluations ++ likelihoodEvaluations).sum

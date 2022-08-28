@@ -17,67 +17,64 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core._
+import thylacine.model.core.computation.Erratum.UnexpectedErratum
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
 
-private[thylacine] case class PointInInterval(
+import cats.effect.kernel.Async
+
+private[thylacine] case class PointInInterval[F[_]: Async](
     point: Double,
     lowerBound: Double,
     upperBound: Double,
     validated: Boolean = false
-) extends CanValidate[PointInInterval] {
+) extends CanValidate[PointInInterval[F]] {
   if (!validated) {
     assert(upperBound > lowerBound)
     assert(point >= lowerBound)
     assert(point < upperBound)
   }
 
-  override lazy val getValidated: PointInInterval =
+  override lazy val getValidated: PointInInterval[F] =
     this.copy(validated = true)
 
-  private[thylacine] lazy val intervalLength: ResultOrErrIo[Double] =
-    ResultOrErrIo.fromCalculation {
-      Math.abs(upperBound - lowerBound)
-    }
+  private[thylacine] lazy val intervalLength: ResultOrErrF[F, Double] =
+    Math.abs(upperBound - lowerBound).toResultM
 
-  private[thylacine] lazy val symmetrize: ResultOrErrIo[PointInInterval] = {
+  private[thylacine] lazy val symmetrize: ResultOrErrF[F, PointInInterval[F]] = {
     val length1 = upperBound - point
     val length2 = point - lowerBound
-    ResultOrErrIo.fromCalculation {
-      if (length1 > length2) {
-        this.copy(upperBound = point + length2)
-      } else if (length1 < length2) {
-        this.copy(lowerBound = point - length1)
-      } else {
-        this
-      }
-    }
+
+    (if (length1 > length2) {
+       this.copy(upperBound = point + length2)
+     } else if (length1 < length2) {
+       this.copy(lowerBound = point - length1)
+     } else {
+       this
+     }).toResultM
   }
 
-  private[thylacine] def isIntersectingWith(input: PointInInterval): ResultOrErrIo[Boolean] =
-    ResultOrErrIo.fromCalculation {
-      (upperBound > input.lowerBound &&
-        lowerBound < input.upperBound) ||
+  private[thylacine] def isIntersectingWith(input: PointInInterval[F]): ResultOrErrF[F, Boolean] =
+    ((upperBound > input.lowerBound &&
+      lowerBound < input.upperBound) ||
       (input.upperBound > lowerBound &&
-        input.lowerBound < upperBound)
-    }
+        input.lowerBound < upperBound)).toResultM
 
-  private[thylacine] def distanceSquaredFrom(input: PointInInterval): ResultOrErrIo[Double] =
-    ResultOrErrIo.fromCalculation(Math.pow(point - input.point, 2))
+  private[thylacine] def distanceSquaredFrom(input: PointInInterval[F]): ResultOrErrF[F, Double] =
+    Math.pow(point - input.point, 2).toResultM
 
   // Sampling from a linearly scaled version of this interval (1 corresponding to
   // the original interval and 0 to the central point)
-  private[thylacine] def getSample(scaleParameter: Double): ResultOrErrIo[Double] =
-    ResultOrErrIo.fromCalculation {
-      (Math.random() - 0.5) * scaleParameter * (upperBound - lowerBound) + point
-    }
+  private[thylacine] def getSample(scaleParameter: Double): ResultOrErrF[F, Double] =
+    ((Math.random() - 0.5) * scaleParameter * (upperBound - lowerBound) + point).toResultM
 }
 
 private[thylacine] object PointInInterval {
 
   // Convenience method to generate a placeholder
   // interval (that's valid)
-  private[thylacine] def apply(point: Double): PointInInterval =
+  private[thylacine] def apply[F[_]: Async](point: Double): PointInInterval[F] =
     PointInInterval(
       point = point,
       lowerBound = point - 1,
@@ -85,10 +82,10 @@ private[thylacine] object PointInInterval {
       validated = true
     )
 
-  private[thylacine] def findDisjointBoundary(
-      pii1: PointInInterval,
-      pii2: PointInInterval
-  ): ResultOrErrIo[(PointInInterval, PointInInterval)] = {
+  private[thylacine] def findDisjointBoundary[F[_]: Async](
+      pii1: PointInInterval[F],
+      pii2: PointInInterval[F]
+  ): ResultOrErrF[F, (PointInInterval[F], PointInInterval[F])] = {
 
     val isPii1Larger = pii1.point > pii2.point
     val (largerPii, smallerPii) =
@@ -96,19 +93,17 @@ private[thylacine] object PointInInterval {
 
     val averageBoundary = (pii1.point + pii2.point) / 2.0
 
-    val boundaryValueSpec: ResultOrErrIo[Double] =
+    val boundaryValueSpec: ResultOrErrF[F, Double] =
       if (largerPii.lowerBound <= averageBoundary && smallerPii.upperBound > averageBoundary) {
-        ResultOrErrIo.fromValue(averageBoundary)
+        averageBoundary.toResultM
       } else if (largerPii.lowerBound <= averageBoundary) {
-        ResultOrErrIo.fromValue(smallerPii.upperBound)
+        smallerPii.upperBound.toResultM
       } else if (smallerPii.upperBound > averageBoundary) {
-        ResultOrErrIo.fromValue(largerPii.lowerBound)
+        largerPii.lowerBound.toResultM
       } else {
-        ResultOrErrIo.fromErratum(
-          UnexpectedErratum(
-            "Can't find boundary between cubes that are already disjoint!"
-          )
-        )
+        UnexpectedErratum(
+          "Can't find boundary between cubes that are already disjoint!"
+        ).toResultM
       }
 
     for {

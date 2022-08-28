@@ -17,37 +17,40 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.VectorContainer
+import thylacine.model.distributions.CauchyDistribution
 
-import ai.entrolution.thylacine.model.core.values.VectorContainer
-import ai.entrolution.thylacine.model.distributions.CauchyDistribution
+import cats.effect.kernel.Async
 
-case class CauchyPrior(
+case class CauchyPrior[F[_]: Async](
     private[thylacine] override val identifier: ModelParameterIdentifier,
     private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
-) extends Prior[CauchyDistribution] {
+) extends AsyncImplicits[F]
+    with Prior[F, CauchyDistribution[F]] {
 
-  protected override lazy val priorModel: CauchyDistribution =
+  protected override lazy val priorModel: CauchyDistribution[F] =
     CauchyDistribution(priorData)
 
-  private[thylacine] override lazy val getValidated: CauchyPrior =
+  private[thylacine] override lazy val getValidated: CauchyPrior[F] =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation(priorModel.getRawSample)
+  protected override def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
+    priorModel.getRawSample.toResultM
 }
 
 object CauchyPrior {
 
-  def apply(
+  def apply[F[_]: Async](
       label: String,
       values: Vector[Double],
       confidenceIntervals: Vector[Double]
-  ): CauchyPrior = {
+  ): CauchyPrior[F] = {
     assert(values.size == confidenceIntervals.size)
     CauchyPrior(
       identifier = ModelParameterIdentifier(label),

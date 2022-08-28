@@ -1,25 +1,29 @@
 package ai.entrolution
 package thylacine.model.sampling
 
+import thylacine.model.core.AsyncImplicits
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.VectorContainer
 
-import cats.effect.IO
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
-private[thylacine] trait ModelParameterSampler {
-
-  protected def sampleModelParameters: ResultOrErrIo[ModelParameterCollection]
+private[thylacine] trait ModelParameterSampler[F[_]] {
+  this: AsyncImplicits[F] =>
+  protected def sampleModelParameters: ResultOrErrF[F, ModelParameterCollection[F]]
 
   // Low-level API - For sampling priors
-  protected def rawSampleModelParameters: ResultOrErrIo[VectorContainer]
+  protected def rawSampleModelParameters: ResultOrErrF[F, VectorContainer]
 
-  final def sample: IO[Map[String, Vector[Double]]] =
+  final def sample: F[Map[String, Vector[Double]]] =
     for {
       sampleRes <- sampleModelParameters.value
       result <- sampleRes match {
                   case Right(res) =>
-                    IO.pure(res)
+                    Async[F].pure(res)
                   case Left(erratum) =>
-                    IO.raiseError(new RuntimeException(erratum.toString))
+                    Async[F].raiseError(new RuntimeException(erratum.toString))
                 }
     } yield result.genericScalaRepresentation
 }

@@ -18,95 +18,70 @@ package ai.entrolution
 package thylacine.model.components.forwardmodel
 
 import bengal.stm.STM
-import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import ai.entrolution.thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.StmImplicits
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.computation.{CachedComputation, FiniteDifferenceJacobian, ResultOrErrF}
+import thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
 
-import cats.effect.IO
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
-case class NonLinearForwardModel(
-    evaluation: Map[String, Vector[Double]] => Vector[Double],
-    jacobian: Map[String, Vector[Double]] => Map[String, Vector[
-      Vector[Double]
-    ]],
+case class NonLinearForwardModel[F[_]: STM: Async](
+    override val evalCache: CachedComputation[F, VectorContainer],
+    override val jacobianCache: CachedComputation[F, IndexedMatrixCollection[F]],
     domainDimensions: Map[String, Int],
     override val rangeDimension: Int,
     override val validated: Boolean = false
-) extends ForwardModel {
-
-  override protected val orderedParameterIdentifiersWithDimension
-      : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
-    ResultOrErrIo.fromCalculation(
-      domainDimensions.map(i => (ModelParameterIdentifier(i._1), i._2)).toVector
-    )
+) extends StmImplicits[F]
+    with InMemoryMemoizedForwardModel[F] {
 
   override private[thylacine] val getValidated = this
 
   override val domainDimension: Int = domainDimensions.values.sum
-
-  private[thylacine] override def evalAt(
-      input: IndexedVectorCollection
-  ): ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation {
-      VectorContainer(
-        evaluation(
-          input.index.map(i => i._1.value -> i._2.scalaVector)
-        )
-      )
-    }
-
-  private[thylacine] override def jacobianAt(
-      input: IndexedVectorCollection
-  ): ResultOrErrIo[IndexedMatrixCollection] =
-    ResultOrErrIo.fromCalculation {
-      jacobian(
-        input.index.map(i => i._1.value -> i._2.scalaVector)
-      ).map { case (label, matrixValue) =>
-        IndexedMatrixCollection(ModelParameterIdentifier(label), matrixValue)
-      }.reduce(_ rawMergeWith _)
-    }
 }
 
 object NonLinearForwardModel {
 
-  def apply(
+  def of[F[_]: STM: Async](
       evaluation: Map[String, Vector[Double]] => Vector[Double],
-      domainDimensions: Map[String, Int],
-      rangeDimension: Int,
-      differential: Double
-  ): NonLinearFiniteDifferenceForwardModel =
-    NonLinearFiniteDifferenceForwardModel(evaluation, domainDimensions, rangeDimension, differential)
-
-  def apply(
-      evaluation: Map[String, Vector[Double]] => Vector[Double],
-      domainDimensions: Map[String, Int],
-      rangeDimension: Int,
       differential: Double,
-      maxResultsToCache: Int
-  )(implicit
-      stm: STM[IO]
-  ): NonLinearFiniteDifferenceInMemoryMemoizedForwardModel =
-    NonLinearFiniteDifferenceInMemoryMemoizedForwardModel(
-      evaluation,
-      domainDimensions,
-      rangeDimension,
-      differential,
-      maxResultsToCache
-    )
+      domainDimensions: Map[String, Int],
+      rangeDimension: Int,
+      evalCacheDepth: Option[Int] = None,
+      jacobianCacheDepth: Option[Int] = None
+  ): F[NonLinearForwardModel[F]] = {
+    def transformedEval(input: IndexedVectorCollection[F]): ResultOrErrF[F, VectorContainer] =
+      VectorContainer(evaluation(input.index.map(i => i._1.value -> i._2.scalaVector))).toResultM
 
-  def apply(
+    val jacobianCalculation = FiniteDifferenceJacobian(transformedEval, differential)
+
+    for {
+      evalCache <- CachedComputation.of(transformedEval, evalCacheDepth)
+      jacobianCache <-
+        CachedComputation.of(jacobianCalculation.finiteDifferencejacobianAt, jacobianCacheDepth)
+    } yield NonLinearForwardModel[F](evalCache, jacobianCache, domainDimensions, rangeDimension)
+  }
+
+  def of[F[_]: STM: Async](
       evaluation: Map[String, Vector[Double]] => Vector[Double],
       jacobian: Map[String, Vector[Double]] => Map[String, Vector[
         Vector[Double]
       ]],
       domainDimensions: Map[String, Int],
       rangeDimension: Int,
-      maxResultsToCache: Int
-  )(implicit stm: STM[IO]): NonLinearInMemoryMemoizedForwardModel =
-    NonLinearInMemoryMemoizedForwardModel(
-      evaluation,
-      jacobian,
-      domainDimensions,
-      rangeDimension,
-      maxResultsToCache
-    )
+      evalCacheDepth: Option[Int] = None,
+      jacobianCacheDepth: Option[Int] = None
+  ): F[NonLinearForwardModel[F]] = {
+
+    def transformedEval(input: IndexedVectorCollection[F]): ResultOrErrF[F, VectorContainer] =
+      VectorContainer(evaluation(input.index.map(i => i._1.value -> i._2.scalaVector))).toResultM
+
+    def transformedJacobian(input: IndexedVectorCollection[F]): ResultOrErrF[F, IndexedMatrixCollection[F]] =
+      IndexedMatrixCollection(jacobian(input.index.map(i => i._1.value -> i._2.scalaVector))).toResultM
+
+    for {
+      evalCache     <- CachedComputation.of(transformedEval, evalCacheDepth)
+      jacobianCache <- CachedComputation.of(transformedJacobian, jacobianCacheDepth)
+    } yield NonLinearForwardModel[F](evalCache, jacobianCache, domainDimensions, rangeDimension)
+  }
 }

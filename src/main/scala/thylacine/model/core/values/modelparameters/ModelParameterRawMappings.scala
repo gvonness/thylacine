@@ -17,23 +17,27 @@
 package ai.entrolution
 package thylacine.model.core.values.modelparameters
 
+import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 
 import breeze.linalg.DenseVector
-import cats.effect.kernel.Async
 
-private[thylacine] abstract class ModelParameterRawMappings[F[_]: Async] {
-
+private[thylacine] trait ModelParameterRawMappings[F[_]] {
+  this: AsyncImplicits[F] =>
   protected def orderedParameterIdentifiersWithDimension: ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]]
 
   private[thylacine] final def rawVectorToModelParameterCollection(
       input: DenseVector[Double]
-  ): ResultOrErrF[F, ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     vectorValuesToModelParameterCollection(input.toArray.toVector)
 
   private[thylacine] final def vectorValuesToModelParameterCollection(
       input: Vector[Double]
-  ): ResultOrErrF[F, ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     orderedParameterIdentifiersWithDimension.map {
       _.foldLeft(
         (input, IndexedVectorCollection.empty)
@@ -49,7 +53,7 @@ private[thylacine] abstract class ModelParameterRawMappings[F[_]: Async] {
     }.map(_._2)
 
   private[thylacine] final def modelParameterCollectionToRawVector(
-      input: ModelParameterCollection
+      input: ModelParameterCollection[F]
   ): ResultOrErrF[F, DenseVector[Double]] =
     orderedParameterIdentifiersWithDimension.flatMap { op =>
       op.foldLeft(Vector[Vector[Double]]().toResultM) { (i, j) =>
@@ -61,7 +65,7 @@ private[thylacine] abstract class ModelParameterRawMappings[F[_]: Async] {
     }
 
   private[thylacine] final def modelParameterCollectionToVectorValues(
-      input: ModelParameterCollection
+      input: ModelParameterCollection[F]
   ): ResultOrErrF[F, Vector[Double]] =
     modelParameterCollectionToRawVector(input).map(_.toArray.toVector)
 }

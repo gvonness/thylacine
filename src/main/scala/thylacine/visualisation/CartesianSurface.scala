@@ -101,7 +101,7 @@ case class CartesianSurface[F[_]: STM: Async](
       chain <- Async[F].delay(
                  SimplexChain(
                    abcissa.zip(values).map(GraphPoint(_))
-                 ).reinterp(ds)
+                 ).linearInterpolationUsing(ds)
                )
       _ <- addSimplexChain(chain, kernelVariance)
     } yield ()

@@ -28,14 +28,13 @@ import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, Mod
 import thylacine.model.distributions.Distribution
 import thylacine.model.sampling.ModelParameterSampler
 
-import cats.effect.kernel.Async
-
-private[thylacine] abstract class Prior[F[_]: Async, +BM <: Distribution[F]]
-    extends ModelParameterPdf
+private[thylacine] trait Prior[F[_], +BM <: Distribution[F]]
+    extends ModelParameterPdf[F]
     with PosteriorTerm
-    with ModelParameterSampler
+    with ModelParameterSampler[F]
     with ModelParameterGenerator
     with CanValidate[Prior[F, _]] {
+  this: AsyncImplicits[F] =>
 
   protected def priorModel: BM
 
@@ -58,15 +57,13 @@ private[thylacine] abstract class Prior[F[_]: Async, +BM <: Distribution[F]]
 
   override final def logPdfGradientAt(
       input: IndexedVectorCollection[F]
-  ): ResultOrErrF[F, ModelParameterCollection] =
+  ): ResultOrErrF[F, ModelParameterCollection[F]] =
     for {
       vector  <- input.retrieveIndex(identifier)
       gradLog <- priorModel.logPdfGradientAt(vector)
       res     <- IndexedVectorCollection[F](identifier, gradLog).toResultM
     } yield res
 
-  override final def sampleModelParameters: ResultOrErrIo[ModelParameterCollection] =
-    for {
-      vectorResult <- rawSampleModelParameters
-    } yield IndexedVectorCollection(identifier, vectorResult)
+  override final def sampleModelParameters: ResultOrErrF[F, ModelParameterCollection[F]] =
+    rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))
 }

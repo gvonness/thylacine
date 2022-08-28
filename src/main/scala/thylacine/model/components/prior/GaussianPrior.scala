@@ -17,41 +17,44 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, _}
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.{MatrixContainer, VectorContainer}
+import thylacine.model.distributions.GaussianDistribution
 
-import ai.entrolution.thylacine.model.core.values.VectorContainer
-import ai.entrolution.thylacine.model.distributions.GaussianDistribution
 import breeze.stats.distributions.MultivariateGaussian
+import cats.effect.kernel.Async
 
-case class GaussianPrior(
+case class GaussianPrior[F[_]: Async](
     private[thylacine] override val identifier: ModelParameterIdentifier,
     private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
-) extends Prior[GaussianDistribution] {
+) extends AsyncImplicits[F]
+    with Prior[F, GaussianDistribution[F]] {
 
-  protected override lazy val priorModel: GaussianDistribution =
+  protected override lazy val priorModel: GaussianDistribution[F] =
     GaussianDistribution(priorData)
 
   private lazy val rawDistribution: MultivariateGaussian =
     priorModel.rawDistribution
 
-  private[thylacine] override lazy val getValidated: GaussianPrior =
+  private[thylacine] override lazy val getValidated: GaussianPrior[F] =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters: ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation(VectorContainer(rawDistribution.sample()))
+  protected override def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
+    VectorContainer(rawDistribution.sample()).toResultM
 }
 
 object GaussianPrior {
 
-  def ofConfidenceIntervals(
+  def ofConfidenceIntervals[F[_]: Async](
       label: String,
       values: Vector[Double],
       confidenceIntervals: Vector[Double]
-  ): GaussianPrior = {
+  ): GaussianPrior[F] = {
     assert(values.size == confidenceIntervals.size)
     GaussianPrior(
       identifier = ModelParameterIdentifier(label),
@@ -62,11 +65,11 @@ object GaussianPrior {
     )
   }
 
-  def ofCovariance(
+  def ofCovariance[F[_]: Async](
       label: String,
       values: Vector[Double],
       covarianceMatrix: Vector[Vector[Double]]
-  ): GaussianPrior = {
+  ): GaussianPrior[F] = {
     val covarianceContainer = MatrixContainer(covarianceMatrix)
     val valueContainer      = VectorContainer(values)
     assert(covarianceContainer.isSquare && valueContainer.dimension == covarianceContainer.rowTotalNumber)

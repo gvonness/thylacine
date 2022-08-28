@@ -24,10 +24,10 @@ import thylacine.model.core.computation.ResultOrErrF.Implicits._
 
 import cats.effect.kernel.Async
 
-private[thylacine] abstract class IndexedCollection[F[_]: Async, T <: Container] {
+private[thylacine] trait IndexedCollection[T <: Container] {
   private[thylacine] def index: Map[ModelParameterIdentifier, T]
 
-  private[thylacine] def retrieveIndex(identifier: ModelParameterIdentifier): ResultOrErrF[F, T] =
+  private[thylacine] def retrieveIndex[F[_]: Async](identifier: ModelParameterIdentifier): ResultOrErrF[F, T] =
     index
       .get(identifier)
       .map(Right(_))
@@ -40,6 +40,9 @@ private[thylacine] abstract class IndexedCollection[F[_]: Async, T <: Container]
       )
       .toResultM
 
-  private[thylacine] def getSortedValues: ResultOrErrF[F, List[T]] =
-    index.toList.sortBy(_._1).map(_._2).toResultM
+  private[thylacine] def getSortedValues[F[_]: Async]: ResultOrErrF[F, List[T]] =
+    index.toList
+      .sortBy(_._1)
+      .map(_._2)
+      .toResultM
 }

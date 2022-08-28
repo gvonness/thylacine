@@ -17,22 +17,25 @@
 package ai.entrolution
 package thylacine.model.optimization.hookeandjeeves
 
-import bengal.stm.STM
 import bengal.stm.model._
 import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
+import thylacine.model.core.StmImplicits
+import thylacine.model.core.computation.ResultOrErrF
+import thylacine.model.core.computation.ResultOrErrF.Implicits._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
 
+import cats.effect.implicits._
 import cats.effect.kernel.Async
-import cats.implicits._
+import cats.syntax.all._
 
 import scala.util.Random
 import scala.{Vector => ScalaVector}
 
-private[thylacine] abstract class HookeAndJeevesEngine[F[_] : STM : Async] extends ModelParameterOptimizer {
-
-  protected def posterior: Posterior[Prior[_], _]
+private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimizer[F] {
+  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
   protected def convergenceThreshold: Double
   protected def numberOfSamplesToSetScale: Int
 
@@ -40,14 +43,11 @@ private[thylacine] abstract class HookeAndJeevesEngine[F[_] : STM : Async] exten
   protected def newScaleCallback: Double => Unit
   protected def isConvergedCallback: Unit => Unit
 
-  private val currentBestF: F[TxnVar[F, (Double, ScalaVector[Double])]] =
-    TxnVar.of((0d, ScalaVector[Double]()))
+  protected val currentBest: TxnVar[F, (Double, ScalaVector[Double])]
 
-  private val currentScaleF: F[TxnVar[F, Double]] =
-    TxnVar.of(0d)
+  protected val currentScale: TxnVar[F, Double]
 
-  private val isConvergedF: F[TxnVar[F, Boolean]] =
-    TxnVar.of(false)
+  protected val isConverged: TxnVar[F, Boolean]
 
   private def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
     input.tail
@@ -60,56 +60,50 @@ private[thylacine] abstract class HookeAndJeevesEngine[F[_] : STM : Async] exten
       .max
 
   private def initialize(
-      numberOfPriorSamples: Int,
-      currentScale: TxnVar[F, Double],
-      currentBest: TxnVar[F, Double],
-      isConverged: TxnVar[F, Boolean]
+      numberOfPriorSamples: Int
   ): ResultOrErrF[F, Unit] =
     for {
-      samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ => posterior.samplePriors)
+      samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ => samplePriors)
       samplesRaw <-
-        samples.parTraverse(posterior.modelParameterCollectionToVectorValues)
+        samples.parTraverse(modelParameterCollectionToVectorValues)
       bestSample <-
         samples
           .zip(samplesRaw)
-          .parTraverse(s => posterior.logPdfAt(s._1).map(lpdf => (lpdf, s._2)))
+          .parTraverse(s => logPdfAt(s._1).map(lpdf => (lpdf, s._2)))
           .map(_.maxBy(_._1))
       maxDifference = findMaxDimensionalDifference(samplesRaw)
       _ <- (for {
-               _ <- currentScale.set(maxDifference)
-               _ <- currentBest.set(bestSample)
-               _ <- isConverged.set(false)
-             } yield ()).commit.
-
+             _ <- currentScale.set(maxDifference)
+             _ <- currentBest.set(bestSample)
+             _ <- isConverged.set(false)
+           } yield ()).commit.toResultM
     } yield ()
 
   private def nudgeAndEvaluate(
       index: Int,
       nudgeAmount: Double,
       input: ScalaVector[Double]
-  ): ResultOrErrIo[(Double, ScalaVector[Double])] =
+  ): ResultOrErrF[F, (Double, ScalaVector[Double])] =
     for {
-      splitVector <- ResultOrErrIo.fromCalculation(input.splitAt(index))
-      nudgedRawVector <- ResultOrErrIo.fromCalculation(
-                           splitVector._1 ++ Vector(
-                             splitVector._2.head + nudgeAmount
-                           ) ++ splitVector._2.tail
-                         )
+      splitVector <- input.splitAt(index).toResultM
+      nudgedRawVector <- (splitVector._1 ++ Vector(
+                           splitVector._2.head + nudgeAmount
+                         ) ++ splitVector._2.tail).toResultM
       nudgedVector <-
-        posterior.vectorValuesToModelParameterCollection(nudgedRawVector)
-      logPdf <- posterior.logPdfAt(nudgedVector)
+        vectorValuesToModelParameterCollection(nudgedRawVector)
+      logPdf <- logPdfAt(nudgedVector)
     } yield (logPdf, nudgedRawVector)
 
   private def dimensionScan(
       nudgeAmount: Double,
       startingPoint: ScalaVector[Double],
       startingLogPdf: Double
-  ): ResultOrErrIo[(Double, ScalaVector[Double])] = {
+  ): ResultOrErrF[F, (Double, ScalaVector[Double])] = {
     val nudges: List[Double] = List(-nudgeAmount, nudgeAmount)
 
     Random
       .shuffle(startingPoint.indices.toList)
-      .foldLeft(ResultOrErrIo.fromValue((startingLogPdf, startingPoint))) { (i, j) =>
+      .foldLeft((startingLogPdf, startingPoint).toResultM) { (i, j) =>
         for {
           prev    <- i
           results <- nudges.parTraverse(nudgeAndEvaluate(j, _, prev._2))
@@ -117,58 +111,55 @@ private[thylacine] abstract class HookeAndJeevesEngine[F[_] : STM : Async] exten
       }
   }
 
-  private def runDimensionalIteration: ResultOrErrIo[Unit] =
+  private def runDimensionalIteration: ResultOrErrF[F, Unit] =
     for {
-      scaleAndBest <- ResultOrErrIo.fromIo {
-                        (for {
-                          scale <- currentScale.get
-                          best  <- currentBest.get
-                        } yield (scale, best)).commit
-                      }
+      scaleAndBest <- (for {
+                        scale <- currentScale.get
+                        best  <- currentBest.get
+                      } yield (scale, best)).commit.toResultM
       scanResult <-
         dimensionScan(scaleAndBest._1, scaleAndBest._2._2, scaleAndBest._2._1)
-      _ <- ResultOrErrIo.fromIo {
-             if (scanResult._1 > scaleAndBest._2._1) {
-               currentBest.set(scanResult).commit >> IO(
-                 newMaximumCallback(scanResult._1)
-               )
-             } else if (scaleAndBest._1 > convergenceThreshold) {
-               (for {
-                 scale <- currentScale.get
-                 newScale = scale / 2
-                 _ <- currentScale.set(newScale)
-               } yield newScale).commit.map(newScaleCallback)
-             } else {
-               isConverged.set(true).commit >> IO(isConvergedCallback)
-             }
-           }
+      unwrappedResult = if (scanResult._1 > scaleAndBest._2._1) {
+                          currentBest.set(scanResult).commit >> Async[F].delay(
+                            newMaximumCallback(scanResult._1)
+                          )
+                        } else if (scaleAndBest._1 > convergenceThreshold) {
+                          (for {
+                            scale <- currentScale.get
+                            newScale = scale / 2
+                            _ <- currentScale.set(newScale)
+                          } yield newScale).commit.map(newScaleCallback)
+                        } else {
+                          isConverged.set(true).commit >> Async[F].delay(isConvergedCallback)
+                        }
+      _ <- unwrappedResult.toResultM
     } yield ()
 
-  private def optimisationRecursion: ResultOrErrIo[Unit] =
+  private def optimisationRecursion: ResultOrErrF[F, Unit] =
     runDimensionalIteration.flatMap { _ =>
       for {
-        converged <- ResultOrErrIo.fromIo(isConverged.get.commit)
-        _         <- if (!converged) optimisationRecursion else ResultOrErrIo.unit
+        converged <- isConverged.get.commit.toResultM
+        _         <- if (!converged) optimisationRecursion else ResultOrErrF.unit
       } yield ()
     }
 
   override protected def calculateMaximumLogPdf(
-      startPt: ModelParameterCollection
-  ): ResultOrErrIo[(Double, ModelParameterCollection)] =
+      startPt: ModelParameterCollection[F]
+  ): ResultOrErrF[F, (Double, ModelParameterCollection[F])] =
     for {
       _ <- initialize(numberOfSamplesToSetScale)
       _ <- if (startPt.index.isEmpty) {
-             ResultOrErrIo.unit
+             ResultOrErrF.unit
            } else {
              for {
-               pt     <- posterior.modelParameterCollectionToVectorValues(startPt)
-               logPdf <- posterior.logPdfAt(startPt)
-               _      <- ResultOrErrIo.fromIo(currentBest.set((logPdf, pt)).commit)
+               pt     <- modelParameterCollectionToVectorValues(startPt)
+               logPdf <- logPdfAt(startPt)
+               _      <- currentBest.set((logPdf, pt)).commit.toResultM
              } yield ()
            }
       _          <- optimisationRecursion
-      best       <- ResultOrErrIo.fromIo(currentBest.get.commit)
-      bestParams <- posterior.vectorValuesToModelParameterCollection(best._2)
+      best       <- currentBest.get.commit.toResultM
+      bestParams <- vectorValuesToModelParameterCollection(best._2)
     } yield (best._1, bestParams)
 
 }
