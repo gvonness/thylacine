@@ -17,29 +17,35 @@
 package ai.entrolution
 package thylacine.model.core.values.modelparameters
 
-import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 
 import breeze.linalg.DenseVector
 
-private[thylacine] trait ModelParameterRawMappings[F[_]] {
-  this: AsyncImplicits[F] =>
-  protected def orderedParameterIdentifiersWithDimension: ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]]
+private[thylacine] trait ModelParameterContext {
+  private[thylacine] def orderedParameterIdentifiersWithDimension: Vector[(ModelParameterIdentifier, Int)]
+
+  private[thylacine] final def zeroModelParameterCollection: ModelParameterCollection =
+    IndexedVectorCollection(
+      orderedParameterIdentifiersWithDimension.toMap.view
+        .mapValues(VectorContainer.zeros)
+        .toMap
+    )
+
+  final def zeroParameterMapping: Map[String, Vector[Double]] =
+    zeroModelParameterCollection.genericScalaRepresentation
 
   private[thylacine] final def rawVectorToModelParameterCollection(
       input: DenseVector[Double]
-  ): ResultOrErrF[F, ModelParameterCollection[F]] =
+  ): ModelParameterCollection =
     vectorValuesToModelParameterCollection(input.toArray.toVector)
 
   private[thylacine] final def vectorValuesToModelParameterCollection(
       input: Vector[Double]
-  ): ResultOrErrF[F, ModelParameterCollection[F]] =
-    orderedParameterIdentifiersWithDimension.map {
-      _.foldLeft(
+  ): ModelParameterCollection =
+    orderedParameterIdentifiersWithDimension
+      .foldLeft(
         (input, IndexedVectorCollection.empty)
       ) { (i, j) =>
         val (vector, remainder) = i._1.splitAt(j._2)
@@ -50,22 +56,22 @@ private[thylacine] trait ModelParameterRawMappings[F[_]] {
          )
         )
       }
-    }.map(_._2)
-
-  private[thylacine] final def modelParameterCollectionToRawVector(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, DenseVector[Double]] =
-    orderedParameterIdentifiersWithDimension.flatMap { op =>
-      op.foldLeft(Vector[Vector[Double]]().toResultM) { (i, j) =>
-        for {
-          current  <- i
-          toAppend <- input.retrieveIndex(j._1)
-        } yield toAppend.scalaVector +: current
-      }.map(i => DenseVector(i.reverse.reduce(_ ++ _).toArray))
-    }
+      ._2
 
   private[thylacine] final def modelParameterCollectionToVectorValues(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, Vector[Double]] =
-    modelParameterCollectionToRawVector(input).map(_.toArray.toVector)
+      input: ModelParameterCollection
+  ): Vector[Double] =
+    orderedParameterIdentifiersWithDimension
+      .foldLeft(Vector[Vector[Double]]()) { case (current, (identifier, _)) =>
+        input.retrieveIndex(identifier).scalaVector +: current
+      }
+      .reverse
+      .reduce(_ ++ _)
+
+  private[thylacine] final def modelParameterCollectionToRawVector(
+      input: ModelParameterCollection
+  ): DenseVector[Double] =
+    DenseVector {
+      modelParameterCollectionToVectorValues(input).toArray
+    }
 }

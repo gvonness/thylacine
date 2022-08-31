@@ -29,6 +29,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 import java.util.UUID
+import scala.annotation.unused
 
 // Gaussian linear likelihoods are one of the few likelihoods that can lead to an analytic posterior.
 // Thus, it gets a dedicated case class that is leveraged to do an analytic check in the posterior
@@ -39,7 +40,7 @@ case class GaussianLinearLikelihood[F[_]: Async](
     private[thylacine] override val forwardModel: LinearForwardModel[F],
     private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
-    with Likelihood[F, LinearForwardModel[F], GaussianDistribution[F]] {
+    with Likelihood[F, LinearForwardModel[F], GaussianDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
@@ -51,13 +52,14 @@ case class GaussianLinearLikelihood[F[_]: Async](
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: GaussianDistribution[F] =
+  private[thylacine] override lazy val observationModel: GaussianDistribution =
     GaussianDistribution(observations)
 
 }
 
 object GaussianLinearLikelihood {
 
+  @unused
   def of[F[_]: STM: Async](
       coefficients: Vector[Vector[Double]],
       measurements: Vector[Double],

@@ -33,7 +33,7 @@ case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
     private[thylacine] override val forwardModel: T,
     private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
-    with Likelihood[F, T, GaussianDistribution[F]] {
+    with Likelihood[F, T, GaussianDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
@@ -45,7 +45,7 @@ case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: GaussianDistribution[F] =
+  private[thylacine] override lazy val observationModel: GaussianDistribution =
     GaussianDistribution(observations)
 
 }

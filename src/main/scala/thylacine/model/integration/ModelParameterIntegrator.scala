@@ -1,29 +1,25 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package thylacine.model.integration
 
-import thylacine.model.core.AsyncImplicits
-import thylacine.model.core.computation.ResultOrErrF
-
-import cats.effect.kernel.Async
-import cats.syntax.all._
-
 private[thylacine] trait ModelParameterIntegrator[F[_]] {
-  this: AsyncImplicits[F] =>
-
-  protected def integrateOverModelParameters(
-      integrand: BigDecimal => BigDecimal
-  ): ResultOrErrF[F, BigDecimal]
 
   // BigDecimal is used as part of the public API, as these integrations
   // can cover a very large set of magnitudes
-  final def integrate(integrand: BigDecimal => BigDecimal): F[BigDecimal] =
-    for {
-      integrationRes <- integrateOverModelParameters(integrand).value
-      result <- integrationRes match {
-                  case Right(res) =>
-                    Async[F].pure(res)
-                  case Left(erratum) =>
-                    Async[F].raiseError(new RuntimeException(erratum.toString))
-                }
-    } yield result
+  def integrate(integrand: BigDecimal => BigDecimal): F[BigDecimal]
 }

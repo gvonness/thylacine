@@ -15,10 +15,12 @@
  */
 
 package ai.entrolution
-package thylacine.model.components.posterior
+package thylacine.config
 
-import thylacine.model.core.GenericIdentifier.TermIdentifier
-
-private[thylacine] trait PosteriorTerm {
-  private[thylacine] def posteriorTermIdentifier: TermIdentifier
-}
+case class MdsConfig(
+    convergenceThreshold: Double,
+    expansionMultiplier: Double,
+    contractionMultiplier: Double,
+    evaluationParallelism: Int,
+    numberOfPriorSamplesToSetStartingPoint: Option[Int]
+)

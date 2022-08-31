@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package thylacine.model.core.computation
 
@@ -5,41 +21,41 @@ import bengal.stm.STM
 import bengal.stm.model._
 import bengal.stm.syntax.all._
 import thylacine.model.core.computation.CachedComputation.{ComputationResult, getInMemoryKey}
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
+import scala.annotation.unused
+
 case class CachedComputation[F[_]: STM: Async, T](
-    computation: ModelParameterCollection[F] => ResultOrErrF[F, T],
+    computation: ModelParameterCollection => T,
     cacheDepth: Option[Int] = None
 )(scalarClock: TxnVar[F, Int], computationCache: TxnVarMap[F, Int, ComputationResult[T]])
     extends ComputationWrapper[F, T] {
 
-  private val getTime: ResultOrErrF[F, Int] =
-    scalarClock.get.commit.toResultM
+  private val getTime: F[Int] =
+    scalarClock.get.commit
 
-  private val tickAndGet: ResultOrErrF[F, Int] =
+  private val tickAndGet: F[Int] =
     (for {
       _           <- scalarClock.modify(_ + 1)
       innerResult <- scalarClock.get
-    } yield innerResult).commit.toResultM
+    } yield innerResult).commit
 
   private def retrieveKeyFromComputationStore(
       key: Int
-  ): ResultOrErrF[F, Option[T]] =
+  ): F[Option[T]] =
     computationCache
       .get(key)
       .map(_.map(_.result))
       .commit
-      .toResultM
 
   private def updateAccessTimeForKeyInComputationStore(
       key: Int,
       time: Int
-  ): ResultOrErrF[F, Unit] = {
+  ): F[Unit] = {
     def updateAccessTime(input: ComputationResult[T]): ComputationResult[T] =
       if (time > input.lastAccessed) {
         input.updateLastAccess(time)
@@ -52,14 +68,13 @@ case class CachedComputation[F[_]: STM: Async, T](
       .handleErrorWith(_ => STM[F].unit)
       .commit
       .start
-      .flatMap(_ => Async[F].unit)
-      .toResultM
+      .void
   }
 
   private def upsertResultIntoComputationStore(
       key: Int,
       newResult: ComputationResult[T]
-  ): ResultOrErrF[F, Unit] = {
+  ): F[Unit] = {
     def updateResult(input: ComputationResult[T]): ComputationResult[T] =
       if (newResult.lastAccessed > input.lastAccessed) {
         newResult
@@ -72,13 +87,12 @@ case class CachedComputation[F[_]: STM: Async, T](
       .handleErrorWith(_ => computationCache.set(key, newResult))
       .commit
       .start
-      .flatMap(_ => Async[F].unit)
-      .toResultM
+      .void
   }
 
   private def cleanComputationStore(
       computationCache: TxnVarMap[F, Int, ComputationResult[T]]
-  ): ResultOrErrF[F, Unit] =
+  ): F[Unit] =
     computationCache.modify { ec =>
       if (ec.size > cacheDepth.getOrElse(0)) {
         ec.toSeq
@@ -88,16 +102,14 @@ case class CachedComputation[F[_]: STM: Async, T](
       } else {
         ec
       }
-    }.commit.start
-      .flatMap(_ => Async[F].unit)
-      .toResultM
+    }.commit.start.void
 
   private def retrieveComputationFromStoreFor(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, Option[T]] =
+      input: ModelParameterCollection
+  ): F[Option[T]] =
     for {
       time <- tickAndGet
-      key  <- getInMemoryKey(input).toResultM
+      key  <- Async[F].delay(getInMemoryKey(input))
       ec   <- retrieveKeyFromComputationStore(key)
       _ <- ec match {
              case Some(_) =>
@@ -106,40 +118,43 @@ case class CachedComputation[F[_]: STM: Async, T](
                  time
                )
              case _ =>
-               ResultOrErrF.unit
+               Async[F].unit
            }
     } yield ec
 
-  private def updateComputationStoreWith(input: ModelParameterCollection[F], result: T): ResultOrErrF[F, Unit] =
+  private def updateComputationStoreWith(input: ModelParameterCollection, result: T): F[Unit] =
     for {
       time <- getTime
-      key  <- getInMemoryKey(input).toResultM
+      key  <- Async[F].delay(getInMemoryKey(input))
       _    <- upsertResultIntoComputationStore(key, ComputationResult(result, time))
       _    <- cleanComputationStore(computationCache)
     } yield ()
 
-  override private[stm] def performComputation(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, T] =
+  private[thylacine] override def performComputation(
+      input: ModelParameterCollection
+  ): F[T] =
     if (cacheDepth.exists(_ > 0)) {
       for {
         oCachedResult <- retrieveComputationFromStoreFor(input)
-        result <- oCachedResult.map(_.toResultM).getOrElse {
-                    for {
-                      innerResult <- computation(input)
-                      _           <- updateComputationStoreWith(input, innerResult).start
-                    } yield innerResult
-                  }
+        result <- oCachedResult
+                    .map(Async[F].pure)
+                    .getOrElse {
+                      for {
+                        innerResult <- Async[F].delay(computation(input))
+                        _           <- updateComputationStoreWith(input, innerResult).start
+                      } yield innerResult
+                    }
       } yield result
     } else {
-      computation(input)
+      Async[F].delay(computation(input))
     }
 }
 
 object CachedComputation {
 
+  @unused
   def of[F[_]: STM: Async, T](
-      computation: ModelParameterCollection[F] => ResultOrErrF[F, T],
+      computation: ModelParameterCollection => T,
       cacheDepth: Option[Int] = None
   ): F[CachedComputation[F, T]] =
     for {
@@ -153,7 +168,7 @@ object CachedComputation {
       computationCache = computationCache
     )
 
-  private[thylacine] def getInMemoryKey[F[_]: Async](input: ModelParameterCollection[F]): Int =
+  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
     input.hashCode()
 
   private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {

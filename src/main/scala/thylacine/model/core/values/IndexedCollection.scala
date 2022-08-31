@@ -18,31 +18,19 @@ package ai.entrolution
 package thylacine.model.core.values
 
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.computation.Erratum.UnexpectedErratum
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
-
-import cats.effect.kernel.Async
 
 private[thylacine] trait IndexedCollection[T <: Container] {
   private[thylacine] def index: Map[ModelParameterIdentifier, T]
 
-  private[thylacine] def retrieveIndex[F[_]: Async](identifier: ModelParameterIdentifier): ResultOrErrF[F, T] =
-    index
-      .get(identifier)
-      .map(Right(_))
-      .getOrElse(
-        Left(
-          UnexpectedErratum(
-            s"Identifier $identifier not found in indexed collection: $index"
-          )
-        )
-      )
-      .toResultM
+  private[thylacine] def retrieveIndex(identifier: ModelParameterIdentifier): T =
+    index.getOrElse(identifier,
+                    throw new RuntimeException(
+                      s"Identifier $identifier not found in indexed collection: $index"
+                    )
+    )
 
-  private[thylacine] def getSortedValues[F[_]: Async]: ResultOrErrF[F, List[T]] =
+  private[thylacine] def getSortedValues: List[T] =
     index.toList
       .sortBy(_._1)
       .map(_._2)
-      .toResultM
 }

@@ -19,42 +19,39 @@ package thylacine.model.core.computation
 
 import thylacine.model.core.values._
 
-import cats.effect.implicits._
-import cats.effect.kernel.Async
-import cats.syntax.all._
+import scala.annotation.unused
 
-private[thylacine] case class FiniteDifferenceJacobian[F[_]: Async](
-    private val evalAt: IndexedVectorCollection[F] => ResultOrErrF[F, VectorContainer],
+private[thylacine] case class FiniteDifferenceJacobian(
+    private val evalAt: IndexedVectorCollection => VectorContainer,
     differential: Double
 ) {
 
-  // Finite difference calculation for the Jacobian is relatively intensive when compared to simple evaluation of
-  // the forward model. This combined with giving the freedom to split inference parameters across any number of
-  // identifiers requires us to parallelize very aggressively
-  private[stm] final def finiteDifferencejacobianAt(
-      input: IndexedVectorCollection[F]
-  ): ResultOrErrF[F, IndexedMatrixCollection[F]] =
-    for {
-      currentEval <- evalAt(input)
-      result <- input
-                  .rawNudgeComponents(differential)
-                  .toList
-                  .parTraverse { kv =>
-                    (1 to kv._2.size)
-                      .zip(kv._2)
-                      .toList
-                      .parTraverse { indexAndNudge =>
-                        for {
-                          diffEval <- evalAt(indexAndNudge._2)
-                        } yield diffEval
-                          .rawSubtract(currentEval)
-                          .rawScalarProductWith(1 / differential)
-                          .values
-                          .map(k => (k._1, indexAndNudge._1) -> k._2)
-                      }
-                      .map(r => kv._1 -> MatrixContainer(r.reduce(_ ++ _), currentEval.dimension, kv._2.size))
-                  }
-                  .map(r => IndexedMatrixCollection(r.toMap))
-    } yield result
+  @unused
+  private[thylacine] def finiteDifferenceJacobianAt(
+      input: IndexedVectorCollection
+  ): IndexedMatrixCollection = {
+    val currentEvaluation = evalAt(input)
+    val newMatrixCollectionMapping =
+      input
+        .rawNudgeComponents(differential)
+        .toList
+        .map { case (identifier, nudges) =>
+          val gradientComponents = (1 to nudges.size)
+            .zip(nudges)
+            .toList
+            .map { case (index, nudge) =>
+              evalAt(nudge)
+                .rawSubtract(currentEvaluation)
+                .rawScalarProductWith(1 / differential)
+                .values
+                .map(k => (k._1, index) -> k._2)
+            }
+
+          identifier -> MatrixContainer(gradientComponents.reduce(_ ++ _), currentEvaluation.dimension, nudges.size)
+        }
+        .toMap
+
+    IndexedMatrixCollection(newMatrixCollectionMapping)
+  }
 
 }

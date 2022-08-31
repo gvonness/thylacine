@@ -17,36 +17,31 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.computation.Erratum.UnexpectedErratum
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.util.MathOps
 
-import cats.effect.kernel.Async
-import cats.implicits.toTraverseOps
 import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.util.Random
 
-private[thylacine] sealed trait SamplingSimulation[F[_]] {
-  private[thylacine] def getSample: ResultOrErrF[F, ModelParameterCollection[F]]
+private[thylacine] sealed trait SamplingSimulation {
+  private[thylacine] def getSample: ModelParameterCollection
   private[thylacine] def isConstructed: Boolean
 }
 
 private[thylacine] object SamplingSimulation {
 
-  private[thylacine] case class SamplingSimulationUnconstructed[F[_]: Async]() extends SamplingSimulation[F] {
+  private[thylacine] case object SamplingSimulationUnconstructed extends SamplingSimulation {
     private[thylacine] override final val isConstructed: Boolean = false
 
-    private[thylacine] override final def getSample: ResultOrErrF[F, ModelParameterCollection[F]] =
-      UnexpectedErratum("Sampling simulation not constructed yet!").toResultM
+    private[thylacine] override final def getSample: ModelParameterCollection =
+      throw new RuntimeException("Sampling simulation not constructed yet!")
   }
 
-  private[thylacine] case class SamplingSimulationConstructed[F[_]: Async](
-      logPdfResults: Vector[(Double, ModelParameterCollection[F])],
+  private[thylacine] case class SamplingSimulationConstructed(
+      logPdfResults: Vector[(Double, ModelParameterCollection)],
       abscissas: Vector[Vector[Double]]
-  ) extends SamplingSimulation[F] {
+  ) extends SamplingSimulation {
     private val numberOfResults   = logPdfResults.size
     private val numberOfAbscissas = abscissas.size
 
@@ -70,38 +65,38 @@ private[thylacine] object SamplingSimulation {
           }
         }
 
-    private val indexedModelParameters: Map[Int, ModelParameterCollection[F]] =
+    private val indexedModelParameters: Map[Int, ModelParameterCollection] =
       (1 to numberOfResults).zip(logPdfResults.map(_._2)).toMap
 
-    private val sampleStaircases: ResultOrErrF[F, Vector[Vector[(BigDecimal, BigDecimal)]]] =
-      samplingWeights.traverse(MathOps.cdfStaircase)
+    private val sampleStaircases: Vector[Vector[(BigDecimal, BigDecimal)]] =
+      samplingWeights.map(MathOps.cdfStaircase)
 
-    private val indexedStaircase: ResultOrErrF[F, Map[Int, Vector[((BigDecimal, BigDecimal), Int)]]] =
-      for {
-        cdfStaircases <- sampleStaircases
-      } yield (1 to numberOfAbscissas)
-        .zip(cdfStaircases.map(_.zip(1 to numberOfResults)))
+    private val indexedStaircase: Map[Int, Vector[((BigDecimal, BigDecimal), Int)]] =
+      (1 to numberOfAbscissas)
+        .zip(
+          sampleStaircases
+            .map(_.zip(1 to numberOfResults))
+        )
         .toMap
 
     private val random = Random
 
     private[thylacine] override final val isConstructed: Boolean = true
 
-    private[thylacine] override def getSample: ResultOrErrF[F, ModelParameterCollection[F]] =
-      indexedStaircase.flatMap {
-        _.get(random.nextInt(numberOfAbscissas) + 1).flatMap { scs =>
-          val continuousRandom = BigDecimal(Math.random().toString)
-          scs.find { sc =>
-            sc._1._1 <= continuousRandom && sc._1._2 > continuousRandom
-          }.map(_._2)
-        }
-          .flatMap(indexedModelParameters.get)
-          .map(_.toResultM)
-          .getOrElse(
-            UnexpectedErratum("Failed to generated simulated sample!").toResultM[F, ModelParameterCollection[F]]
-          )
-      }
+    private[thylacine] override def getSample: ModelParameterCollection = {
+      lazy val continuousRandom = BigDecimal(Math.random().toString)
+
+      indexedStaircase(random.nextInt(numberOfAbscissas) + 1).find {
+        case ((staircaseLower, staircaseUpper), _)
+            if staircaseLower <= continuousRandom && staircaseUpper > continuousRandom =>
+          true
+        case _ =>
+          false
+      }.map { case (_, index) =>
+        indexedModelParameters(index)
+      }.get
+    }
   }
 
-  private[thylacine] def empty[F[_]: Async]: SamplingSimulation[F] = SamplingSimulationUnconstructed[F]
+  private[thylacine] val empty: SamplingSimulation = SamplingSimulationUnconstructed
 }

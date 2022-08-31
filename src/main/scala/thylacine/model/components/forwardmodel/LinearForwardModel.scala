@@ -20,9 +20,9 @@ package thylacine.model.components.forwardmodel
 import bengal.stm.STM
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
-import thylacine.model.core.computation.{CachedComputation, ResultOrErrF}
+import thylacine.model.core.computation.CachedComputation
 import thylacine.model.core.values._
+import thylacine.model.core.values.modelparameters.ModelParameterContext
 
 import breeze.linalg.{DenseMatrix, DenseVector}
 import cats.effect.kernel.Async
@@ -34,8 +34,8 @@ import scala.annotation.unused
 // one model parameter generator
 case class LinearForwardModel[F[_]: STM: Async](
     override val evalCache: CachedComputation[F, VectorContainer],
-    override val jacobianCache: CachedComputation[F, IndexedMatrixCollection[F]],
-    transform: IndexedMatrixCollection[F],
+    override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+    transform: IndexedMatrixCollection,
     vectorOffset: Option[VectorContainer],
     override val domainDimension: Int,
     override val rangeDimension: Int,
@@ -62,19 +62,19 @@ case class LinearForwardModel[F[_]: STM: Async](
 
   // Convenience method, as the Jacobian for linear models is obviously
   // constant
-  private[thylacine] val getJacobian: ResultOrErrF[F, IndexedMatrixCollection[F]] =
-    transform.toResultM
+  private[thylacine] val getJacobian: IndexedMatrixCollection =
+    transform
 
-  override protected def jacobianAt(
-      input: IndexedVectorCollection[F]
-  ): ResultOrErrF[F, IndexedMatrixCollection[F]] =
-    getJacobian
+  private[thylacine] override def jacobianAt(
+      input: IndexedVectorCollection
+  ): F[IndexedMatrixCollection] =
+    Async[F].pure(getJacobian)
 }
 
 object LinearForwardModel {
 
   def of[F[_]: STM: Async](
-      transform: IndexedMatrixCollection[F],
+      transform: IndexedMatrixCollection,
       vectorOffset: Option[VectorContainer],
       evalCacheDepth: Option[Int]
   ): F[LinearForwardModel[F]] = {
@@ -84,64 +84,46 @@ object LinearForwardModel {
     val domainDimension: Int =
       transform.index.map(_._2.columnTotalNumber).sum
 
-    val orderedParameterIdentifiersWithDimension: ResultOrErrF[F, Vector[(ModelParameterIdentifier, Int)]] =
+    val orderedLabelsAndDimensions: Vector[(ModelParameterIdentifier, Int)] =
       transform.index
         .map(i => (i._1, i._2.columnTotalNumber))
         .toVector
         .sortBy(_._1.value)
-        .toResultM
 
-    val rawMatrixTransform: ResultOrErrF[F, DenseMatrix[Double]] =
-      for {
-        identifiersAndDimensions <- orderedParameterIdentifiersWithDimension
-        result <- identifiersAndDimensions
-                    .map(_._1)
-                    .foldLeft(
-                      MatrixContainer.zeros(rowDimension = rangeDimension, columnDimension = 0).toResultM
-                    ) { (i, j) =>
-                      for {
-                        prev            <- i
-                        matrixContainer <- transform.retrieveIndex(j)
-                      } yield prev.columnMergeWith(matrixContainer)
-                    }
-      } yield result.rawMatrix
+    val rawMatrixTransform: DenseMatrix[Double] =
+      orderedLabelsAndDimensions
+        .map(_._1)
+        .foldLeft(
+          MatrixContainer.zeros(rowDimension = rangeDimension, columnDimension = 0)
+        ) { case (matrixContainer, identifier) =>
+          matrixContainer.columnMergeWith(transform.retrieveIndex(identifier))
+        }
+        .rawMatrix
 
     def applyOffset(input: DenseVector[Double]): DenseVector[Double] =
       vectorOffset.map(_.rawVector + input).getOrElse(input)
 
-    def modelParameterCollectionToRawVector(value: IndexedVectorCollection[F]): ResultOrErrF[F, DenseVector[Double]] =
-      for {
-        identifiersAndDimensions <- orderedParameterIdentifiersWithDimension
-        result <- identifiersAndDimensions
-                    .map(_._1)
-                    .foldLeft(
-                      VectorContainer.zeros(domainDimension).toResultM
-                    ) { (i, j) =>
-                      for {
-                        prev            <- i
-                        vectorContainer <- value.retrieveIndex(j)
-                      } yield prev.rawConcatenateWith(vectorContainer)
-                    }
-      } yield result.rawVector
+    val rawMappings = new ModelParameterContext {
+      override private[thylacine] val orderedParameterIdentifiersWithDimension =
+        orderedLabelsAndDimensions
+    }
 
     def transformedEval(
-        input: IndexedVectorCollection[F]
-    ): ResultOrErrF[F, VectorContainer] =
-      for {
-        rawVector    <- modelParameterCollectionToRawVector(input)
-        rawTransform <- rawMatrixTransform
-      } yield VectorContainer(applyOffset(rawTransform * rawVector))
+        input: IndexedVectorCollection
+    ): VectorContainer =
+      VectorContainer(applyOffset(rawMatrixTransform * rawMappings.modelParameterCollectionToRawVector(input)))
 
-    def dummyMapping(@unused input: IndexedVectorCollection[F]): ResultOrErrF[F, IndexedMatrixCollection[F]] =
-      IndexedMatrixCollection(index = Map()).toResultM
+    def dummyMapping(@unused input: IndexedVectorCollection): IndexedMatrixCollection =
+      IndexedMatrixCollection(index = Map())
 
     for {
-      evalCache <- CachedComputation.of(transformedEval, evalCacheDepth)
+      evalCache <- CachedComputation.of[F, VectorContainer](transformedEval, evalCacheDepth)
       jacobianCache <-
-        CachedComputation.of(dummyMapping, None)
+        CachedComputation.of[F, IndexedMatrixCollection](dummyMapping, None)
     } yield LinearForwardModel[F](evalCache, jacobianCache, transform, vectorOffset, domainDimension, rangeDimension)
   }
 
+  @unused
   private[thylacine] def of[F[_]: STM: Async](
       identifier: ModelParameterIdentifier,
       values: Vector[Vector[Double]],
@@ -164,6 +146,7 @@ object LinearForwardModel {
       evalCacheDepth = evalCacheDepth
     )
 
+  @unused
   def identityOf[F[_]: STM: Async](
       label: String,
       dimension: Int,

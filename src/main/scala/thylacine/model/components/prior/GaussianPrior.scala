@@ -19,22 +19,22 @@ package thylacine.model.components.prior
 
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.{MatrixContainer, VectorContainer}
 import thylacine.model.distributions.GaussianDistribution
 
 import breeze.stats.distributions.MultivariateGaussian
 import cats.effect.kernel.Async
 
+import scala.annotation.unused
+
 case class GaussianPrior[F[_]: Async](
     private[thylacine] override val identifier: ModelParameterIdentifier,
     private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
-    with Prior[F, GaussianDistribution[F]] {
+    with Prior[F, GaussianDistribution] {
 
-  protected override lazy val priorModel: GaussianDistribution[F] =
+  protected override lazy val priorModel: GaussianDistribution =
     GaussianDistribution(priorData)
 
   private lazy val rawDistribution: MultivariateGaussian =
@@ -44,13 +44,13 @@ case class GaussianPrior[F[_]: Async](
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
-    VectorContainer(rawDistribution.sample()).toResultM
+  protected override def rawSampleModelParameters: F[VectorContainer] =
+    Async[F].delay(VectorContainer(rawDistribution.sample()))
 }
 
 object GaussianPrior {
 
-  def ofConfidenceIntervals[F[_]: Async](
+  def fromConfidenceIntervals[F[_]: Async](
       label: String,
       values: Vector[Double],
       confidenceIntervals: Vector[Double]
@@ -65,7 +65,8 @@ object GaussianPrior {
     )
   }
 
-  def ofCovariance[F[_]: Async](
+  @unused
+  def fromCovarianceMatrix[F[_]: Async](
       label: String,
       values: Vector[Double],
       covarianceMatrix: Vector[Vector[Double]]

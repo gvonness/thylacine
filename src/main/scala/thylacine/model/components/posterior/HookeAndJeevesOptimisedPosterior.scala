@@ -39,7 +39,7 @@ case class HookeAndJeevesOptimisedPosterior[F[_]: STM: Async](
     override protected val currentScale: TxnVar[F, Double],
     override protected val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
-    with UnnormalisedPosterior[F]
+    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HookeAndJeevesEngine[F] {
 
   override protected val convergenceThreshold: Double =
@@ -60,7 +60,7 @@ object HookeAndJeevesOptimisedPosterior {
       isConvergedCallback: Unit => Unit = _ => ()
   ): F[HookeAndJeevesOptimisedPosterior[F]] =
     for {
-      currentBest  <- TxnVar.of(0d, Vector[Double]())
+      currentBest  <- TxnVar.of((0d, Vector[Double]()))
       currentScale <- TxnVar.of(0d)
       isConverged  <- TxnVar.of(false)
     } yield HookeAndJeevesOptimisedPosterior(

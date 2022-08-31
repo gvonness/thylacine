@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package thylacine.model.components.likelihood
 
@@ -19,7 +35,7 @@ case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
     private[thylacine] override val forwardModel: T,
     private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
-    with Likelihood[F, T, UniformDistribution[F]] {
+    with Likelihood[F, T, UniformDistribution] {
   if (!validated) {
     assert(lowerBounds.dimension == upperBounds.dimension)
   }
@@ -35,7 +51,7 @@ case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
       )
     }
 
-  private[thylacine] override lazy val observationModel: UniformDistribution[F] =
+  private[thylacine] override lazy val observationModel: UniformDistribution =
     distributions.UniformDistribution(upperBounds = upperBounds, lowerBounds = lowerBounds)
 
 }

@@ -15,10 +15,6 @@
  */
 
 package ai.entrolution
-package thylacine.model.components.posterior
+package thylacine.model.optimization.mds
 
-import thylacine.model.core.GenericIdentifier.TermIdentifier
-
-private[thylacine] trait PosteriorTerm {
-  private[thylacine] def posteriorTermIdentifier: TermIdentifier
-}
+case class MdsTelemetryUpdate(simplexEdgeLength: Double, currentMax: Double)

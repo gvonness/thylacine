@@ -23,15 +23,12 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior._
 import thylacine.model.core._
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.VectorContainer
 import thylacine.model.integration.ModelParameterIntegrator
 import thylacine.model.integration.slq.SamplingSimulation._
 import thylacine.model.sampling.ModelParameterSampler
 
-import breeze.linalg.DenseVector
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -78,7 +75,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   protected def slqScalingIncrement: Double
   protected def slqNominalAcceptanceRatio: Double
   protected def slqSampleParallelism: Int
-  protected def seeds: Set[ModelParameterCollection[F]]
+  protected def seeds: Set[ModelParameterCollection]
 
   protected def slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit
   protected def domainRebuildStartCallback: Unit => Unit
@@ -90,13 +87,13 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
    * - - -- --- ----- -------- -------------
    */
 
-  protected val sampleDomain: TxnVar[F, PointInCubeCollection[F]]
+  protected val sampleDomain: TxnVar[F, PointInCubeCollection]
 
-  protected val samplePool: TxnVarMap[F, Double, ModelParameterCollection[F]]
+  protected val samplePool: TxnVarMap[F, Double, ModelParameterCollection]
 
   protected val samplePoolMinimumLogPdf: TxnVar[F, Double]
 
-  protected val logPdfResults: TxnVar[F, Vector[(Double, ModelParameterCollection[F])]]
+  protected val logPdfResults: TxnVar[F, Vector[(Double, ModelParameterCollection)]]
 
   protected val sampleDomainScalingState: TxnVar[F, QuadratureDomainTelemetry]
 
@@ -104,9 +101,9 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
 
   protected val abscissas: TxnVar[F, QuadratureAbscissaCollection]
 
-  protected val quadratureIntegrations: TxnVar[F, QuadratureIntegrator[F]]
+  protected val quadratureIntegrations: TxnVar[F, QuadratureIntegrator]
 
-  protected val samplingSimulation: TxnVar[F, SamplingSimulation[F]]
+  protected val samplingSimulation: TxnVar[F, SamplingSimulation]
 
   protected val isConverged: TxnVar[F, Boolean]
 
@@ -180,7 +177,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
            } else STM[F].unit
     } yield ()
 
-  private def drainSamplePool: F[Unit] =
+  private val drainSamplePool: F[Unit] =
     (for {
       samplePoolNonEmpty <- samplePool.get.map(_.nonEmpty)
       result <- if (samplePoolNonEmpty) {
@@ -193,7 +190,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
 
   private def updateStateWithSampleCalculation(
       logPdf: Double,
-      modelParameters: ModelParameterCollection[F]
+      modelParameters: ModelParameterCollection
   ): Txn[Boolean] =
     for {
       currentMinimum <- samplePoolMinimumLogPdf.get
@@ -208,25 +205,25 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                      }
     } yield outerResult
 
-  private lazy val sampleAndAnalyze: ResultOrErrF[F, Unit] =
+  private lazy val sampleAndAnalyze: F[Unit] =
     for {
-      domain                 <- sampleDomain.get.commit.toResultM
-      scalingFactorTelemetry <- sampleDomainScalingState.get.commit.toResultM
-      sampleContainer        <- domain.getSample(scalingFactorTelemetry.currentScaleFactor)
-      sample                 <- rawVectorToModelParameterCollection(sampleContainer.rawVector)
+      domain                 <- sampleDomain.get.commit
+      scalingFactorTelemetry <- sampleDomainScalingState.get.commit
+      sampleContainer        <- Async[F].delay(domain.getSample(scalingFactorTelemetry.currentScaleFactor))
+      sample                 <- Async[F].delay(rawVectorToModelParameterCollection(sampleContainer.rawVector))
       logPdf                 <- logPdfAt(sample)
-      result                 <- updateStateWithSampleCalculation(logPdf, sample).commit.toResultM
+      result                 <- updateStateWithSampleCalculation(logPdf, sample).commit
       _ <-
         if (
           result || (scalingFactorTelemetry.rejectionStreak > 0 && scalingFactorTelemetry.rejectionStreak % 100 == 0)
         ) {
           for {
-            _ <- if (result) setConverged() else ResultOrErrF.unit
+            _ <- if (result) setConverged else Async[F].unit
             telemetry <- (for {
                            samples      <- samplePool.get
                            integrations <- quadratureIntegrations.get
-                         } yield (samples, scalingFactorTelemetry, integrations)).commit.toResultM
-            negEntStats <- telemetry._3.negativeEntropyStats
+                         } yield (samples, scalingFactorTelemetry, integrations)).commit
+            negEntStats <- Async[F].delay(telemetry._3.negativeEntropyStats)
           } yield slqTelemetryUpdateCallback(
             SlqTelemetryUpdate(
               negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
@@ -240,24 +237,24 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
             )
           )
         } else {
-          ResultOrErrF.unit
+          Async[F].unit
         }
     } yield ()
 
-  private def sampleAndReplaceToken: ResultOrErrF[F, Unit] =
-    (for {
-      result <- sampleAndAnalyze.value
+  private val sampleAndReplaceToken: F[Unit] =
+    for {
+      result <- sampleAndAnalyze
       _      <- workTokenPool.modify(_ + 1).commit
-    } yield result).toResultM
+    } yield result
 
-  private def getWorkToken: Txn[Unit] =
+  private val getWorkToken: Txn[Unit] =
     for {
       tokenAmount <- workTokenPool.get
       _           <- STM[F].waitFor(tokenAmount > 0)
       _           <- workTokenPool.set(tokenAmount - 1)
     } yield ()
 
-  private def setConverged(): ResultOrErrF[F, Unit] = {
+  private val setConverged: F[Unit] = {
     def testConverged(
         iterationCount: Int,
         numberSamplePoints: Int,
@@ -276,25 +273,24 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                      iterationCount <- logPdfResults.get.map(_.size)
                      domainExhausted <-
                        sampleDomainScalingState.get.map(_.isConverged)
-                   } yield (quadratures, iterationCount, domainExhausted)).commit.toResultM
-      negEntStats <- telemetry._1.negativeEntropyStats
+                   } yield (quadratures, iterationCount, domainExhausted)).commit
+      negEntStats <- Async[F].delay(telemetry._1.negativeEntropyStats)
       _ <- isConverged
              .set(
                testConverged(telemetry._2, slqSamplePoolSize, negEntStats) || telemetry._3
              )
              .commit
-             .toResultM
     } yield ()
   }
 
-  private def initiateSampling: F[Boolean] =
+  private val initiateSampling: F[Boolean] =
     for {
       _                 <- getWorkToken.commit
-      _                 <- sampleAndReplaceToken.value.start
+      _                 <- sampleAndReplaceToken.start
       continueIteration <- isConverged.get.map(!_).commit
     } yield continueIteration
 
-  private def samplingRecursion: F[Unit] =
+  private val samplingRecursion: F[Unit] =
     initiateSampling.flatMap(continueIteration =>
       if (continueIteration) {
         samplingRecursion
@@ -317,25 +313,26 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
    * - - -- --- ----- -------- -------------
    */
 
-  private def getSamplesForDomainRebuild: ResultOrErrF[F, Boolean] =
+  private val getSamplesForDomainRebuild: F[Boolean] =
     (for {
       samplingDomainState <- sampleDomainScalingState.get
       converged           <- isConverged.get
       _                   <- STM[F].waitFor(samplingDomainState.initiateRebuild || converged)
-    } yield converged).commit.toResultM
+    } yield converged).commit
 
-  private def rebuildDomain: ResultOrErrF[F, Boolean] =
+  private val rebuildDomain: F[Boolean] =
     for {
       converged <- getSamplesForDomainRebuild
       continueIteration <- if (!converged) {
                              for {
-                               _       <- domainRebuildStartCallback.toResultM
-                               samples <- samplePool.get.commit.toResultM
-                               picCollection <-
-                                 getPointInCubeCollection(
-                                   samples.values.toVector,
-                                   modelParameterCollectionToRawVector
-                                 )
+                               _       <- Async[F].delay(domainRebuildStartCallback(())).start
+                               samples <- samplePool.get.commit
+                               picCollection <- Async[F].delay {
+                                                  getPointInCubeCollection(
+                                                    samples.values.toVector,
+                                                    modelParameterCollectionToVectorValues
+                                                  )
+                                                }
                                _ <- (for {
                                       _ <- sampleDomain.set(
                                              picCollection
@@ -345,20 +342,20 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                                           .modify(
                                             _.resetForRebuild
                                           )
-                                    } yield ()).commit.toResultM
-                               _                 <- setConverged()
-                               continueIteration <- isConverged.get.map(!_).commit.toResultM
-                               _                 <- domainRebuildFinishCallback.toResultM
+                                    } yield ()).commit
+                               _                 <- setConverged
+                               continueIteration <- isConverged.get.map(!_).commit
+                               _                 <- Async[F].delay(domainRebuildFinishCallback(())).start
                              } yield continueIteration
                            } else {
-                             false.toResultM
+                             Async[F].pure(false)
                            }
     } yield continueIteration
 
-  private def domainRebuildRecursion: F[Unit] =
-    rebuildDomain.value.flatMap {
-      case Right(false) => Async[F].unit
-      case _            => domainRebuildRecursion
+  private val domainRebuildRecursion: F[Unit] =
+    rebuildDomain.flatMap {
+      case continueProcessing if continueProcessing => domainRebuildRecursion
+      case _                                        => Async[F].unit
     }
 
   /*
@@ -367,7 +364,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
    * - - -- --- ----- -------- -------------
    */
 
-  private lazy val initialiseTvars: ResultOrErrF[F, Unit] =
+  private lazy val initialiseTvars: F[Unit] =
     (for {
       _ <- sampleDomainScalingState.set {
              QuadratureDomainTelemetry(
@@ -389,52 +386,49 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
       _ <- quadratureIntegrations.set(QuadratureIntegrator.empty)
       _ <- samplingSimulation.set(SamplingSimulation.empty)
       _ <- isConverged.set(false)
-    } yield ()).commit.toResultM
+    } yield ()).commit
 
-  private def analyseSeeds: ResultOrErrF[F, Map[Double, ModelParameterCollection[F]]] =
-    for {
-      result <- seeds.toVector.parTraverse { s =>
-                  logPdfAt(s).map(i => (i, s))
-                }
-    } yield result.toMap
+  private val analyseSeeds: F[Map[Double, ModelParameterCollection]] =
+    seeds.toVector.traverse { s =>
+      logPdfAt(s).map(i => (i, s))
+    }.map(_.toMap)
 
   private def getInitialSample(
       logPdfs: Set[Double]
-  ): ResultOrErrF[F, (Double, ModelParameterCollection[F])] =
+  ): F[(Double, ModelParameterCollection)] =
     (for {
       sample <- samplePriors
       logPdf <- logPdfAt(sample)
-    } yield (logPdf, sample)).flatMap { i =>
-      if (logPdfs.contains(i._1)) {
+    } yield (logPdf, sample)).flatMap { case result @ (logPdf, _) =>
+      if (logPdfs.contains(logPdf)) {
         getInitialSample(logPdfs)
       } else {
-        i.toResultM
+        Async[F].pure(result)
       }
     }
 
-  private def initialise: ResultOrErrF[F, Unit] =
+  private val initialise: F[Unit] =
     for {
-      _     <- initialiseTvars
-      seeds <- analyseSeeds
+      _ <- initialiseTvars
       logPdfPriorResults <-
-        (1 to Math.max(1, slqSamplePoolSize - seeds.size)).foldLeft(
-          seeds.toResultM
-        ) { (i, _) =>
+        (1 to Math.max(1, slqSamplePoolSize - seeds.size)).foldLeft(analyseSeeds) { case (previousF, _) =>
           for {
-            prev   <- i
-            result <- getInitialSample(prev.keySet)
-          } yield prev + result
+            previous  <- previousF
+            newSample <- getInitialSample(previous.keySet)
+          } yield previous + newSample
         }
-      picCollection <- getPointInCubeCollection(
-                         logPdfPriorResults.values.toVector,
-                         modelParameterCollectionToRawVector
+      picCollection <- Async[F].delay(
+                         getPointInCubeCollection(
+                           logPdfPriorResults.values.toVector,
+                           modelParameterCollectionToVectorValues
+                         )
                        )
       _ <- (for {
              _       <- sampleDomain.set(picCollection)
              _       <- samplePool.set(logPdfPriorResults)
              samples <- samplePool.get
              _       <- samplePoolMinimumLogPdf.set(samples.keySet.min)
-           } yield ()).commit.toResultM
+           } yield ()).commit
     } yield ()
 
   /*
@@ -443,70 +437,65 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
    * - - -- --- ----- -------- -------------
    */
 
-  private[thylacine] def buildSampleSimulation: ResultOrErrF[F, Unit] =
-    (for {
-      _ <- initialise.value
+  private[thylacine] val buildSampleSimulation: F[Unit] =
+    for {
+      _ <- initialise
       _ <- samplingRecursion.start
       _ <- domainRebuildRecursion.start
-    } yield ()).toResultM
+    } yield ()
 
-  private[thylacine] def waitForSimulationConstruction: ResultOrErrF[F, Unit] =
+  private[thylacine] val waitForSimulationConstruction: F[Unit] =
     (for {
       samplingSimulationRaw <- samplingSimulation.get
       _                     <- STM[F].waitFor(samplingSimulationRaw.isConstructed)
-    } yield ()).commit.toResultM
+    } yield ()).commit
 
   // Run assuming the sample simulation has completed. It is possible to
   // put a `waitForSimulationConstruction` in this call but it adds unnecessary
   // overhead on the transaction runtime
-  protected def getSimulatedSample: ResultOrErrF[F, ModelParameterCollection[F]] =
+  protected val getSimulatedSample: F[ModelParameterCollection] =
     for {
-      sampleSimulationRaw <- samplingSimulation.get.commit.toResultM
-      result              <- sampleSimulationRaw.getSample
+      sampleSimulationRaw <- samplingSimulation.get.commit
+      result              <- Async[F].delay(sampleSimulationRaw.getSample)
     } yield result
 
   // Assumes the quadratures have been fully constructed (see above comment).
   // We return the mean for the integrations, as SLQ produces inferences of these
   // integrations.
-  protected override final def integrateOverModelParameters(
+  override final def integrate(
       integrand: BigDecimal => BigDecimal
-  ): ResultOrErrF[F, BigDecimal] =
+  ): F[BigDecimal] =
     for {
-      quadratureRaw <- quadratureIntegrations.get.commit.toResultM
-      result        <- quadratureRaw.getIntegrationStats(integrand)
+      quadratureRaw <- quadratureIntegrations.get.commit
+      result        <- Async[F].delay(quadratureRaw.getIntegrationStats(integrand))
     } yield result.sum / result.size
 
-  override protected def sampleModelParameters: ResultOrErrF[F, ModelParameterCollection[F]] =
+  override protected val sampleModelParameters: F[ModelParameterCollection] =
     getSimulatedSample
 
-  override protected def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
+  override protected val rawSampleModelParameters: F[VectorContainer] =
     for {
       sample <- sampleModelParameters
-      result <- modelParameterCollectionToRawVector(sample)
+      result <- Async[F].delay(modelParameterCollectionToRawVector(sample))
     } yield VectorContainer(result)
 
 }
 
 private[thylacine] object SlqEngine {
 
-  private[thylacine] def getPointInCubeCollection[F[_]: Async](
-      inputs: Vector[ModelParameterCollection[F]],
-      toDenseVector: ModelParameterCollection[F] => ResultOrErrF[F, DenseVector[Double]]
-  ): ResultOrErrF[F, PointInCubeCollection[F]] = {
+  private[thylacine] def getPointInCubeCollection(
+      inputs: Vector[ModelParameterCollection],
+      toVector: ModelParameterCollection => Vector[Double]
+  ): PointInCubeCollection = {
     def getPointInCube(
-        input: ModelParameterCollection[F],
-        toDenseVector: ModelParameterCollection[F] => ResultOrErrF[F, DenseVector[Double]]
-    ): ResultOrErrF[F, PointInCube[F]] =
-      for {
-        rawDenseVector <- toDenseVector(input)
-      } yield PointInCube(
-        rawDenseVector.toArray.toVector.map(PointInInterval(_)),
+        input: ModelParameterCollection,
+        toVector: ModelParameterCollection => Vector[Double]
+    ): PointInCube =
+      PointInCube(
+        toVector(input).map(PointInInterval(_)),
         validated = true
       )
 
-    for {
-      pics   <- inputs.parTraverse(i => getPointInCube(i, toDenseVector))
-      result <- PointInCubeCollection(pics, validated = true).readyForSampling
-    } yield result
+    PointInCubeCollection(inputs.map(i => getPointInCube(i, toVector)), validated = true).readyForSampling
   }
 }

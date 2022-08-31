@@ -20,15 +20,13 @@ package thylacine.model.core.values
 import thylacine.model.core.CanValidate
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 
-import cats.effect.kernel.Async
-
-private[thylacine] case class IndexedMatrixCollection[F[_]: Async](
+private[thylacine] case class IndexedMatrixCollection(
     index: Map[ModelParameterIdentifier, MatrixContainer],
     validated: Boolean = false
 ) extends IndexedCollection[MatrixContainer]
-    with CanValidate[IndexedMatrixCollection[F]] {
+    with CanValidate[IndexedMatrixCollection] {
 
-  private[thylacine] override lazy val getValidated: IndexedMatrixCollection[F] =
+  private[thylacine] override lazy val getValidated: IndexedMatrixCollection =
     if (validated) {
       this
     } else {
@@ -42,32 +40,32 @@ private[thylacine] case class IndexedMatrixCollection[F[_]: Async](
     index.map(i => i._1.value -> i._2.genericScalaRepresentation)
 
   private[thylacine] def rawMergeWith(
-      other: IndexedMatrixCollection[F]
-  ): IndexedMatrixCollection[F] =
+      other: IndexedMatrixCollection
+  ): IndexedMatrixCollection =
     IndexedMatrixCollection(index ++ other.index).getValidated
 }
 
 private[thylacine] object IndexedMatrixCollection {
 
-  private[thylacine] def apply[F[_]: Async](
+  private[thylacine] def apply(
       identifier: ModelParameterIdentifier,
       values: Vector[Vector[Double]]
-  ): IndexedMatrixCollection[F] =
+  ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer(values))
     )
 
-  private[thylacine] def apply[F[_]: Async](
+  private[thylacine] def apply(
       labelledValues: Map[String, Vector[Vector[Double]]]
-  ): IndexedMatrixCollection[F] =
+  ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = labelledValues.map(lvs => ModelParameterIdentifier(lvs._1) -> MatrixContainer(lvs._2))
     )
 
-  private[thylacine] def squareIdentity[F[_]: Async](
+  private[thylacine] def squareIdentity(
       identifier: ModelParameterIdentifier,
       dimension: Int
-  ): IndexedMatrixCollection[F] =
+  ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer.squareIdentity(dimension))
     )

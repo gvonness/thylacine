@@ -17,8 +17,6 @@
 package ai.entrolution
 package thylacine.model.core.values.modelparameters
 
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values._
 import thylacine.model.core.{AsyncImplicits, GenericScalarValuedMapping}
@@ -29,25 +27,25 @@ private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapp
   this: AsyncImplicits[F] =>
 
   private[thylacine] def logPdfAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, Double]
+      input: ModelParameterCollection
+  ): F[Double]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, Double] =
+      input: ModelParameterCollection
+  ): F[Double] =
     logPdfAt(input).map(Math.exp)
 
   private[thylacine] def logPdfGradientAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, ModelParameterCollection[F]]
+      input: ModelParameterCollection
+  ): F[ModelParameterCollection]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfGradientAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, ModelParameterCollection[F]] =
+      input: ModelParameterCollection
+  ): F[ModelParameterCollection] =
     for {
       pdf      <- pdfAt(input)
       gradLogs <- logPdfGradientAt(input)
@@ -56,7 +54,7 @@ private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapp
     }.reduce(_ rawMergeWith _)
 
   final def logPdfAt(input: Map[String, Vector[Double]]): F[Double] =
-    logPdfAt(IndexedVectorCollection(input)).liftToF
+    logPdfAt(IndexedVectorCollection(input))
 
   final def pdfAt(input: Map[String, Vector[Double]]): F[Double] =
     logPdfAt(input).map(Math.exp)
@@ -66,12 +64,10 @@ private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapp
   ): F[Map[String, Vector[Double]]] =
     logPdfGradientAt(IndexedVectorCollection(input))
       .map(_.genericScalaRepresentation)
-      .liftToF
 
   final def pdfGradientAt(
       input: Map[String, Vector[Double]]
   ): F[Map[String, Vector[Double]]] =
     pdfGradientAt(IndexedVectorCollection(input))
       .map(_.genericScalaRepresentation)
-      .liftToF
 }

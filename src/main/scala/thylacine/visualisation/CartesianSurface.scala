@@ -20,13 +20,14 @@ package thylacine.visualisation
 import bengal.stm._
 import bengal.stm.model._
 import bengal.stm.syntax.all._
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.util.MathOps.trapezoidalQuadrature
 
 import cats.data.NonEmptyVector
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
+
+import scala.annotation.unused
 
 case class CartesianSurface[F[_]: STM: Async](
     xAbscissa: Vector[Double],
@@ -54,25 +55,22 @@ case class CartesianSurface[F[_]: STM: Async](
       groupMap = (values.groupBy(_._1.x).toVector match {
                    case h +: t =>
                      NonEmptyVector(h, t).parTraverse { col =>
-                       for {
-                         integration <- trapezoidalQuadrature(
-                                          yAbscissa,
-                                          col._2.values.toVector
-                                        )
-                         //integration <- ResultOrErrIo.fromCalculation(col._2.values.toVector.max)
-                       } yield
+                       Async[F].delay {
+                         trapezoidalQuadrature(
+                           yAbscissa,
+                           col._2.values.toVector
+                         )
+                       }.map { integration =>
                          if (integration > 0) {
                            col._2.view.mapValues(v => v / integration).toSeq
                          } else {
                            col._2.toSeq
                          }
-                     }.map(_.reduce).value
+                       }
+                     }.map(_.reduce)
                    case _ =>
-                     Seq[(GraphPoint, Double)]().toResultM.value
-                 }).flatMap {
-                   case Right(res)    => Async[F].delay(res.toMap)
-                   case Left(erratum) => Async[F].raiseError(new RuntimeException(erratum.message))
-                 }
+                     Async[F].pure(Seq[(GraphPoint, Double)]())
+                 }).map(_.toMap)
       _ <- scalarValues.setF(groupMap).handleErrorWith(STM[F].abort)
     } yield ()
   }
@@ -125,6 +123,7 @@ case class CartesianSurface[F[_]: STM: Async](
       case _ => Async[F].pure(Vector[(GraphPoint, Double)]())
     }
 
+  @unused
   def addSamples(
       abcissa: Vector[Double],
       samples: Vector[Vector[Double]],
@@ -145,6 +144,7 @@ case class CartesianSurface[F[_]: STM: Async](
         Async[F].unit
     }
 
+  @unused
   def getResults: F[Map[(Double, Double), Double]] =
     (for {
       _        <- normaliseColumns
@@ -154,6 +154,7 @@ case class CartesianSurface[F[_]: STM: Async](
 
 object CartesianSurface {
 
+  @unused
   def of[F[_]: STM: Async](
       xAbscissa: Vector[Double],
       yAbscissa: Vector[Double],

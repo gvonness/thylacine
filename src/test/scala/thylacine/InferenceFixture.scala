@@ -17,96 +17,134 @@
 package ai.entrolution
 package thylacine
 
-import thylacine.config.HookeAndJeevesConfig
-import thylacine.implicits.stm
+import bengal.stm.STM
+import thylacine.config.{HookeAndJeevesConfig, MdsConfig}
 import thylacine.model.components.likelihood.GaussianLinearLikelihood
-import thylacine.model.components.posterior.{GaussianAnalyticPosterior, HookeAndJeevesOptimisedPosterior, UnNormalisedPosterior}
+import thylacine.model.components.posterior.{
+  GaussianAnalyticPosterior,
+  HookeAndJeevesOptimisedPosterior,
+  MdsOptimisedPosterior,
+  UnnormalisedPosterior
+}
 import thylacine.model.components.prior.{GaussianPrior, UniformPrior}
 
-import cats.effect.unsafe.implicits.global
+import cats.effect.IO
 
-trait InferenceFixture {
+object InferenceFixture {
 
-  val fooPrior: GaussianPrior =
-    GaussianPrior.ofConfidenceIntervals(
+  val fooPrior: GaussianPrior[IO] =
+    GaussianPrior.fromConfidenceIntervals[IO](
       label = "foo",
       values = Vector(1, 2),
       confidenceIntervals = Vector(3, 5)
     )
 
-  val fooUniformPrior: UniformPrior =
-    UniformPrior(
+  val fooUniformPrior: UniformPrior[IO] =
+    UniformPrior.fromBounds[IO](
       label = "fooniform",
       maxBounds = Vector(5, 5),
       minBounds = Vector(-5, -5)
     )
 
-  val fooLikeliHood: GaussianLinearLikelihood = GaussianLinearLikelihood(
+  def fooLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
     coefficients = Vector(Vector(1, 3), Vector(2, 4)),
     measurements = Vector(7, 10),
     uncertainties = Vector(0.01, 0.01),
     prior = fooPrior,
-    maxResultsToCache = 0
+    evalCacheDepth = None
   )
 
-  val fooTwoLikeliHood: GaussianLinearLikelihood = GaussianLinearLikelihood(
+  def fooTwoLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
     coefficients = Vector(Vector(1, 3), Vector(2, 4)),
     measurements = Vector(7, 10),
     uncertainties = Vector(0.01, 0.01),
     prior = fooUniformPrior,
-    maxResultsToCache = 0
+    evalCacheDepth = None
   )
 
-  val barPrior: GaussianPrior =
-    GaussianPrior.ofConfidenceIntervals(
+  val barPrior: GaussianPrior[IO] =
+    GaussianPrior.fromConfidenceIntervals[IO](
       label = "bar",
       values = Vector(5),
       confidenceIntervals = Vector(.1)
     )
 
-  val barUniformPrior: UniformPrior =
-    UniformPrior(
+  val barUniformPrior: UniformPrior[IO] =
+    UniformPrior.fromBounds[IO](
       label = "barniform",
       maxBounds = Vector(10),
       minBounds = Vector(-10)
     )
 
-  val barLikeliHood: GaussianLinearLikelihood = GaussianLinearLikelihood(
+  def barLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
     coefficients = Vector(Vector(3), Vector(4)),
     measurements = Vector(15, 20),
     uncertainties = Vector(0.00001, 0.00001),
     prior = barPrior,
-    maxResultsToCache = 0
+    evalCacheDepth = None
   )
 
-  val barTwoLikeliHood: GaussianLinearLikelihood = GaussianLinearLikelihood(
+  def barTwoLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
     coefficients = Vector(Vector(3), Vector(4)),
     measurements = Vector(15, 20),
     uncertainties = Vector(0.00001, 0.00001),
     prior = barUniformPrior,
-    maxResultsToCache = 0
+    evalCacheDepth = None
   )
 
-  val analyticPosterior: GaussianAnalyticPosterior = GaussianAnalyticPosterior(
-    priors = Set(fooPrior, barPrior),
-    likelihoods = Set(fooLikeliHood, barLikeliHood)
-  )
+  def analyticPosteriorF(implicit stm: STM[IO]): IO[GaussianAnalyticPosterior[IO]] =
+    for {
+      fooLikeliHood <- fooLikeliHoodF
+      barLikeliHood <- barLikeliHoodF
+      posterior <- IO {
+                     GaussianAnalyticPosterior[IO](
+                       priors = Set(fooPrior, barPrior),
+                       likelihoods = Set(fooLikeliHood, barLikeliHood)
+                     )
+                   }
+      _ <- posterior.init
+    } yield posterior
 
-  analyticPosterior.init().unsafeRunSync()
-
-  val unNormalisedPosterior: UnNormalisedPosterior = UnNormalisedPosterior(
-    priors = Set(fooUniformPrior, barUniformPrior),
-    likelihoods = Set(fooTwoLikeliHood, barTwoLikeliHood)
-  )
+  def unnormalisedPosteriorF(implicit stm: STM[IO]): IO[UnnormalisedPosterior[IO]] =
+    for {
+      fooTwoLikeliHood <- fooTwoLikeliHoodF
+      barTwoLikeliHood <- barTwoLikeliHoodF
+      posterior <- IO {
+                     UnnormalisedPosterior[IO](
+                       priors = Set(fooUniformPrior, barUniformPrior),
+                       likelihoods = Set(fooTwoLikeliHood, barTwoLikeliHood)
+                     )
+                   }
+    } yield posterior
 
   val hookesAndJeevesConfig: HookeAndJeevesConfig = HookeAndJeevesConfig(
     convergenceThreshold = 1e-7,
     numberOfPriorSamplesToSetScale = Some(100)
   )
 
-  val posteriorOptimiser: HookeAndJeevesOptimisedPosterior =
-    HookeAndJeevesOptimisedPosterior(
-      hookeAndJeevesConfig = hookesAndJeevesConfig,
-      posterior = unNormalisedPosterior
-    )
+  def hookeAndJeevesOptimisedPosteriorF(implicit stm: STM[IO]): IO[HookeAndJeevesOptimisedPosterior[IO]] =
+    for {
+      unnormalisedPosterior <- unnormalisedPosteriorF
+      posterior <- HookeAndJeevesOptimisedPosterior.of[IO](
+                     hookeAndJeevesConfig = hookesAndJeevesConfig,
+                     posterior = unnormalisedPosterior
+                   )
+    } yield posterior
+
+  val mdsConfig: MdsConfig = MdsConfig(
+    convergenceThreshold = 1e-20,
+    expansionMultiplier = 2.0,
+    contractionMultiplier = .5,
+    evaluationParallelism = 2,
+    numberOfPriorSamplesToSetStartingPoint = Some(100)
+  )
+
+  def mdsOptimisedPosteriorF(implicit stm: STM[IO]): IO[MdsOptimisedPosterior[IO]] =
+    for {
+      unnormalisedPosterior <- unnormalisedPosteriorF
+      posterior <- MdsOptimisedPosterior.of[IO](
+                     mdsConfig = mdsConfig,
+                     posterior = unnormalisedPosterior
+                   )
+    } yield posterior
 }

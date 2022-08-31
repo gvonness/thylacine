@@ -17,26 +17,21 @@
 package ai.entrolution
 package thylacine.model.distributions
 
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.{MatrixContainer, VectorContainer}
 import thylacine.model.core.{CanValidate, RecordedData}
 
 import breeze.linalg._
 import breeze.stats.distributions._
-import cats.effect.kernel.Async
-import cats.effect.syntax.all._
-import cats.syntax.all._
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.commons.math3.special.Gamma.gamma
 import org.apache.commons.math3.util.FastMath
 
-private[thylacine] case class CauchyDistribution[F[_]: Async](
+private[thylacine] case class CauchyDistribution(
     mean: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
-) extends Distribution[F]
-    with CanValidate[CauchyDistribution[F]] {
+) extends Distribution
+    with CanValidate[CauchyDistribution] {
   if (!validated) {
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
     assert(covariance.rowTotalNumber == mean.dimension)
@@ -46,7 +41,7 @@ private[thylacine] case class CauchyDistribution[F[_]: Async](
     new ThreadLocalRandomGenerator(new MersenneTwister(this.hashCode()))
   )
 
-  private[thylacine] override lazy val getValidated: CauchyDistribution[F] =
+  private[thylacine] override lazy val getValidated: CauchyDistribution =
     if (validated) {
       this
     } else {
@@ -66,28 +61,24 @@ private[thylacine] case class CauchyDistribution[F[_]: Async](
 
   private[thylacine] override def logPdfAt(
       input: VectorContainer
-  ): ResultOrErrF[F, Double] =
-    (for {
-      diffVec <- Async[F].delay(input.rawVector - mean.rawVector)
-      result <- Async[F].delay(
-                  Math.pow(1 + diffVec.t * rawInverseCovariance * diffVec, (1.0 + domainDimension) / 2.0)
-                )
-    } yield multiplier * result).toResultM
+  ): Double = {
+    val differentialFromMean = input.rawVector - mean.rawVector
+
+    multiplier * Math.pow(1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean,
+                          (1.0 + domainDimension) / 2.0
+    )
+  }
 
   private[thylacine] override def logPdfGradientAt(
       input: VectorContainer
-  ): ResultOrErrF[F, VectorContainer] =
-    (for {
-      diffVec <- Async[F].delay(input.rawVector - mean.rawVector)
-      multiplierFib <- Async[F].delay {
-                         -(1 + domainDimension) * (1 + diffVec.t * rawInverseCovariance * diffVec)
-                       }.start
-      vecFib           <- Async[F].delay(rawInverseCovariance * diffVec).start
-      multiplierResult <- multiplierFib.joinWithNever
-      vecResult        <- vecFib.joinWithNever
-    } yield VectorContainer(
-      multiplierResult * vecResult
-    )).toResultM
+  ): VectorContainer = {
+    val differentialFromMean = input.rawVector - mean.rawVector
+    val multiplierResult =
+      -(1 + domainDimension) * (1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean)
+    val vectorResult = rawInverseCovariance * differentialFromMean
+
+    VectorContainer(multiplierResult * vectorResult)
+  }
 
   private lazy val chiSquared = ChiSquared(1)
 
@@ -101,7 +92,7 @@ private[thylacine] case class CauchyDistribution[F[_]: Async](
 
 private[thylacine] object CauchyDistribution {
 
-  private[thylacine] def apply[F[_]: Async](input: RecordedData): CauchyDistribution[F] = {
+  private[thylacine] def apply(input: RecordedData): CauchyDistribution = {
     val validatedData = input.getValidated
 
     CauchyDistribution(

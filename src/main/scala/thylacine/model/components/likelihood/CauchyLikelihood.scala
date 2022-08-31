@@ -33,7 +33,7 @@ case class CauchyLikelihood[F[_]: Async](
     private[thylacine] override val forwardModel: ForwardModel[F],
     private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
-    with Likelihood[F, ForwardModel[F], CauchyDistribution[F]] {
+    with Likelihood[F, ForwardModel[F], CauchyDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
@@ -45,7 +45,7 @@ case class CauchyLikelihood[F[_]: Async](
       this.copy(observations = observations.getValidated, forwardModel = forwardModel.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: CauchyDistribution[F] =
+  private[thylacine] override lazy val observationModel: CauchyDistribution =
     CauchyDistribution(observations)
 
 }

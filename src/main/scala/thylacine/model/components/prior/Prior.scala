@@ -20,15 +20,16 @@ package thylacine.model.components.prior
 import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
 import thylacine.model.distributions.Distribution
 import thylacine.model.sampling.ModelParameterSampler
 
-private[thylacine] trait Prior[F[_], +BM <: Distribution[F]]
+import cats.effect.kernel.Async
+import cats.syntax.all._
+
+private[thylacine] trait Prior[F[_], +D <: Distribution]
     extends ModelParameterPdf[F]
     with PosteriorTerm
     with ModelParameterSampler[F]
@@ -36,7 +37,7 @@ private[thylacine] trait Prior[F[_], +BM <: Distribution[F]]
     with CanValidate[Prior[F, _]] {
   this: AsyncImplicits[F] =>
 
-  protected def priorModel: BM
+  protected def priorModel: D
 
   final val label: String = identifier.value
 
@@ -48,22 +49,20 @@ private[thylacine] trait Prior[F[_], +BM <: Distribution[F]]
   override final val generatorDimension: Int = priorModel.domainDimension
 
   override final def logPdfAt(
-      input: IndexedVectorCollection[F]
-  ): ResultOrErrF[F, Double] =
-    for {
-      vector <- input.retrieveIndex(identifier)
-      res    <- priorModel.logPdfAt(vector)
-    } yield res
+      input: IndexedVectorCollection
+  ): F[Double] =
+    Async[F].delay(priorModel.logPdfAt(input.retrieveIndex(identifier)))
 
   override final def logPdfGradientAt(
-      input: IndexedVectorCollection[F]
-  ): ResultOrErrF[F, ModelParameterCollection[F]] =
-    for {
-      vector  <- input.retrieveIndex(identifier)
-      gradLog <- priorModel.logPdfGradientAt(vector)
-      res     <- IndexedVectorCollection[F](identifier, gradLog).toResultM
-    } yield res
+      input: IndexedVectorCollection
+  ): F[ModelParameterCollection] =
+    Async[F].delay {
+      IndexedVectorCollection(identifier,
+                              priorModel
+                                .logPdfGradientAt(input.retrieveIndex(identifier))
+      )
+    }
 
-  override final def sampleModelParameters: ResultOrErrF[F, ModelParameterCollection[F]] =
+  override final def sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))
 }

@@ -19,8 +19,6 @@ package thylacine.model.components.prior
 
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.VectorContainer
 import thylacine.model.distributions.CauchyDistribution
 
@@ -31,17 +29,17 @@ case class CauchyPrior[F[_]: Async](
     private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
-    with Prior[F, CauchyDistribution[F]] {
+    with Prior[F, CauchyDistribution] {
 
-  protected override lazy val priorModel: CauchyDistribution[F] =
+  protected override lazy val priorModel: CauchyDistribution =
     CauchyDistribution(priorData)
 
   private[thylacine] override lazy val getValidated: CauchyPrior[F] =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters: ResultOrErrF[F, VectorContainer] =
-    priorModel.getRawSample.toResultM
+  protected override def rawSampleModelParameters: F[VectorContainer] =
+    Async[F].delay(priorModel.getRawSample)
 }
 
 object CauchyPrior {

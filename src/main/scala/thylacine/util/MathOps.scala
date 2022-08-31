@@ -17,27 +17,21 @@
 package ai.entrolution
 package thylacine.util
 
-import thylacine.model.core.computation.Erratum.UnexpectedErratum
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
-
-import cats.effect.kernel.Async
-
 private[thylacine] object MathOps {
 
-  private[thylacine] def trapezoidalQuadrature[F[_]: Async](
+  private[thylacine] def trapezoidalQuadrature(
       abscissa: Vector[Double],
       values: Vector[Double]
-  ): ResultOrErrF[F, Double] =
+  ): Double =
     if (abscissa.size == values.size && abscissa.size > 1) {
       trapezoidalQuadrature(abscissa.zip(values))
     } else {
-      UnexpectedErratum("Malformed abscissa for trapezoidal quadrature").toResultM
+      throw new RuntimeException("Malformed abscissa for trapezoidal quadrature")
     }
 
-  private[thylacine] def trapezoidalQuadrature[F[_]: Async](
+  private[thylacine] def trapezoidalQuadrature(
       graphPoints: Vector[(Double, Double)]
-  ): ResultOrErrF[F, Double] =
+  ): Double =
     if (
       graphPoints.size > 1 && graphPoints
         .map(_._1)
@@ -52,30 +46,30 @@ private[thylacine] object MathOps {
           0.5 * (graphPointPair._1._2 + graphPointPair._2._2) * (graphPointPair._2._1 - graphPointPair._1._1)
         }
         .sum
-        .toResultM
     } else {
-      UnexpectedErratum("Malformed abscissa for trapezoidal quadrature").toResultM
+      throw new RuntimeException("Malformed abscissa for trapezoidal quadrature")
     }
 
   // Creates a discretised CDF that facilitates sampling over a
   // discrete set of outcomes via uniform sampling on [0, 1)
-  private[thylacine] def cdfStaircase[F[_]: Async](
+  private[thylacine] def cdfStaircase(
       values: Vector[BigDecimal]
-  ): ResultOrErrF[F, Vector[(BigDecimal, BigDecimal)]] =
-    for {
-      cdfReversed <- values
-                       .foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
-                         (i.head + j) +: i
-                       }
-                       .toResultM
-      normalisedCdf <- cdfReversed
-                         .map(_ / cdfReversed.head)
-                         .reverse
-                         .toResultM
-      result <- normalisedCdf
-                  .dropRight(1)
-                  .zip(normalisedCdf.tail)
-                  .toResultM
-    } yield result
+  ): Vector[(BigDecimal, BigDecimal)] = {
+    val cdfReversed = values
+      .foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
+        (i.head + j) +: i
+      }
+
+    val normalisedCdf = cdfReversed
+      .map(_ / cdfReversed.head)
+      .reverse
+
+    normalisedCdf
+      .dropRight(1)
+      .zip(normalisedCdf.tail)
+  }
+
+  private[thylacine] def modifyVectorIndex(input: Vector[Double])(index: Int, f: Double => Double): Vector[Double] =
+    input.updated(index, f(input(index)))
 
 }

@@ -17,22 +17,19 @@
 package ai.entrolution
 package thylacine.model.distributions
 
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.{MatrixContainer, VectorContainer}
 import thylacine.model.core.{CanValidate, RecordedData}
 
 import breeze.linalg._
 import breeze.stats.distributions._
-import cats.effect.kernel.Async
 import org.apache.commons.math3.random.MersenneTwister
 
-private[thylacine] case class GaussianDistribution[F[_]: Async](
+private[thylacine] case class GaussianDistribution(
     mean: VectorContainer,
     covariance: MatrixContainer,
     validated: Boolean = false
-) extends Distribution[F]
-    with CanValidate[GaussianDistribution[F]] {
+) extends Distribution
+    with CanValidate[GaussianDistribution] {
   if (!validated) {
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
     assert(covariance.rowTotalNumber == mean.dimension)
@@ -42,7 +39,7 @@ private[thylacine] case class GaussianDistribution[F[_]: Async](
     new ThreadLocalRandomGenerator(new MersenneTwister(this.hashCode()))
   )
 
-  private[thylacine] override lazy val getValidated: GaussianDistribution[F] =
+  private[thylacine] override lazy val getValidated: GaussianDistribution =
     if (validated) {
       this
     } else {
@@ -60,21 +57,21 @@ private[thylacine] case class GaussianDistribution[F[_]: Async](
 
   private[thylacine] override def logPdfAt(
       input: VectorContainer
-  ): ResultOrErrF[F, Double] =
-    rawDistribution.logPdf(input.rawVector).toResultM
+  ): Double =
+    rawDistribution.logPdf(input.rawVector)
 
   private[thylacine] override def logPdfGradientAt(
       input: VectorContainer
-  ): ResultOrErrF[F, VectorContainer] =
+  ): VectorContainer =
     VectorContainer(
       rawInverseCovariance * (mean.rawVector - input.rawVector)
-    ).toResultM
+    )
 
 }
 
 private[thylacine] object GaussianDistribution {
 
-  private[thylacine] def apply[F[_]: Async](input: RecordedData): GaussianDistribution[F] = {
+  private[thylacine] def apply(input: RecordedData): GaussianDistribution = {
     val validatedData = input.getValidated
 
     GaussianDistribution(

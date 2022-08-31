@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.forwardmodel
 
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.computation.{CachedComputation, ResultOrErrF}
+import thylacine.model.core.computation.CachedComputation
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.{IndexedMatrixCollection, VectorContainer}
 
@@ -26,15 +26,15 @@ private[thylacine] trait InMemoryMemoizedForwardModel[F[_]] extends ForwardModel
   this: StmImplicits[F] =>
 
   protected val evalCache: CachedComputation[F, VectorContainer]
-  protected val jacobianCache: CachedComputation[F, IndexedMatrixCollection[F]]
+  protected val jacobianCache: CachedComputation[F, IndexedMatrixCollection]
 
   private[thylacine] override final def evalAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, VectorContainer] =
+      input: ModelParameterCollection
+  ): F[VectorContainer] =
     evalCache.performComputation(input)
 
   private[thylacine] override def jacobianAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, IndexedMatrixCollection[F]] =
+      input: ModelParameterCollection
+  ): F[IndexedMatrixCollection] =
     jacobianCache.performComputation(input)
 }

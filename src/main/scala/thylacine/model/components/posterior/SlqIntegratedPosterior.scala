@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020-2022 Greg von Nessi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ai.entrolution
 package thylacine.model.components.posterior
 
@@ -7,33 +23,34 @@ import thylacine.config.SlqConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.integration.slq._
 
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
+import scala.annotation.unused
+
 case class SlqIntegratedPosterior[F[_]: STM: Async](
     slqConfig: SlqConfig,
     slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit = _ => (),
     domainRebuildStartCallback: Unit => Unit = _ => (),
     domainRebuildFinishCallback: Unit => Unit = _ => (),
-    seeds: Set[ModelParameterCollection[F]],
+    seeds: Set[ModelParameterCollection],
     override val priors: Set[Prior[F, _]],
     override val likelihoods: Set[Likelihood[F, _, _]],
-    override protected val sampleDomain: TxnVar[F, PointInCubeCollection[F]],
-    override protected val samplePool: TxnVarMap[F, Double, ModelParameterCollection[F]],
+    override protected val sampleDomain: TxnVar[F, PointInCubeCollection],
+    override protected val samplePool: TxnVarMap[F, Double, ModelParameterCollection],
     override protected val samplePoolMinimumLogPdf: TxnVar[F, Double],
-    override protected val logPdfResults: TxnVar[F, Vector[(Double, ModelParameterCollection[F])]],
+    override protected val logPdfResults: TxnVar[F, Vector[(Double, ModelParameterCollection)]],
     override protected val sampleDomainScalingState: TxnVar[F, QuadratureDomainTelemetry],
     override protected val workTokenPool: TxnVar[F, Int],
     override protected val abscissas: TxnVar[F, QuadratureAbscissaCollection],
-    override protected val quadratureIntegrations: TxnVar[F, QuadratureIntegrator[F]],
-    override protected val samplingSimulation: TxnVar[F, SamplingSimulation[F]],
+    override protected val quadratureIntegrations: TxnVar[F, QuadratureIntegrator],
+    override protected val samplingSimulation: TxnVar[F, SamplingSimulation],
     override protected val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
-    with UnnormalisedPosterior[F]
+  with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with SlqEngine[F] {
   override protected final val slqSamplePoolSize: Int = slqConfig.poolSize
 
@@ -49,11 +66,12 @@ case class SlqIntegratedPosterior[F[_]: STM: Async](
   override protected final val slqSampleParallelism: Int =
     slqConfig.sampleParallelism
 
+  @unused
   def rebuildSampleSimulation: F[Unit] =
-    (for {
+    for {
       _ <- buildSampleSimulation
       _ <- waitForSimulationConstruction
-    } yield ()).liftToF
+    } yield ()
 }
 
 object SlqIntegratedPosterior {
@@ -64,13 +82,13 @@ object SlqIntegratedPosterior {
       slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit = _ => (),
       domainRebuildStartCallback: Unit => Unit = _ => (),
       domainRebuildFinishCallback: Unit => Unit = _ => (),
-      seedsSpec: F[Set[ModelParameterCollection[F]]]
+      seedsSpec: F[Set[ModelParameterCollection]]
   ): F[SlqIntegratedPosterior[F]] =
     for {
       sampleDomain             <- TxnVar.of(PointInCubeCollection.empty)
-      samplePool               <- TxnVarMap.of(Map[Double, ModelParameterCollection[F]]())
+      samplePool               <- TxnVarMap.of(Map[Double, ModelParameterCollection]())
       samplePoolMinimumLogPdf  <- TxnVar.of(-Double.MaxValue)
-      logPdfResults            <- TxnVar.of(Vector[(Double, ModelParameterCollection[F])]())
+      logPdfResults            <- TxnVar.of(Vector[(Double, ModelParameterCollection)]())
       sampleDomainScalingState <- TxnVar.of(QuadratureDomainTelemetry.init)
       workTokenPool            <- TxnVar.of(0)
       abscissas                <- TxnVar.of(QuadratureAbscissaCollection.init)

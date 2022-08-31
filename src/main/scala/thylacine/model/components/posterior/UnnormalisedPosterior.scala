@@ -19,28 +19,41 @@ package thylacine.model.components.posterior
 
 import thylacine.model.components.likelihood._
 import thylacine.model.components.prior._
-import thylacine.model.core.AsyncImplicits
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.{AsyncImplicits, CanValidate}
+import thylacine.model.distributions.Distribution
 
-import cats.effect.implicits._
-import cats.syntax.all._
+import ai.entrolution.thylacine.model.components.forwardmodel.ForwardModel
+import cats.effect.kernel.Async
 
-private[thylacine] trait UnnormalisedPosterior[F[_]] extends Posterior[F, Prior[F, _], Likelihood[F, _, _]] {
-  this: AsyncImplicits[F] =>
+case class UnnormalisedPosterior[F[_]: Async](
+    private[thylacine] override val priors: Set[Prior[F, _]],
+    private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
+    private[thylacine] override val validated: Boolean = false
+) extends AsyncImplicits[F]
+    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
+    with CanValidate[UnnormalisedPosterior[F]] {
+  if (!validated) {
+    // Ensure there are no conflicting identifiers.
+    assert(priors.size == priors.map(_.identifier).size)
+    assert(
+      likelihoods.size == likelihoods.map(_.posteriorTermIdentifier).size
+    )
+    assert(
+      priors
+        .map(_.posteriorTermIdentifier)
+        .intersect(likelihoods.map(_.posteriorTermIdentifier))
+        .isEmpty
+    )
+  }
 
-  priors: Set[Prior[F, _]]
-  likelihoods: Set[Likelihood[F, _, _]]
-
-  private[thylacine] override final val isAnalytic: Boolean = false
-
-  override private[thylacine] def logPdfAt(
-      input: ModelParameterCollection[F]
-  ): ResultOrErrF[F, Double] =
-    for {
-      priorFib              <- priors.toList.parTraverse(_.logPdfAt(input)).start
-      likelihoodFib         <- likelihoods.toList.parTraverse(_.logPdfAt(input)).start
-      priorEvaluations      <- priorFib.joinWithNever
-      likelihoodEvaluations <- likelihoodFib.joinWithNever
-    } yield (priorEvaluations ++ likelihoodEvaluations).sum
+  private[thylacine] override lazy val getValidated: UnnormalisedPosterior[F] =
+    if (validated) {
+      this
+    } else {
+      UnnormalisedPosterior(
+        priors = priors.map(_.getValidated.asInstanceOf[Prior[F, Distribution]]),
+        likelihoods = likelihoods.map(_.getValidated.asInstanceOf[Likelihood[F, ForwardModel[F], Distribution]]),
+        validated = true
+      )
+    }
 }

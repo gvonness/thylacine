@@ -48,6 +48,9 @@ private[thylacine] case class VectorContainer(
     vecResult
   }
 
+  private[thylacine] lazy val squaredMagnitude: Double =
+    values.values.map(Math.pow(_, 2)).sum
+
   private[thylacine] lazy val scalaVector: ScalaVector[Double] =
     rawVector.toScalaVector
 
@@ -102,14 +105,7 @@ private[thylacine] case class VectorContainer(
   // Minimal checks for performance, as this is only intended to be used in
   // finite differences for gradient calculation
   private def rawNudgeComponent(diff: Double, index: Int): VectorContainer =
-    values.get(index) match {
-      case None =>
-        this.copy(values = values + (index -> diff))
-      case Some(v) if v + diff != 0 =>
-        this.copy(values = values + (index -> (v + diff)))
-      case _ =>
-        this.copy(values = values - index)
-    }
+    this.copy(values = values + (index -> (values.getOrElse(index, 0d) + diff))).getValidated
 
   private[thylacine] def rawNudgeComponents(
       diff: Double
@@ -138,8 +134,11 @@ private[thylacine] object VectorContainer {
   private[thylacine] def apply(vector: DenseVector[Double]): VectorContainer =
     VectorContainer(vector.toArray.toVector)
 
+  private[thylacine] def fill(dimension: Int)(value: Double): VectorContainer =
+    VectorContainer((1 to dimension).map(_ => value).toVector)
+
   private[thylacine] def zeros(dimension: Int): VectorContainer =
-    VectorContainer((1 to dimension).map(_ => 0d).toVector)
+    fill(dimension)(0d)
 
   private[thylacine] def random(dimension: Int): VectorContainer =
     VectorContainer((1 to dimension).map(_ => Math.random()).toVector)

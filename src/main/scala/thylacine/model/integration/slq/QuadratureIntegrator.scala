@@ -17,17 +17,11 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.computation.Erratum.UnexpectedErratum
-import thylacine.model.core.computation.ResultOrErrF
-import thylacine.model.core.computation.ResultOrErrF.Implicits._
-
-import cats.effect.kernel.Async
 import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.collection.parallel.CollectionConverters._
-import scala.util.{Failure, Success, Try}
 
-private[thylacine] case class QuadratureIntegrator[F[_]: Async](
+private[thylacine] case class QuadratureIntegrator(
     logPdfs: Vector[Double],
     quadratures: Vector[Vector[Double]]
 ) {
@@ -48,63 +42,45 @@ private[thylacine] case class QuadratureIntegrator[F[_]: Async](
     }
 
   // Can be used in a number of places and is worth memoizing
-  private[thylacine] lazy val negativeEntropyStats: ResultOrErrF[F, Vector[BigDecimal]] =
-    Try {
-      integrandGraphs.map { ig =>
-        ig.par
-          .map(p =>
-            BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal))
-              * p._2 * p._1
-          )
-          .sum
-      }.zip(evidenceStats)
-        .par
-        .map { evs =>
-          evs._1 / evs._2 - BigDecimal(
-            DefaultBigDecimalMath.log(evs._2.bigDecimal)
-          )
-        }
-        .toVector
-    } match {
-      case Success(value) =>
-        value.toResultM
-      case Failure(ex) =>
-        UnexpectedErratum(
-          s"Error processing entropy stats: ${ex.getMessage} $ex"
-        ).toResultM
-    }
+  private[thylacine] lazy val negativeEntropyStats: Vector[BigDecimal] =
+    integrandGraphs.map { ig =>
+      ig.par
+        .map(p =>
+          BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal))
+            * p._2 * p._1
+        )
+        .sum
+    }.zip(evidenceStats)
+      .par
+      .map { evs =>
+        evs._1 / evs._2 - BigDecimal(
+          DefaultBigDecimalMath.log(evs._2.bigDecimal)
+        )
+      }
+      .toVector
 
   private[thylacine] def getIntegrationStats(
       integrand: BigDecimal => BigDecimal
-  ): ResultOrErrF[F, Vector[BigDecimal]] =
-    Try {
-      integrandGraphs.map { ig =>
-        ig.par
-          .map(p =>
-            integrand(BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal)))
-              * p._1
-          )
-          .sum
-      }.zip(evidenceStats)
-        .par
-        .map { evs =>
-          evs._1 / evs._2 - BigDecimal(
-            DefaultBigDecimalMath.log(evs._2.bigDecimal)
-          )
-        }
-        .toVector
-    } match {
-      case Success(value) =>
-        value.toResultM
-      case Failure(ex) =>
-        UnexpectedErratum(
-          s"Error processing entropy stats: ${ex.getMessage} $ex"
-        ).toResultM
-    }
+  ): Vector[BigDecimal] =
+    integrandGraphs.map { ig =>
+      ig.par
+        .map(p =>
+          integrand(BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal)))
+            * p._1
+        )
+        .sum
+    }.zip(evidenceStats)
+      .par
+      .map { evs =>
+        evs._1 / evs._2 - BigDecimal(
+          DefaultBigDecimalMath.log(evs._2.bigDecimal)
+        )
+      }
+      .toVector
 }
 
 private[thylacine] object QuadratureIntegrator {
 
-  private[thylacine] def empty[F[_]: Async]: QuadratureIntegrator[F] =
+  private[thylacine] val empty: QuadratureIntegrator =
     QuadratureIntegrator(Vector(), Vector())
 }
