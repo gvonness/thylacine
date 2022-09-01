@@ -18,13 +18,14 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import bengal.stm.model.{TxnVar, TxnVarMap}
+import bengal.stm.model.TxnVar
 import thylacine.config.MdsConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.MdsTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.optimization.mds.{MdsEngine, MdsTelemetryUpdate, ModelParameterSimplex}
+import thylacine.model.optimization.mds.{MdsEngine, ModelParameterSimplex}
 
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -33,18 +34,17 @@ import scala.annotation.unused
 import scala.collection.immutable.Queue
 
 case class MdsOptimisedPosterior[F[_]: STM: Async](
-    mdsConfig: MdsConfig,
-    iterationUpdateCallback: MdsTelemetryUpdate => Unit = _ => (),
-    isConvergedCallback: Unit => Unit = _ => (),
-    override val priors: Set[Prior[F, _]],
-    override val likelihoods: Set[Likelihood[F, _, _]],
-    override protected val parallelismTokenPool: TxnVar[F, Int],
-    override protected val queuedEvaluations: TxnVar[F, Queue[(Int, ModelParameterCollection)]],
-    override protected val currentResults: TxnVarMap[F, Int, Double],
-    override protected val unprocessedIndices: TxnVar[F, Set[Int]],
-    override protected val currentBest: TxnVar[F, (Int, Double)],
-    override protected val currentSimplex: TxnVar[F, ModelParameterSimplex],
-    override protected val isConverged: TxnVar[F, Boolean]
+    private[thylacine] val mdsConfig: MdsConfig,
+    protected override val iterationUpdateCallback: MdsTelemetryUpdate => F[Unit],
+    protected override val isConvergedCallback: Unit => F[Unit],
+    private[thylacine] override val priors: Set[Prior[F, _]],
+    private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
+    protected override val parallelismTokenPool: TxnVar[F, Int],
+    protected override val queuedEvaluations: TxnVar[F, Queue[(Int, ModelParameterCollection)]],
+    protected override val currentResults: TxnVar[F, Queue[(Int, Double)]],
+    protected override val currentBest: TxnVar[F, (Int, Double)],
+    protected override val currentSimplex: TxnVar[F, ModelParameterSimplex],
+    protected override val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with MdsEngine[F] {
@@ -68,14 +68,13 @@ object MdsOptimisedPosterior {
   def of[F[_]: STM: Async](
       mdsConfig: MdsConfig,
       posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      iterationUpdateCallback: MdsTelemetryUpdate => Unit = _ => (),
-      isConvergedCallback: Unit => Unit = _ => ()
+      iterationUpdateCallback: MdsTelemetryUpdate => F[Unit],
+      isConvergedCallback: Unit => F[Unit]
   ): F[MdsOptimisedPosterior[F]] =
     for {
       parallelismTokenPool <- TxnVar.of(mdsConfig.evaluationParallelism)
       queuedEvaluations    <- TxnVar.of(Queue[(Int, ModelParameterCollection)]())
-      currentResults       <- TxnVarMap.of(Map[Int, Double]())
-      unprocessedIndices   <- TxnVar.of(Set[Int]())
+      currentResults       <- TxnVar.of(Queue[(Int, Double)]())
       currentBest          <- TxnVar.of((0, Double.NegativeInfinity))
       currentSimplex <-
         TxnVar.of(
@@ -91,7 +90,6 @@ object MdsOptimisedPosterior {
       parallelismTokenPool = parallelismTokenPool,
       queuedEvaluations = queuedEvaluations,
       currentResults = currentResults,
-      unprocessedIndices = unprocessedIndices,
       currentBest = currentBest,
       currentSimplex = currentSimplex,
       isConverged = isConverged

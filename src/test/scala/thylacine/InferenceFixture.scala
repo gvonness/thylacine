@@ -127,15 +127,18 @@ object InferenceFixture {
       unnormalisedPosterior <- unnormalisedPosteriorF
       posterior <- HookeAndJeevesOptimisedPosterior.of[IO](
                      hookeAndJeevesConfig = hookesAndJeevesConfig,
-                     posterior = unnormalisedPosterior
+                     posterior = unnormalisedPosterior,
+                     newMaximumCallback = _ => IO.unit,
+                     newScaleCallback = _ => IO.unit,
+                     isConvergedCallback = _ => IO.unit
                    )
     } yield posterior
 
   val mdsConfig: MdsConfig = MdsConfig(
-    convergenceThreshold = 1e-20,
+    convergenceThreshold = 1e-15,
     expansionMultiplier = 2.0,
     contractionMultiplier = .5,
-    evaluationParallelism = 2,
+    evaluationParallelism = 4,
     numberOfPriorSamplesToSetStartingPoint = Some(100)
   )
 
@@ -144,7 +147,9 @@ object InferenceFixture {
       unnormalisedPosterior <- unnormalisedPosteriorF
       posterior <- MdsOptimisedPosterior.of[IO](
                      mdsConfig = mdsConfig,
-                     posterior = unnormalisedPosterior
+                     posterior = unnormalisedPosterior,
+                     iterationUpdateCallback = _ => IO.unit,
+                     isConvergedCallback = _ => IO.unit
                    )
     } yield posterior
 }

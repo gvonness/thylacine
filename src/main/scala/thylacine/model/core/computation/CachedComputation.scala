@@ -20,7 +20,7 @@ package thylacine.model.core.computation
 import bengal.stm.STM
 import bengal.stm.model._
 import bengal.stm.syntax.all._
-import thylacine.model.core.computation.CachedComputation.{ComputationResult, getInMemoryKey}
+import thylacine.model.core.computation.CachedComputation.ComputationResult
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 import cats.effect.implicits._
@@ -90,9 +90,7 @@ case class CachedComputation[F[_]: STM: Async, T](
       .void
   }
 
-  private def cleanComputationStore(
-      computationCache: TxnVarMap[F, Int, ComputationResult[T]]
-  ): F[Unit] =
+  private val cleanComputationStore: F[Unit] =
     computationCache.modify { ec =>
       if (ec.size > cacheDepth.getOrElse(0)) {
         ec.toSeq
@@ -109,7 +107,7 @@ case class CachedComputation[F[_]: STM: Async, T](
   ): F[Option[T]] =
     for {
       time <- tickAndGet
-      key  <- Async[F].delay(getInMemoryKey(input))
+      key  <- Async[F].delay(input.intHash)
       ec   <- retrieveKeyFromComputationStore(key)
       _ <- ec match {
              case Some(_) =>
@@ -125,9 +123,9 @@ case class CachedComputation[F[_]: STM: Async, T](
   private def updateComputationStoreWith(input: ModelParameterCollection, result: T): F[Unit] =
     for {
       time <- getTime
-      key  <- Async[F].delay(getInMemoryKey(input))
+      key  <- Async[F].delay(input.intHash)
       _    <- upsertResultIntoComputationStore(key, ComputationResult(result, time))
-      _    <- cleanComputationStore(computationCache)
+      _    <- cleanComputationStore
     } yield ()
 
   private[thylacine] override def performComputation(
@@ -167,9 +165,6 @@ object CachedComputation {
       scalarClock = scalarClock,
       computationCache = computationCache
     )
-
-  private[thylacine] def getInMemoryKey(input: ModelParameterCollection): Int =
-    input.hashCode()
 
   private[thylacine] case class ComputationResult[T](result: T, lastAccessed: Int) {
 

@@ -32,12 +32,11 @@ import scala.annotation.unused
 case class CartesianSurface[F[_]: STM: Async](
     xAbscissa: Vector[Double],
     yAbscissa: Vector[Double],
-    progressSetCallback: Int => Unit,
-    progressIncrementCallback: Unit => Unit,
-    progressFinishCallback: Unit => Unit
-)(private val scalarValues: TxnVar[F, Map[GraphPoint, Double]]) {
-
-  progressSetCallback(0)
+    progressSetCallback: Int => F[Unit],
+    progressIncrementCallback: Unit => F[Unit],
+    progressFinishCallback: Unit => F[Unit],
+    private val scalarValues: TxnVar[F, Map[GraphPoint, Double]]
+) {
 
   private val xScale = xAbscissa.max - xAbscissa.min
   private val yScale = yAbscissa.max - yAbscissa.min
@@ -95,7 +94,7 @@ case class CartesianSurface[F[_]: STM: Async](
       kernelVariance: Double
   ): F[Unit] =
     for {
-      _ <- Async[F].delay(progressIncrementCallback(()))
+      _ <- progressIncrementCallback(())
       chain <- Async[F].delay(
                  SimplexChain(
                    abcissa.zip(values).map(GraphPoint(_))
@@ -133,12 +132,12 @@ case class CartesianSurface[F[_]: STM: Async](
     samples match {
       case h +: t =>
         for {
-          _ <- Async[F].delay(progressSetCallback(samples.size))
+          _ <- progressSetCallback(samples.size)
           _ <-
             NonEmptyVector(h, t)
               .traverse(i => addValues(abcissa, i, ds, kernelVariance))
-          _ <- Async[F].delay(progressIncrementCallback)
-          _ <- Async[F].delay(progressFinishCallback(()))
+          _ <- progressIncrementCallback(())
+          _ <- progressFinishCallback(())
         } yield ()
       case _ =>
         Async[F].unit
@@ -158,9 +157,9 @@ object CartesianSurface {
   def of[F[_]: STM: Async](
       xAbscissa: Vector[Double],
       yAbscissa: Vector[Double],
-      progressSetCallback: Int => Unit,
-      progressIncrementCallback: Unit => Unit,
-      progressFinishCallback: Unit => Unit
+      progressSetCallback: Int => F[Unit],
+      progressIncrementCallback: Unit => F[Unit],
+      progressFinishCallback: Unit => F[Unit]
   ): F[CartesianSurface[F]] =
     for {
       scalarValues <- TxnVar.of(Map[GraphPoint, Double]())
@@ -170,9 +169,8 @@ object CartesianSurface {
                            yAbscissa,
                            progressSetCallback,
                            progressIncrementCallback,
-                           progressFinishCallback
-          )(
-            scalarValues
+                           progressFinishCallback,
+                           scalarValues
           )
         )
       _ <- result.zeroValuesSpec

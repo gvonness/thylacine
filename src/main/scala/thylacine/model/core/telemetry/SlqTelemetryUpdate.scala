@@ -15,6 +15,19 @@
  */
 
 package ai.entrolution
-package thylacine.model.optimization.mds
+package thylacine.model.core.telemetry
 
-case class MdsTelemetryUpdate(simplexEdgeLength: Double, currentMax: Double)
+case class SlqTelemetryUpdate(
+    negEntropyAvg: Double,
+    logPdf: Double,
+    samplePoolMinimumLogPdf: Double,
+    domainVolumeScaling: Double,
+    acceptancesSinceDomainRebuild: Int,
+    samplePoolSize: Int,
+    domainCubeCount: Int,
+    iterationCount: Int
+) extends TelemetryReport {
+
+  override lazy val logMessage: String =
+    s"SLQ Integration :: Neg. Entropy Mean - $negEntropyAvg // Current logPdf - $logPdf // Iteration count - $iterationCount"
+}

@@ -33,13 +33,13 @@ import scala.annotation.unused
 // A linear forward model may work across more than
 // one model parameter generator
 case class LinearForwardModel[F[_]: STM: Async](
-    override val evalCache: CachedComputation[F, VectorContainer],
-    override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
-    transform: IndexedMatrixCollection,
-    vectorOffset: Option[VectorContainer],
+    protected override val evalCache: CachedComputation[F, VectorContainer],
+    protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+    private[thylacine] val transform: IndexedMatrixCollection,
+    private[thylacine] val vectorOffset: Option[VectorContainer],
     override val domainDimension: Int,
     override val rangeDimension: Int,
-    override val validated: Boolean = false
+    private[thylacine] override val validated: Boolean = false
 ) extends StmImplicits[F]
     with InMemoryMemoizedForwardModel[F] {
   if (!validated) {

@@ -39,9 +39,9 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
   protected def convergenceThreshold: Double
   protected def numberOfSamplesToSetScale: Int
 
-  protected def newMaximumCallback: Double => Unit
-  protected def newScaleCallback: Double => Unit
-  protected def isConvergedCallback: Unit => Unit
+  protected def newMaximumCallback: Double => F[Unit]
+  protected def newScaleCallback: Double => F[Unit]
+  protected def isConvergedCallback: Unit => F[Unit]
 
   protected val currentBest: TxnVar[F, (Double, ScalaVector[Double])]
 
@@ -118,10 +118,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
       scanResult <-
         dimensionScan(scaleAndBest._1, scaleAndBest._2._2, scaleAndBest._2._1)
       _ <- if (scanResult._1 > scaleAndBest._2._1) {
-             currentBest.set(scanResult).commit >> Async[F]
-               .delay(
-                 newMaximumCallback(scanResult._1)
-               )
+             currentBest.set(scanResult).commit >> newMaximumCallback(scanResult._1)
                .start
                .void
            } else if (scaleAndBest._1 > convergenceThreshold) {
@@ -129,9 +126,9 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
                scale    <- currentScale.get
                newScale <- STM[F].delay(scale / 2)
                _        <- currentScale.set(newScale)
-             } yield newScale).commit.map(newScaleCallback)
+             } yield newScale).commit.flatMap(newScaleCallback)
            } else {
-             isConverged.set(true).commit >> Async[F].delay(isConvergedCallback).start.void
+             isConverged.set(true).commit >> isConvergedCallback(()).start.void
            }
     } yield ()
 

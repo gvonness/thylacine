@@ -23,6 +23,7 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.MdsTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
 
@@ -43,17 +44,15 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   protected def numberOfPriorSamplesToSetStartingPoint: Int
 
-  protected def iterationUpdateCallback: MdsTelemetryUpdate => Unit
+  protected def iterationUpdateCallback: MdsTelemetryUpdate => F[Unit]
 
-  protected def isConvergedCallback: Unit => Unit
+  protected def isConvergedCallback: Unit => F[Unit]
 
   protected val parallelismTokenPool: TxnVar[F, Int]
 
   protected val queuedEvaluations: TxnVar[F, Queue[(Int, ModelParameterCollection)]]
 
-  protected val currentResults: TxnVarMap[F, Int, Double]
-
-  protected val unprocessedIndices: TxnVar[F, Set[Int]]
+  protected val currentResults: TxnVar[F, Queue[(Int, Double)]]
 
   protected val currentBest: TxnVar[F, (Int, Double)]
 
@@ -76,6 +75,12 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
       _           <- queuedEvaluations.set(result._2)
     } yield result._1
 
+  private def waitForEvaluationsToComplete(totalEvaluations: Int): Txn[Unit] =
+    for {
+      completedEvaluations <- currentResults.get.map(_.size)
+      _                    <- STM[F].waitFor(totalEvaluations == completedEvaluations)
+    } yield ()
+
   private def queueEvaluation(
       indexAndPosition: (Int, ModelParameterCollection)
   ): Txn[Unit] =
@@ -86,7 +91,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
       indexAndPosition <- getNextEvaluation.commit
       (index, position) = indexAndPosition
       result <- logPdfAt(position)
-      _      <- currentResults.set(index, result).commit
+      _      <- currentResults.modify(_.enqueue((index, result))).commit
       _      <- parallelismTokenPool.modify(_ + 1).commit
     } yield ()).start.void
 
@@ -98,13 +103,13 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
       }
     }
 
-  private val grabResults: Txn[Map[Int, Double]] =
+  private val grabResults: Txn[Queue[(Int, Double)]] =
     for {
       results <- currentResults.get
       _       <- STM[F].waitFor(results.nonEmpty)
     } yield results
 
-  private def processResults(results: Map[Int, Double], bestResult: (Int, Double)): Txn[Set[Int]] =
+  private def recordBest(bestResult: (Int, Double)): Txn[Unit] =
     for {
       best <- currentBest.get
       _ <- if (bestResult._2 > best._2) {
@@ -112,32 +117,22 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
            } else {
              STM[F].unit
            }
-      _         <- unprocessedIndices.modify(_ -- results.keySet)
-      _         <- results.keySet.toList.traverse((i: Int) => currentResults.remove(i))
-      remaining <- unprocessedIndices.get
-    } yield remaining
+      _ <- currentResults.set(Queue[(Int, Double)]())
+    } yield ()
 
-  private val runComparison: F[Set[Int]] =
+  private def runComparison(totalEvaluations: Int): F[Unit] =
     for {
+      _          <- waitForEvaluationsToComplete(totalEvaluations).commit
       results    <- grabResults.commit
       bestResult <- Async[F].delay(results.maxBy(_._2))
-      remaining  <- processResults(results, bestResult).commit
-    } yield remaining
-
-  private val comparisonRecursion: F[Unit] =
-    runComparison.flatMap { remaining =>
-      if (remaining.nonEmpty) {
-        comparisonRecursion
-      } else {
-        Async[F].unit
-      }
-    }
+      _          <- recordBest(bestResult).commit
+    } yield ()
 
   private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[Unit] =
     for {
-      _ <- unprocessedIndices.set(simplex.vertices.keySet - indexToExclude).commit
-      _ <- (simplex.verticesAsModelParameters(this) - indexToExclude).toList.traverse(queueEvaluation(_).commit)
-      _ <- comparisonRecursion
+      vertices <- Async[F].delay((simplex.verticesAsModelParameters(this) - indexToExclude).toList)
+      _        <- vertices.traverse(queueEvaluation(_).commit)
+      _        <- runComparison(vertices.size)
     } yield ()
 
   private val evaluateSimplex: F[Double] = {
@@ -166,17 +161,17 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
                _                 <- currentSimplex.set(contractedSimplex).commit
              } yield ()
            }
-      finalSimplex <- currentSimplex.get.commit
-      finalBest    <- currentBest.get.commit
-      simplexEdgeLength = finalSimplex.maxAdjacentEdgeLength(finalBest._1)
-      _ <- Async[F].delay(iterationUpdateCallback(MdsTelemetryUpdate(simplexEdgeLength, finalBest._2))).start
-    } yield simplexEdgeLength
+      finalSimplex       <- currentSimplex.get.commit
+      finalBest          <- currentBest.get.commit
+      convergenceMeasure <- Async[F].delay(finalSimplex.maxAdjacentEdgeLength(finalBest._1))
+      _                  <- iterationUpdateCallback(MdsTelemetryUpdate(convergenceMeasure, finalBest._2)).start
+    } yield convergenceMeasure
   }
 
   private val simplexRecursion: F[Unit] =
     evaluateSimplex.flatMap { convergenceMeasure =>
       if (convergenceMeasure <= convergenceThreshold) {
-        isConverged.set(true).commit >> Async[F].delay(isConvergedCallback(())).start.void
+        isConverged.set(true).commit >> isConvergedCallback(()).start.void
       } else {
         simplexRecursion
       }

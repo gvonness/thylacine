@@ -45,6 +45,9 @@ private[thylacine] case class IndexedVectorCollection(
   private[thylacine] lazy val totalDimension =
     index.values.map(_.dimension).sum
 
+  private[thylacine] lazy val intHash =
+    this.hashCode()
+
   // Low-level API
   // -------------
   private[thylacine] def rawMergeWith(

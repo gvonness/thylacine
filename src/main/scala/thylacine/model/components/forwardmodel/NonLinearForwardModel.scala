@@ -26,11 +26,11 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 case class NonLinearForwardModel[F[_]: STM: Async](
-    override val evalCache: CachedComputation[F, VectorContainer],
-    override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
-    domainDimensions: Map[String, Int],
+    protected override val evalCache: CachedComputation[F, VectorContainer],
+    protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+    private val domainDimensions: Map[String, Int],
     override val rangeDimension: Int,
-    override val validated: Boolean = false
+    private[thylacine] override val validated: Boolean = false
 ) extends StmImplicits[F]
     with InMemoryMemoizedForwardModel[F] {
 

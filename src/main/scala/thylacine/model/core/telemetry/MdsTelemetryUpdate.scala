@@ -15,15 +15,10 @@
  */
 
 package ai.entrolution
-package thylacine.model.integration.slq
+package thylacine.model.core.telemetry
 
-case class SlqTelemetryUpdate(
-    negEntropyAvg: Double,
-    logPdf: Double,
-    samplePoolMinimumLogPdf: Double,
-    domainVolumeScaling: Double,
-    acceptancesSinceDomainRebuild: Int,
-    samplePoolSize: Int,
-    domainCubeCount: Int,
-    iterationCount: Int
-)
+case class MdsTelemetryUpdate(convergenceMeasure: Double, currentMax: Double) extends TelemetryReport {
+
+  override lazy val logMessage =
+    s"MDS optimisation :: Current best - $currentMax // Convergence measure - $convergenceMeasure"
+}

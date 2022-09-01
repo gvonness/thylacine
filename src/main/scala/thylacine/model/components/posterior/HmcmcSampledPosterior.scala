@@ -34,20 +34,20 @@ import cats.syntax.all._
 import scala.collection.immutable.Queue
 
 case class HmcmcSampledPosterior[F[_]: STM: Async](
-    hmcmcConfig: HmcmcConfig,
-    sampleRequestSetCallback: Int => Unit = _ => (),
-    sampleRequestUpdateCallback: Int => Unit = _ => (),
-    epsilonUpdateCallback: Double => Unit = _ => (),
-    dhMonitorCallback: Double => Unit = _ => (),
-    seed: Map[String, Vector[Double]],
-    override val priors: Set[Prior[F, _]],
-    override val likelihoods: Set[Likelihood[F, _, _]],
-    override protected val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]],
-    override protected val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]],
-    override protected val burnInComplete: TxnVar[F, Boolean],
-    override protected val simulationEpsilon: TxnVar[F, Double],
-    override protected val epsilonAdjustmentResults: TxnVar[F, Queue[Double]],
-    override protected val parallelismTokenPool: TxnVar[F, Int]
+    private[thylacine] val hmcmcConfig: HmcmcConfig,
+    protected override val sampleRequestSetCallback: Int => F[Unit],
+    protected override val sampleRequestUpdateCallback: Int => F[Unit],
+    protected override val epsilonUpdateCallback: Double => F[Unit],
+    protected override val dhMonitorCallback: Double => F[Unit],
+    private[thylacine] val seed: Map[String, Vector[Double]],
+    private[thylacine] override val priors: Set[Prior[F, _]],
+    private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
+    protected override val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]],
+    protected override val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]],
+    protected override val burnInComplete: TxnVar[F, Boolean],
+    protected override val simulationEpsilon: TxnVar[F, Double],
+    protected override val epsilonAdjustmentResults: TxnVar[F, Queue[Double]],
+    protected override val parallelismTokenPool: TxnVar[F, Int]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HmcmcEngine[F] {
@@ -85,12 +85,12 @@ object HmcmcSampledPosterior {
 
   def of[F[_]: STM: Async](
       hmcmcConfig: HmcmcConfig,
-      inputPosterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      sampleRequestSetCallback: Int => Unit = _ => (),
-      sampleRequestUpdateCallback: Int => Unit = _ => (),
-      epsilonUpdateCallback: Double => Unit = _ => (),
-      dhMonitorCallback: Double => Unit = _ => (),
-      seedSpec: F[Map[String, Vector[Double]]]
+      posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+      sampleRequestSetCallback: Int => F[Unit],
+      sampleRequestUpdateCallback: Int => F[Unit],
+      epsilonUpdateCallback: Double => F[Unit],
+      dhMonitorCallback: Double => F[Unit],
+      seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
     for {
       sampleRequests           <- TxnVar.of(Queue[SampleRequest[F]]())
@@ -99,7 +99,6 @@ object HmcmcSampledPosterior {
       simulationEpsilon        <- TxnVar.of(0.1)
       epsilonAdjustmentResults <- TxnVar.of(Queue[Double]())
       parallelismTokenPool     <- TxnVar.of(Runtime.getRuntime.availableProcessors())
-      seed                     <- seedSpec
       posterior <- Async[F].delay {
                      HmcmcSampledPosterior(
                        hmcmcConfig = hmcmcConfig,
@@ -108,8 +107,8 @@ object HmcmcSampledPosterior {
                        epsilonUpdateCallback = epsilonUpdateCallback,
                        dhMonitorCallback = dhMonitorCallback,
                        seed = seed,
-                       priors = inputPosterior.priors,
-                       likelihoods = inputPosterior.likelihoods,
+                       priors = posterior.priors,
+                       likelihoods = posterior.likelihoods,
                        sampleRequests = sampleRequests,
                        currentMcmcPositions = currentMcmcPositions,
                        burnInComplete = burnInComplete,
@@ -118,8 +117,8 @@ object HmcmcSampledPosterior {
                        parallelismTokenPool = parallelismTokenPool
                      )
                    }
-      _ <- posterior.initialise
-      _ <- posterior.waitForInitialisation
+      _ <- posterior.launchInitialisation
+      _ <- posterior.waitForInitialisationCompletion
     } yield posterior
 
 }

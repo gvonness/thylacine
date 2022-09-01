@@ -17,12 +17,12 @@
 package ai.entrolution
 package thylacine.model.components.posterior
 
+import thylacine.model.components.forwardmodel.ForwardModel
 import thylacine.model.components.likelihood._
 import thylacine.model.components.prior._
 import thylacine.model.core.{AsyncImplicits, CanValidate}
 import thylacine.model.distributions.Distribution
 
-import ai.entrolution.thylacine.model.components.forwardmodel.ForwardModel
 import cats.effect.kernel.Async
 
 case class UnnormalisedPosterior[F[_]: Async](

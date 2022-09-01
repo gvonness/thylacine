@@ -57,10 +57,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
   protected def startingPoint: F[ModelParameterCollection]
 
-  protected def sampleRequestUpdateCallback: Int => Unit
-  protected def sampleRequestSetCallback: Int => Unit
-  protected def dhMonitorCallback: Double => Unit
-  protected def epsilonUpdateCallback: Double => Unit
+  protected def sampleRequestUpdateCallback: Int => F[Unit]
+  protected def sampleRequestSetCallback: Int => F[Unit]
+  protected def dhMonitorCallback: Double => F[Unit]
+  protected def epsilonUpdateCallback: Double => F[Unit]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -117,7 +117,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                   _      <- simulationEpsilon.modify(_ * newMultiplier)
                   result <- simulationEpsilon.get
                 } yield result).commit
-      _ <- Async[F].delay(epsilonUpdateCallback(result))
+      _ <- epsilonUpdateCallback(result)
     } yield ()
   }
 
@@ -197,7 +197,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         eNew <- logPdfAt(xNew)
         hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
         dH   <- Async[F].delay(hNew - hamiltonian)
-        _    <- Async[F].delay(dhMonitorCallback(dH)).start
+        _    <- dhMonitorCallback(dH).start
         result <- if (dH < 0 || Math.random() < Math.exp(-dH)) {
                     for {
                       _ <- if (burnIn) {
@@ -253,7 +253,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       position  <- getNextPosition.commit
       newSample <- setAndAcquireNewSample(position)
       remaining <- sampleRequests.get.map(_.size).commit
-      _         <- Async[F].delay(sampleRequestUpdateCallback(remaining)).start
+      _         <- sampleRequestUpdateCallback(remaining).start
       _         <- request.complete(newSample)
       _         <- parallelismTokenPool.modify(_ + 1).commit
     } yield ()).start.void
@@ -286,7 +286,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private[thylacine] val initialise: F[Unit] =
+  private[thylacine] val launchInitialisation: F[Unit] =
     for {
       _            <- burnInComplete.set(false).commit
       _            <- epsilonAdjustmentResults.set(Queue()).commit
@@ -302,7 +302,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       _ <- processingRecursion.start
     } yield ()
 
-  private[thylacine] val waitForInitialisation: F[Unit] =
+  private[thylacine] val waitForInitialisationCompletion: F[Unit] =
     (for {
       burnInCompleted <- burnInComplete.get
       _               <- STM[F].waitFor(burnInCompleted)
@@ -315,7 +315,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                           _                 <- sampleRequests.modify(_.enqueue(deferred))
                           sampleRequestSize <- sampleRequests.get.map(_.size)
                         } yield sampleRequestSize).commit
-      _      <- Async[F].delay(sampleRequestSetCallback(newRequestSize)).start
+      _      <- sampleRequestSetCallback(newRequestSize).start
       result <- deferred.get
     } yield result
 

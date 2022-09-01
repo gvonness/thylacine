@@ -29,6 +29,7 @@ import thylacine.model.integration.ModelParameterIntegrator
 import thylacine.model.integration.slq.SamplingSimulation._
 import thylacine.model.sampling.ModelParameterSampler
 
+import ai.entrolution.thylacine.model.core.telemetry.SlqTelemetryUpdate
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -77,9 +78,9 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   protected def slqSampleParallelism: Int
   protected def seeds: Set[ModelParameterCollection]
 
-  protected def slqTelemetryUpdateCallback: SlqTelemetryUpdate => Unit
-  protected def domainRebuildStartCallback: Unit => Unit
-  protected def domainRebuildFinishCallback: Unit => Unit
+  protected def slqTelemetryUpdateCallback: SlqTelemetryUpdate => F[Unit]
+  protected def domainRebuildStartCallback: Unit => F[Unit]
+  protected def domainRebuildFinishCallback: Unit => F[Unit]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -224,18 +225,19 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                            integrations <- quadratureIntegrations.get
                          } yield (samples, scalingFactorTelemetry, integrations)).commit
             negEntStats <- Async[F].delay(telemetry._3.negativeEntropyStats)
-          } yield slqTelemetryUpdateCallback(
-            SlqTelemetryUpdate(
-              negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
-              logPdf = logPdf,
-              samplePoolMinimumLogPdf = telemetry._1.keySet.min,
-              domainVolumeScaling = telemetry._2.currentScaleFactor,
-              acceptancesSinceDomainRebuild = telemetry._2.acceptancesSinceLastRebuild,
-              samplePoolSize = telemetry._1.size,
-              domainCubeCount = domain.pointsInCube.size,
-              iterationCount = telemetry._3.logPdfs.size
+            result <- slqTelemetryUpdateCallback(
+              SlqTelemetryUpdate(
+                negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
+                logPdf = logPdf,
+                samplePoolMinimumLogPdf = telemetry._1.keySet.min,
+                domainVolumeScaling = telemetry._2.currentScaleFactor,
+                acceptancesSinceDomainRebuild = telemetry._2.acceptancesSinceLastRebuild,
+                samplePoolSize = telemetry._1.size,
+                domainCubeCount = domain.pointsInCube.size,
+                iterationCount = telemetry._3.logPdfs.size
+              )
             )
-          )
+          } yield result
         } else {
           Async[F].unit
         }
@@ -325,7 +327,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
       converged <- getSamplesForDomainRebuild
       continueIteration <- if (!converged) {
                              for {
-                               _       <- Async[F].delay(domainRebuildStartCallback(())).start
+                               _       <- domainRebuildStartCallback(()).start
                                samples <- samplePool.get.commit
                                picCollection <- Async[F].delay {
                                                   getPointInCubeCollection(
@@ -345,7 +347,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                                     } yield ()).commit
                                _                 <- setConverged
                                continueIteration <- isConverged.get.map(!_).commit
-                               _                 <- Async[F].delay(domainRebuildFinishCallback(())).start
+                               _                 <- domainRebuildFinishCallback(()).start
                              } yield continueIteration
                            } else {
                              Async[F].pure(false)
