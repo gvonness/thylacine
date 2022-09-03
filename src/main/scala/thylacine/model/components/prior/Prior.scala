@@ -20,7 +20,7 @@ package thylacine.model.components.prior
 import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.values.IndexedVectorCollection
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
 import thylacine.model.distributions.Distribution
@@ -37,7 +37,7 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
     with CanValidate[Prior[F, _]] {
   this: AsyncImplicits[F] =>
 
-  protected def priorModel: D
+  protected def priorDistribution: D
 
   final val label: String = identifier.value
 
@@ -45,24 +45,28 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
     identifier.value
   )
 
-  override final val domainDimension: Int    = priorModel.domainDimension
-  override final val generatorDimension: Int = priorModel.domainDimension
+  override final val domainDimension: Int    = priorDistribution.domainDimension
+  override final val generatorDimension: Int = priorDistribution.domainDimension
 
   override final def logPdfAt(
       input: IndexedVectorCollection
   ): F[Double] =
-    Async[F].delay(priorModel.logPdfAt(input.retrieveIndex(identifier)))
+    Async[F].delay(priorDistribution.logPdfAt(input.retrieveIndex(identifier)))
 
   override final def logPdfGradientAt(
       input: IndexedVectorCollection
   ): F[ModelParameterCollection] =
     Async[F].delay {
       IndexedVectorCollection(identifier,
-                              priorModel
+                              priorDistribution
                                 .logPdfGradientAt(input.retrieveIndex(identifier))
       )
     }
 
   override final def sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))
+
+  // testing
+  private[thylacine] def rawLogPdfGradientAt(input: Vector[Double]): Vector[Double] =
+    priorDistribution.logPdfGradientAt(VectorContainer(input)).scalaVector
 }

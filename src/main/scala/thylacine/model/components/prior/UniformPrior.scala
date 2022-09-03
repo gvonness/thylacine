@@ -34,7 +34,7 @@ case class UniformPrior[F[_]: Async](
 ) extends AsyncImplicits[F]
     with Prior[F, UniformDistribution] {
 
-  protected override lazy val priorModel: UniformDistribution =
+  protected override lazy val priorDistribution: UniformDistribution =
     distributions
       .UniformDistribution(upperBounds = VectorContainer(maxBounds), lowerBounds = VectorContainer(minBounds))
       .getValidated
@@ -47,8 +47,8 @@ case class UniformPrior[F[_]: Async](
       input: ModelParameterCollection
   ): F[Double] =
     Async[F].delay {
-      if (priorModel.insideBounds(input.retrieveIndex(identifier))) {
-        Math.exp(priorModel.negLogVolume)
+      if (priorDistribution.insideBounds(input.retrieveIndex(identifier))) {
+        Math.exp(priorDistribution.negLogVolume)
       } else {
         0d
       }
@@ -57,10 +57,10 @@ case class UniformPrior[F[_]: Async](
   private[thylacine] final override def pdfGradientAt(
       input: ModelParameterCollection
   ): F[ModelParameterCollection] =
-    Async[F].delay(IndexedVectorCollection(identifier, priorModel.zeroVector))
+    Async[F].delay(IndexedVectorCollection(identifier, priorDistribution.zeroVector))
 
   protected override def rawSampleModelParameters: F[VectorContainer] =
-    Async[F].delay(priorModel.getRawSample)
+    Async[F].delay(priorDistribution.getRawSample)
 }
 
 object UniformPrior {

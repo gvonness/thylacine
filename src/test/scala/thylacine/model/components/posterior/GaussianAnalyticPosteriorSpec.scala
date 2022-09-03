@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import thylacine.InferenceFixture._
+import ai.entrolution.thylacine.model.components.ComponentFixture._
 import thylacine.TestUtils._
 
 import cats.effect.IO
@@ -26,7 +26,7 @@ import cats.effect.testing.scalatest.AsyncIOSpec
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
-class AnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
+class GaussianAnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
   "GaussianAnalyticPosterior" - {
 
     // Unfortunately, the analytic solution has a number of matrix inversions
@@ -36,7 +36,7 @@ class AnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers
         implicit0(stm: STM[IO]) <- STM.runtime[IO]
         posterior               <- analyticPosteriorF
       } yield maxIndexVectorDiff(posterior.mean, Map("foo" -> Vector(1, 2), "bar" -> Vector(5))))
-        .asserting(_ shouldBe (.05 +- .05))
+        .asserting(_ shouldBe (0d +- .1))
     }
 
     // Not a great test, but the prior and likelihood align

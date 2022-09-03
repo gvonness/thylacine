@@ -45,14 +45,14 @@ case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: GaussianDistribution =
+  private[thylacine] override lazy val observationDistribution: GaussianDistribution =
     GaussianDistribution(observations)
 
 }
 
 object GaussianLikelihood {
 
-  def apply[F[_]: Async, T <: ForwardModel[F]](
+  def from[F[_]: Async, T <: ForwardModel[F]](
       forwardModel: T,
       measurements: Vector[Double],
       uncertainties: Vector[Double]

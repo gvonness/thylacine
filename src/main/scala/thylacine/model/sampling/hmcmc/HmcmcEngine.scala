@@ -164,8 +164,8 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                        )
                      )
                    }
-      } yield (xNew, VectorContainer(pNewNew.toArray.toVector), gNew)).flatMap { i =>
-        runLeapfrogAt(i._1, i._2, i._3, iterationCount + 1)
+      } yield (xNew, VectorContainer(pNewNew.toArray.toVector), gNew)).flatMap { case (xNew, pNewNew, gNew) =>
+        runLeapfrogAt(xNew, pNewNew, gNew, iterationCount + 1)
       }
     }
 
@@ -216,8 +216,8 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                            }
                     } yield (input, logPdf, gradLogPdf)
                   }
-      } yield result).flatMap { r =>
-        runDynamicSimulationFrom(r._1, maxIterations, Some(r._2), Some(r._3), burnIn, iterationCount + 1)
+      } yield result).flatMap { case (xNew, eNew, gNew) =>
+        runDynamicSimulationFrom(xNew, maxIterations, Some(eNew), Some(gNew), burnIn, iterationCount + 1)
       }
     } else {
       Async[F].pure(input)
@@ -267,7 +267,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private val burnIn: F[ModelParameterCollection] =
+  private lazy val burnIn: F[ModelParameterCollection] =
     for {
       possibleStartingPoint <- startingPoint
       priorSample <-
@@ -286,7 +286,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private[thylacine] val launchInitialisation: F[Unit] =
+  private[thylacine] lazy val launchInitialisation: F[Unit] =
     for {
       _            <- burnInComplete.set(false).commit
       _            <- epsilonAdjustmentResults.set(Queue()).commit
@@ -319,10 +319,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       result <- deferred.get
     } yield result
 
-  override protected val sampleModelParameters: F[ModelParameterCollection] =
+  protected override val sampleModelParameters: F[ModelParameterCollection] =
     getHmcmcSample
 
-  override protected val rawSampleModelParameters: F[VectorContainer] =
+  protected override val rawSampleModelParameters: F[VectorContainer] =
     sampleModelParameters.map(s => VectorContainer(modelParameterCollectionToRawVector(s)))
 
 }

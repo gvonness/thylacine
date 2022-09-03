@@ -51,7 +51,7 @@ case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
       )
     }
 
-  private[thylacine] override lazy val observationModel: UniformDistribution =
+  private[thylacine] override lazy val observationDistribution: UniformDistribution =
     distributions.UniformDistribution(upperBounds = upperBounds, lowerBounds = lowerBounds)
 
 }

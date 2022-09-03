@@ -49,7 +49,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
 
   protected val isConverged: TxnVar[F, Boolean]
 
-  private def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
+  protected def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
     input.tail
       .foldLeft(input.head.zip(input.head)) { (i, j) =>
         i.zip(j).map { k =>
@@ -60,7 +60,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
       .max
 
   // Can parallel traverse, as there probably isn't much else going on
-  private def initialize(
+  protected def initialize(
       numberOfPriorSamples: Int
   ): F[Unit] =
     for {
@@ -80,7 +80,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
            } yield ()).commit
     } yield ()
 
-  private def nudgeAndEvaluate(
+  protected def nudgeAndEvaluate(
       index: Int,
       nudgeAmount: Double,
       input: ScalaVector[Double]
@@ -92,7 +92,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
       logPdf <- logPdfAt(nudgedVector)
     } yield (logPdf, nudgedRawVector)
 
-  private def dimensionScan(
+  protected def dimensionScan(
       nudgeAmount: Double,
       startingPoint: ScalaVector[Double],
       startingLogPdf: Double
@@ -109,7 +109,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
         }
       }
 
-  private val runDimensionalIteration: F[Unit] =
+  protected val runDimensionalIteration: F[Unit] =
     for {
       scaleAndBest <- (for {
                         scale <- currentScale.get
@@ -132,7 +132,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
            }
     } yield ()
 
-  private val optimisationRecursion: F[Unit] =
+  protected val optimisationRecursion: F[Unit] =
     runDimensionalIteration.flatMap { _ =>
       for {
         converged <- isConverged.get.commit

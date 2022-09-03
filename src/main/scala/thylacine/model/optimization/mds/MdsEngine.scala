@@ -52,7 +52,9 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   protected val queuedEvaluations: TxnVar[F, Queue[(Int, ModelParameterCollection)]]
 
-  protected val currentResults: TxnVar[F, Queue[(Int, Double)]]
+  protected val currentResults: TxnVarMap[F, Int, Double]
+
+  protected val currentResultsTally: TxnVar[F, Int]
 
   protected val currentBest: TxnVar[F, (Int, Double)]
 
@@ -77,7 +79,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   private def waitForEvaluationsToComplete(totalEvaluations: Int): Txn[Unit] =
     for {
-      completedEvaluations <- currentResults.get.map(_.size)
+      completedEvaluations <- currentResultsTally.get
       _                    <- STM[F].waitFor(totalEvaluations == completedEvaluations)
     } yield ()
 
@@ -87,13 +89,15 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     queuedEvaluations.modify(_.enqueue(indexAndPosition))
 
   private val runEvaluation: F[Unit] =
-    secureWorkRight.commit >> (for {
-      indexAndPosition <- getNextEvaluation.commit
-      (index, position) = indexAndPosition
-      result <- logPdfAt(position)
-      _      <- currentResults.modify(_.enqueue((index, result))).commit
-      _      <- parallelismTokenPool.modify(_ + 1).commit
-    } yield ()).start.void
+    secureWorkRight.commit >>
+      (for {
+        indexAndPosition <- getNextEvaluation.commit
+        (index, position) = indexAndPosition
+        result <- logPdfAt(position)
+        _      <- currentResults.set(index, result).commit
+        _      <- parallelismTokenPool.modify(_ + 1).commit
+      } yield ()).start.void >>
+      currentResultsTally.modify(_ + 1).commit.start.void
 
   private val evaluationRecursion: F[Unit] =
     runEvaluation.flatMap { _ =>
@@ -103,12 +107,6 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
       }
     }
 
-  private val grabResults: Txn[Queue[(Int, Double)]] =
-    for {
-      results <- currentResults.get
-      _       <- STM[F].waitFor(results.nonEmpty)
-    } yield results
-
   private def recordBest(bestResult: (Int, Double)): Txn[Unit] =
     for {
       best <- currentBest.get
@@ -117,13 +115,14 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
            } else {
              STM[F].unit
            }
-      _ <- currentResults.set(Queue[(Int, Double)]())
+      _ <- currentResults.set(Map[Int, Double]())
+      _ <- currentResultsTally.set(0)
     } yield ()
 
   private def runComparison(totalEvaluations: Int): F[Unit] =
     for {
       _          <- waitForEvaluationsToComplete(totalEvaluations).commit
-      results    <- grabResults.commit
+      results    <- currentResults.get.commit
       bestResult <- Async[F].delay(results.maxBy(_._2))
       _          <- recordBest(bestResult).commit
     } yield ()

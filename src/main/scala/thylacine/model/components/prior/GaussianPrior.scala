@@ -34,11 +34,11 @@ case class GaussianPrior[F[_]: Async](
 ) extends AsyncImplicits[F]
     with Prior[F, GaussianDistribution] {
 
-  protected override lazy val priorModel: GaussianDistribution =
+  protected override lazy val priorDistribution: GaussianDistribution =
     GaussianDistribution(priorData)
 
   private lazy val rawDistribution: MultivariateGaussian =
-    priorModel.rawDistribution
+    priorDistribution.rawDistribution
 
   private[thylacine] override lazy val getValidated: GaussianPrior[F] =
     if (validated) this
@@ -46,6 +46,13 @@ case class GaussianPrior[F[_]: Async](
 
   protected override def rawSampleModelParameters: F[VectorContainer] =
     Async[F].delay(VectorContainer(rawDistribution.sample()))
+
+  // Testing
+  private[thylacine] lazy val mean: Vector[Double] =
+    rawDistribution.mean.toScalaVector
+
+  private[thylacine] lazy val covariance: Vector[Double] =
+    rawDistribution.covariance.toArray.toVector
 }
 
 object GaussianPrior {

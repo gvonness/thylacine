@@ -72,4 +72,26 @@ private[thylacine] object MathOps {
   private[thylacine] def modifyVectorIndex(input: Vector[Double])(index: Int, f: Double => Double): Vector[Double] =
     input.updated(index, f(input(index)))
 
+  private[thylacine] def scalarMultipleVector(input: Vector[Double], multiplier: Double): Vector[Double] =
+    input.map(multiplier * _)
+
+  private[thylacine] def vectorMagnitude(input: Vector[Double]): Double =
+    Math.sqrt(vectorMagnitudeSquared(input))
+
+  private[thylacine] def vectorMagnitudeSquared(input: Vector[Double]): Double =
+    input.map(Math.pow(_, 2.0)).sum
+
+  private[thylacine] def vectorDotProduct(input1: Vector[Double], input2: Vector[Double]): Double =
+    input1
+      .zip(input2)
+      .map { case (coord1, coord2) =>
+        coord1 * coord2
+      }
+      .sum
+
+  private[thylacine] def vectorAddition(input1: Vector[Double], input2: Vector[Double]): Vector[Double] =
+    input1.zip(input2).map { case (coord1, coord2) =>
+      coord1 + coord2
+    }
+
 }

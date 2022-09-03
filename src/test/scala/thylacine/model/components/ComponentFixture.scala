@@ -15,22 +15,18 @@
  */
 
 package ai.entrolution
-package thylacine
+package thylacine.model.components
 
 import bengal.stm.STM
-import thylacine.config.{HookeAndJeevesConfig, MdsConfig}
-import thylacine.model.components.likelihood.GaussianLinearLikelihood
-import thylacine.model.components.posterior.{
-  GaussianAnalyticPosterior,
-  HookeAndJeevesOptimisedPosterior,
-  MdsOptimisedPosterior,
-  UnnormalisedPosterior
-}
+import thylacine.config.{CoordinateSlideConfig, ConjugateGradientConfig, HookeAndJeevesConfig, MdsConfig}
+import thylacine.model.components.likelihood.{GaussianLikelihood, GaussianLinearLikelihood}
+import thylacine.model.components.posterior._
 import thylacine.model.components.prior.{GaussianPrior, UniformPrior}
 
+import ai.entrolution.thylacine.model.components.forwardmodel.NonLinearForwardModel
 import cats.effect.IO
 
-object InferenceFixture {
+object ComponentFixture {
 
   val fooPrior: GaussianPrior[IO] =
     GaussianPrior.fromConfidenceIntervals[IO](
@@ -53,6 +49,30 @@ object InferenceFixture {
     prior = fooPrior,
     evalCacheDepth = None
   )
+
+  private def linearMapping(input: Map[String, Vector[Double]]): Vector[Double] =
+    input.values.map { vec =>
+      Vector(Vector(1, 3).zip(vec).map(i => i._1 * i._2).sum, Vector(2, 4).zip(vec).map(i => i._1 * i._2).sum)
+    }.head
+
+  private def fooNonAnalyticForwardModelF(implicit stm: STM[IO]): IO[NonLinearForwardModel[IO]] =
+    NonLinearForwardModel.of[IO](
+      evaluation = linearMapping,
+      differential = .0001,
+      domainDimensions = Map("foo" -> 2),
+      rangeDimension = 2,
+      evalCacheDepth = None,
+      jacobianCacheDepth = None
+    )
+
+  def fooNonAnalyticLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLikelihood[IO, NonLinearForwardModel[IO]]] =
+    for {
+      nonAnalyticForwardModel <- fooNonAnalyticForwardModelF
+    } yield GaussianLikelihood.from[IO, NonLinearForwardModel[IO]](
+      forwardModel = nonAnalyticForwardModel,
+      measurements = Vector(7, 10),
+      uncertainties = Vector(0.01, 0.01)
+    )
 
   def fooTwoLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
     coefficients = Vector(Vector(1, 3), Vector(2, 4)),
@@ -133,6 +153,41 @@ object InferenceFixture {
                      isConvergedCallback = _ => IO.unit
                    )
     } yield posterior
+
+  val coordinateSlideConfig: CoordinateSlideConfig = CoordinateSlideConfig(
+    convergenceThreshold = 1e-7,
+    goldenSectionTolerance = 1e-10,
+    lineProbeExpansionFactor = 2.0,
+    numberOfPriorSamplesToSetScale = Some(100)
+  )
+
+  def coordinateSlideOptimisedPosteriorF(implicit stm: STM[IO]): IO[CoordinateSlideOptimisedPosterior[IO]] =
+    for {
+      unnormalisedPosterior <- unnormalisedPosteriorF
+      posterior <- CoordinateSlideOptimisedPosterior.of[IO](
+                     coordinateSlideConfig = coordinateSlideConfig,
+                     posterior = unnormalisedPosterior,
+                     newMaximumCallback = _ => IO.unit,
+                     newScaleCallback = _ => IO.unit,
+                     isConvergedCallback = _ => IO.unit
+                   )
+    } yield posterior
+
+  val gradientDescentConfig: ConjugateGradientConfig = ConjugateGradientConfig(
+    convergenceThreshold = 1e-5,
+    goldenSectionTolerance = 1e-10,
+    lineProbeExpansionFactor = 2.0
+  )
+
+  def gradientDescentOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
+    for {
+      unnormalisedPosterior <- unnormalisedPosteriorF
+    } yield ConjugateGradientOptimisedPosterior.from[IO](
+      gradientDescentConfig = gradientDescentConfig,
+      posterior = unnormalisedPosterior,
+      newMaximumCallback = newMax => IO(print(s"\rNew max: $newMax")),
+      isConvergedCallback = _ => IO.unit
+    )
 
   val mdsConfig: MdsConfig = MdsConfig(
     convergenceThreshold = 1e-15,

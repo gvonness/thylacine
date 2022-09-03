@@ -45,7 +45,7 @@ case class CauchyLikelihood[F[_]: Async](
       this.copy(observations = observations.getValidated, forwardModel = forwardModel.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationModel: CauchyDistribution =
+  private[thylacine] override lazy val observationDistribution: CauchyDistribution =
     CauchyDistribution(observations)
 
 }

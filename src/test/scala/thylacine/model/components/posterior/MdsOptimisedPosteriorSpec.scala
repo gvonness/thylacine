@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import thylacine.InferenceFixture.{hookeAndJeevesOptimisedPosteriorF, mdsOptimisedPosteriorF}
 import thylacine.TestUtils._
+import thylacine.model.components.ComponentFixture.mdsOptimisedPosteriorF
 
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec

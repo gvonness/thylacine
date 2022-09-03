@@ -98,7 +98,7 @@ object HmcmcSampledPosterior {
       burnInComplete           <- TxnVar.of(false)
       simulationEpsilon        <- TxnVar.of(0.1)
       epsilonAdjustmentResults <- TxnVar.of(Queue[Double]())
-      parallelismTokenPool     <- TxnVar.of(Runtime.getRuntime.availableProcessors())
+      parallelismTokenPool     <- TxnVar.of(hmcmcConfig.sampleParallelism.getOrElse(2))
       posterior <- Async[F].delay {
                      HmcmcSampledPosterior(
                        hmcmcConfig = hmcmcConfig,

@@ -34,7 +34,7 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
     with CanValidate[Likelihood[F, _, _]] {
   this: AsyncImplicits[F] =>
 
-  private[thylacine] def observationModel: D
+  private[thylacine] def observationDistribution: D
   private[thylacine] def forwardModel: FM
 
   override final val domainDimension: Int =
@@ -45,7 +45,7 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
   ): F[Double] =
     for {
       mappedVec <- forwardModel.evalAt(input)
-      res       <- Async[F].delay(observationModel.logPdfAt(mappedVec))
+      res       <- Async[F].delay(observationDistribution.logPdfAt(mappedVec))
     } yield res
 
   private[thylacine] override final def logPdfGradientAt(
@@ -54,7 +54,7 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
     for {
       mappedVec  <- forwardModel.evalAt(input)
       forwardJac <- forwardModel.jacobianAt(input)
-      measGrad   <- Async[F].delay(observationModel.logPdfGradientAt(mappedVec))
+      measGrad   <- Async[F].delay(observationDistribution.logPdfGradientAt(mappedVec))
     } yield forwardJac.index.toList.map { fj =>
       IndexedVectorCollection(
         fj._1,

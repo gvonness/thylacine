@@ -31,7 +31,7 @@ case class CauchyPrior[F[_]: Async](
 ) extends AsyncImplicits[F]
     with Prior[F, CauchyDistribution] {
 
-  protected override lazy val priorModel: CauchyDistribution =
+  protected override lazy val priorDistribution: CauchyDistribution =
     CauchyDistribution(priorData)
 
   private[thylacine] override lazy val getValidated: CauchyPrior[F] =
@@ -39,7 +39,7 @@ case class CauchyPrior[F[_]: Async](
     else this.copy(priorData = priorData.getValidated, validated = true)
 
   protected override def rawSampleModelParameters: F[VectorContainer] =
-    Async[F].delay(priorModel.getRawSample)
+    Async[F].delay(priorDistribution.getRawSample)
 }
 
 object CauchyPrior {

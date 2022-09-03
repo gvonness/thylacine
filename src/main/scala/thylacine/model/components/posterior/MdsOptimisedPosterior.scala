@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import bengal.stm.model.TxnVar
+import bengal.stm.model.{TxnVar, TxnVarMap}
 import thylacine.config.MdsConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
@@ -41,7 +41,8 @@ case class MdsOptimisedPosterior[F[_]: STM: Async](
     private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
     protected override val parallelismTokenPool: TxnVar[F, Int],
     protected override val queuedEvaluations: TxnVar[F, Queue[(Int, ModelParameterCollection)]],
-    protected override val currentResults: TxnVar[F, Queue[(Int, Double)]],
+    protected override val currentResults: TxnVarMap[F, Int, Double],
+    protected override val currentResultsTally: TxnVar[F, Int],
     protected override val currentBest: TxnVar[F, (Int, Double)],
     protected override val currentSimplex: TxnVar[F, ModelParameterSimplex],
     protected override val isConverged: TxnVar[F, Boolean]
@@ -74,7 +75,8 @@ object MdsOptimisedPosterior {
     for {
       parallelismTokenPool <- TxnVar.of(mdsConfig.evaluationParallelism)
       queuedEvaluations    <- TxnVar.of(Queue[(Int, ModelParameterCollection)]())
-      currentResults       <- TxnVar.of(Queue[(Int, Double)]())
+      currentResults       <- TxnVarMap.of(Map[Int, Double]())
+      currentResultsTally  <- TxnVar.of(0)
       currentBest          <- TxnVar.of((0, Double.NegativeInfinity))
       currentSimplex <-
         TxnVar.of(
@@ -90,6 +92,7 @@ object MdsOptimisedPosterior {
       parallelismTokenPool = parallelismTokenPool,
       queuedEvaluations = queuedEvaluations,
       currentResults = currentResults,
+      currentResultsTally = currentResultsTally,
       currentBest = currentBest,
       currentSimplex = currentSimplex,
       isConverged = isConverged

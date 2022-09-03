@@ -75,21 +75,10 @@ private[thylacine] case class UniformDistribution(
       negInfinity
     }
 
-  //We artificially set the gradient here to guide optimisers and
-  //samplers using gradient information
   private[thylacine] override def logPdfGradientAt(
       input: VectorContainer
   ): VectorContainer =
-    VectorContainer {
-      zippedBounds.zip(input.scalaVector).map {
-        case ((lowerBound, _), value) if value < lowerBound =>
-          lowerBound - value
-        case ((_, upperBound), value) if value > upperBound =>
-          upperBound - value
-        case _ =>
-          0d
-      }
-    }
+    zeroVector
 
   private lazy val samplingScalingAndShift: ScalaVector[(Double, Double)] =
     zippedBounds.map { case (lowerBound, upperBound) =>
