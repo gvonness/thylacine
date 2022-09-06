@@ -18,10 +18,10 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import bengal.stm.STM
-import thylacine.model.components.ComponentFixture.{fooLikeliHoodF, fooNonAnalyticLikeliHoodF}
+import thylacine.TestUtils.maxIndexVectorDiff
+import thylacine.model.components.ComponentFixture.fooNonAnalyticLikeliHoodF
 import thylacine.model.core.values.IndexedVectorCollection
 
-import ai.entrolution.thylacine.TestUtils.maxIndexVectorDiff
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
 import org.scalatest.freespec.AsyncFreeSpec
