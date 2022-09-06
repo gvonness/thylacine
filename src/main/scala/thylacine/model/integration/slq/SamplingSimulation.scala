@@ -17,17 +17,15 @@
 package ai.entrolution
 package thylacine.model.integration.slq
 
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.util.MathOps
 
-import cats.implicits.toTraverseOps
 import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.util.Random
 
 private[thylacine] sealed trait SamplingSimulation {
-  private[thylacine] def getSample: ResultOrErrIo[ModelParameterCollection]
+  private[thylacine] def getSample: ModelParameterCollection
   private[thylacine] def isConstructed: Boolean
 }
 
@@ -36,10 +34,8 @@ private[thylacine] object SamplingSimulation {
   private[thylacine] case object SamplingSimulationUnconstructed extends SamplingSimulation {
     private[thylacine] override final val isConstructed: Boolean = false
 
-    private[thylacine] override final def getSample: ResultOrErrIo[ModelParameterCollection] =
-      ResultOrErrIo.fromErratum(
-        UnexpectedErratum("Sampling simulation not constructed yet!")
-      )
+    private[thylacine] override final def getSample: ModelParameterCollection =
+      throw new RuntimeException("Sampling simulation not constructed yet!")
   }
 
   private[thylacine] case class SamplingSimulationConstructed(
@@ -72,40 +68,34 @@ private[thylacine] object SamplingSimulation {
     private val indexedModelParameters: Map[Int, ModelParameterCollection] =
       (1 to numberOfResults).zip(logPdfResults.map(_._2)).toMap
 
-    private val sampleStaircases
-        : ResultOrErrIo[Vector[Vector[(BigDecimal, BigDecimal)]]] =
-      samplingWeights.traverse(MathOps.cdfStaircase)
+    private val sampleStaircases: Vector[Vector[(BigDecimal, BigDecimal)]] =
+      samplingWeights.map(MathOps.cdfStaircase)
 
-    private val indexedStaircase
-        : ResultOrErrIo[Map[Int, Vector[((BigDecimal, BigDecimal), Int)]]] =
-      for {
-        cdfStaircases <- sampleStaircases
-      } yield (1 to numberOfAbscissas)
-        .zip(cdfStaircases.map(_.zip(1 to numberOfResults)))
+    private val indexedStaircase: Map[Int, Vector[((BigDecimal, BigDecimal), Int)]] =
+      (1 to numberOfAbscissas)
+        .zip(
+          sampleStaircases
+            .map(_.zip(1 to numberOfResults))
+        )
         .toMap
 
     private val random = Random
 
     private[thylacine] override final val isConstructed: Boolean = true
 
-    private[thylacine] override def getSample: ResultOrErrIo[ModelParameterCollection] =
-      indexedStaircase.flatMap { cdfStaircase =>
-        ResultOrErrIo.fromResultOrErr {
-          cdfStaircase
-            .get(random.nextInt(numberOfAbscissas) + 1)
-            .flatMap { scs =>
-              val continuousRandom = BigDecimal(Math.random().toString)
-              scs.find { sc =>
-                sc._1._1 <= continuousRandom && sc._1._2 > continuousRandom
-              }.map(_._2)
-            }
-            .flatMap(indexedModelParameters.get)
-            .map(Right(_))
-            .getOrElse(
-              Left(UnexpectedErratum("Failed to generated simulated sample!"))
-            )
-        }
-      }
+    private[thylacine] override def getSample: ModelParameterCollection = {
+      lazy val continuousRandom = BigDecimal(Math.random().toString)
+
+      indexedStaircase(random.nextInt(numberOfAbscissas) + 1).find {
+        case ((staircaseLower, staircaseUpper), _)
+            if staircaseLower <= continuousRandom && staircaseUpper > continuousRandom =>
+          true
+        case _ =>
+          false
+      }.map { case (_, index) =>
+        indexedModelParameters(index)
+      }.get
+    }
   }
 
   private[thylacine] val empty: SamplingSimulation = SamplingSimulationUnconstructed

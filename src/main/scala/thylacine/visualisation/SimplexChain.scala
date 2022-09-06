@@ -20,7 +20,7 @@ package thylacine.visualisation
 private[thylacine] case class SimplexChain(chain: Seq[Simplex]) {
   private[thylacine] lazy val getPoints: Vector[GraphPoint] = chain.map(_.start).toVector
 
-  private[thylacine] def reinterp(ds: Double): SimplexChain =
+  private[thylacine] def linearInterpolationUsing(ds: Double): SimplexChain =
     SimplexChain(
       chain
         .foldLeft((0d, Vector[GraphPoint]())) { (i, j) =>

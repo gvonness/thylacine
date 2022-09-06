@@ -18,38 +18,29 @@ package ai.entrolution
 package thylacine.model.components.forwardmodel
 
 import thylacine.model.core._
-import thylacine.model.core.Erratum._
+import thylacine.model.core.values._
 
-import cats.effect.IO
+import cats.syntax.all._
 
-private[thylacine] trait ForwardModel
-    extends GenericMapping
-    with ModelParameterRawMappings
-    with CanValidate[ForwardModel] {
+private[thylacine] trait ForwardModel[F[_]] extends GenericMapping with CanValidate[ForwardModel[F]] {
+  this: AsyncImplicits[F] =>
 
   // Note that input validation should be done within
   // the surrounding likelihood
   private[thylacine] def evalAt(
       input: IndexedVectorCollection
-  ): ResultOrErrIo[VectorContainer]
+  ): F[VectorContainer]
 
-  final def evalAt(input: Map[String, Vector[Double]]): IO[Vector[Double]] =
-    ResultOrErrIo.toIo {
-      for {
-        result <- evalAt(IndexedVectorCollection(input))
-      } yield result.scalaVector
-    }
+  private[thylacine] final def evalAt(input: Map[String, Vector[Double]]): F[Vector[Double]] =
+    evalAt(IndexedVectorCollection(input)).map(_.scalaVector)
 
   // Note that input validation should be done within
   // the surrounding likelihood
   private[thylacine] def jacobianAt(
       input: IndexedVectorCollection
-  ): ResultOrErrIo[IndexedMatrixCollection]
+  ): F[IndexedMatrixCollection]
 
-  final def jacobianAt(input: Map[String, Vector[Double]]): IO[Map[String, Vector[Vector[Double]]]] =
-    ResultOrErrIo.toIo {
-      for {
-        result <- jacobianAt(IndexedVectorCollection(input))
-      } yield result.genericScalaRepresentation
-    }
+  private[thylacine] final def jacobianAt(input: Map[String, Vector[Double]]): F[Map[String, Vector[Vector[Double]]]] =
+    jacobianAt(IndexedVectorCollection(input))
+      .map(_.genericScalaRepresentation)
 }

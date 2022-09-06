@@ -18,23 +18,30 @@ package ai.entrolution
 package thylacine.model.components.forwardmodel
 
 import bengal.stm.STM
-import thylacine.model.components.forwardmodel.InMemoryMemoizedForwardModel.ForwardModelCachingConfig
-import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.computation.CachedComputation
+import thylacine.model.core.values._
+import thylacine.model.core.values.modelparameters.ModelParameterContext
 
 import breeze.linalg.{DenseMatrix, DenseVector}
-import cats.effect.IO
+import cats.effect.kernel.Async
+import cats.syntax.all._
+
+import scala.annotation.unused
 
 // A linear forward model may work across more than
 // one model parameter generator
-case class LinearForwardModel(
-    transform: IndexedMatrixCollection,
-    vectorOffset: Option[VectorContainer],
-    maxResultsToCache: Int,
-    override val validated: Boolean = false
-)(implicit stm: STM[IO])
-    extends InMemoryMemoizedForwardModel {
+case class LinearForwardModel[F[_]: STM: Async](
+    protected override val evalCache: CachedComputation[F, VectorContainer],
+    protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+    private[thylacine] val transform: IndexedMatrixCollection,
+    private[thylacine] val vectorOffset: Option[VectorContainer],
+    override val domainDimension: Int,
+    override val rangeDimension: Int,
+    private[thylacine] override val validated: Boolean = false
+) extends StmImplicits[F]
+    with InMemoryMemoizedForwardModel[F] {
   if (!validated) {
     assert(transform.index.map(_._2.rowTotalNumber).toSet.size == 1)
     assert(
@@ -42,91 +49,113 @@ case class LinearForwardModel(
     )
   }
 
-  override protected val cacheConfig: ForwardModelCachingConfig =
-    ForwardModelCachingConfig(evalCacheDepth = Some(maxResultsToCache), jacobianCacheDepth = None)
-
-  private[thylacine] override lazy val getValidated: LinearForwardModel =
+  private[thylacine] override lazy val getValidated: LinearForwardModel[F] =
     if (validated) {
       this
     } else {
-      LinearForwardModel(transform.getValidated, vectorOffset.map(_.getValidated), maxResultsToCache, validated = true)
+      this.copy(
+        transform = transform.getValidated,
+        vectorOffset = vectorOffset.map(_.getValidated),
+        validated = true
+      )
     }
-
-  override protected val orderedParameterIdentifiersWithDimension
-      : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
-    ResultOrErrIo.fromCalculation(
-      transform.index
-        .map(i => (i._1, i._2.columnTotalNumber))
-        .toVector
-        .sortBy(_._1.value)
-    )
-
-  override val rangeDimension: Int =
-    transform.index.head._2.rowTotalNumber
-
-  override val domainDimension: Int =
-    transform.index.map(_._2.columnTotalNumber).sum
-
-  val rawMatrixTransform: ResultOrErrIo[DenseMatrix[Double]] =
-    for {
-      identifiersAndDimensions <- orderedParameterIdentifiersWithDimension
-      result <- identifiersAndDimensions
-                  .map(_._1)
-                  .foldLeft(
-                    ResultOrErrIo.fromValue(
-                      MatrixContainer.zeros(rowDimension = rangeDimension, columnDimension = 0)
-                    )
-                  ) { (i, j) =>
-                    for {
-                      prev            <- i
-                      matrixContainer <- transform.retrieveIndex(j)
-                    } yield prev.columnMergeWith(matrixContainer)
-                  }
-    } yield result.rawMatrix
-
-  private def applyOffset(input: DenseVector[Double]): DenseVector[Double] =
-    vectorOffset.map(_.rawVector + input).getOrElse(input)
-
-  override protected def computeEvalAt(
-      input: IndexedVectorCollection
-  ): ResultOrErrIo[VectorContainer] =
-    for {
-      rawVector    <- modelParameterCollectionToRawVector(input)
-      rawTransform <- rawMatrixTransform
-    } yield VectorContainer(applyOffset(rawTransform * rawVector))
 
   // Convenience method, as the Jacobian for linear models is obviously
   // constant
-  private[thylacine] val getJacobian: ResultOrErrIo[IndexedMatrixCollection] =
-    ResultOrErrIo.fromValue(transform)
+  private[thylacine] val getJacobian: IndexedMatrixCollection =
+    transform
 
-  override protected def computeJacobianAt(
+  private[thylacine] override def jacobianAt(
       input: IndexedVectorCollection
-  ): ResultOrErrIo[IndexedMatrixCollection] =
-    getJacobian
+  ): F[IndexedMatrixCollection] =
+    Async[F].pure(getJacobian)
 }
 
 object LinearForwardModel {
 
-  private[thylacine] def apply(
+  def of[F[_]: STM: Async](
+      transform: IndexedMatrixCollection,
+      vectorOffset: Option[VectorContainer],
+      evalCacheDepth: Option[Int]
+  ): F[LinearForwardModel[F]] = {
+    val rangeDimension: Int =
+      transform.index.head._2.rowTotalNumber
+
+    val domainDimension: Int =
+      transform.index.map(_._2.columnTotalNumber).sum
+
+    val orderedLabelsAndDimensions: Vector[(ModelParameterIdentifier, Int)] =
+      transform.index
+        .map(i => (i._1, i._2.columnTotalNumber))
+        .toVector
+        .sortBy(_._1.value)
+
+    val rawMatrixTransform: DenseMatrix[Double] =
+      orderedLabelsAndDimensions
+        .map(_._1)
+        .foldLeft(
+          MatrixContainer.zeros(rowDimension = rangeDimension, columnDimension = 0)
+        ) { case (matrixContainer, identifier) =>
+          matrixContainer.columnMergeWith(transform.retrieveIndex(identifier))
+        }
+        .rawMatrix
+
+    def applyOffset(input: DenseVector[Double]): DenseVector[Double] =
+      vectorOffset.map(_.rawVector + input).getOrElse(input)
+
+    val rawMappings = new ModelParameterContext {
+      override private[thylacine] val orderedParameterIdentifiersWithDimension =
+        orderedLabelsAndDimensions
+    }
+
+    def transformedEval(
+        input: IndexedVectorCollection
+    ): VectorContainer =
+      VectorContainer(applyOffset(rawMatrixTransform * rawMappings.modelParameterCollectionToRawVector(input)))
+
+    def dummyMapping(@unused input: IndexedVectorCollection): IndexedMatrixCollection =
+      IndexedMatrixCollection(index = Map())
+
+    for {
+      evalCache <- CachedComputation.of[F, VectorContainer](transformedEval, evalCacheDepth)
+      jacobianCache <-
+        CachedComputation.of[F, IndexedMatrixCollection](dummyMapping, None)
+    } yield LinearForwardModel[F](evalCache, jacobianCache, transform, vectorOffset, domainDimension, rangeDimension)
+  }
+
+  @unused
+  private[thylacine] def of[F[_]: STM: Async](
       identifier: ModelParameterIdentifier,
       values: Vector[Vector[Double]],
-      maxResultsToCache: Int
-  )(implicit stm: STM[IO]): LinearForwardModel =
-    LinearForwardModel(
+      evalCacheDepth: Option[Int]
+  ): F[LinearForwardModel[F]] =
+    of[F](
       transform = IndexedMatrixCollection(identifier, values),
       vectorOffset = None,
-      maxResultsToCache = maxResultsToCache
+      evalCacheDepth = evalCacheDepth
     )
 
-  def apply(
+  def of[F[_]: STM: Async](
       label: String,
       values: Vector[Vector[Double]],
-      maxResultsToCache: Int
-  )(implicit stm: STM[IO]): LinearForwardModel =
-    LinearForwardModel(
-      transform = IndexedMatrixCollection(label, values),
+      evalCacheDepth: Option[Int]
+  ): F[LinearForwardModel[F]] =
+    of[F](
+      transform = IndexedMatrixCollection(ModelParameterIdentifier(label), values),
       vectorOffset = None,
-      maxResultsToCache = maxResultsToCache
+      evalCacheDepth = evalCacheDepth
+    )
+
+  @unused
+  def identityOf[F[_]: STM: Async](
+      label: String,
+      dimension: Int,
+      evalCacheDepth: Option[Int]
+  ): F[LinearForwardModel[F]] =
+    of[F](
+      transform = IndexedMatrixCollection
+        .squareIdentity(ModelParameterIdentifier(label), dimension),
+      vectorOffset = None,
+      evalCacheDepth = evalCacheDepth
     )
 }

@@ -18,17 +18,23 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import thylacine.model.components.forwardmodel._
-import thylacine.model.core.Erratum._
-import thylacine.model.core.IndexedVectorCollection._
+import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.modelparameters.ModelParameterPdf
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.distributions.Distribution
 
-private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
-    extends ModelParameterPdf
+import cats.effect.kernel.Async
+import cats.syntax.all._
+
+private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribution]
+    extends ModelParameterPdf[F]
     with PosteriorTerm
-    with CanValidate[Likelihood[_, _]] {
+    with CanValidate[Likelihood[F, _, _]] {
+  this: AsyncImplicits[F] =>
 
-  private[thylacine] def observations: BelievedData
-  private[thylacine] def observationModel: BM
+  private[thylacine] def observationDistribution: D
   private[thylacine] def forwardModel: FM
 
   override final val domainDimension: Int =
@@ -36,23 +42,23 @@ private[thylacine] trait Likelihood[+FM <: ForwardModel, +BM <: BeliefModel]
 
   private[thylacine] override final def logPdfAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[Double] =
+  ): F[Double] =
     for {
       mappedVec <- forwardModel.evalAt(input)
-      res       <- observationModel.logPdfAt(mappedVec)
+      res       <- Async[F].delay(observationDistribution.logPdfAt(mappedVec))
     } yield res
 
   private[thylacine] override final def logPdfGradientAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
+  ): F[ModelParameterCollection] =
     for {
       mappedVec  <- forwardModel.evalAt(input)
       forwardJac <- forwardModel.jacobianAt(input)
-      measGrad   <- observationModel.logPdfGradientAt(mappedVec)
+      measGrad   <- Async[F].delay(observationDistribution.logPdfGradientAt(mappedVec))
     } yield forwardJac.index.toList.map { fj =>
       IndexedVectorCollection(
         fj._1,
-        VectorContainer(fj._2.rawMatrix.t * measGrad.rawVector)
+        VectorContainer((measGrad.rawVector.t * fj._2.rawMatrix).t)
       )
     }.reduce(_ rawMergeWith _)
 }

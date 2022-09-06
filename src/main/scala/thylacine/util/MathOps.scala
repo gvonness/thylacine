@@ -17,64 +17,98 @@
 package ai.entrolution
 package thylacine.util
 
-import thylacine.model.core.Erratum.{ResultOrErrIo, UnexpectedErratum}
-
 private[thylacine] object MathOps {
 
   private[thylacine] def trapezoidalQuadrature(
       abscissa: Vector[Double],
       values: Vector[Double]
-  ): ResultOrErrIo[Double] =
+  ): Double =
     if (abscissa.size == values.size && abscissa.size > 1) {
       trapezoidalQuadrature(abscissa.zip(values))
     } else {
-      ResultOrErrIo.fromErratum(
-        UnexpectedErratum("Malformed abscissa for trapezoidal quadrature")
-      )
+      throw new RuntimeException("Malformed abscissa for trapezoidal quadrature")
     }
 
   private[thylacine] def trapezoidalQuadrature(
       graphPoints: Vector[(Double, Double)]
-  ): ResultOrErrIo[Double] =
+  ): Double =
     if (
       graphPoints.size > 1 && graphPoints
         .map(_._1)
         .toSet
         .size == graphPoints.size
     ) {
-      ResultOrErrIo.fromCalculation {
-        val sorted = graphPoints.sortBy(_._1)
-        sorted
-          .dropRight(1)
-          .zip(sorted.tail)
-          .map { graphPointPair =>
-            0.5 * (graphPointPair._1._2 + graphPointPair._2._2) * (graphPointPair._2._1 - graphPointPair._1._1)
-          }
-          .sum
-      }
+      val sorted = graphPoints.sortBy(_._1)
+      sorted
+        .dropRight(1)
+        .zip(sorted.tail)
+        .map { graphPointPair =>
+          0.5 * (graphPointPair._1._2 + graphPointPair._2._2) * (graphPointPair._2._1 - graphPointPair._1._1)
+        }
+        .sum
     } else {
-      ResultOrErrIo.fromErratum(
-        UnexpectedErratum("Malformed abscissa for trapezoidal quadrature")
-      )
+      throw new RuntimeException("Malformed abscissa for trapezoidal quadrature")
     }
 
   // Creates a discretised CDF that facilitates sampling over a
   // discrete set of outcomes via uniform sampling on [0, 1)
   private[thylacine] def cdfStaircase(
       values: Vector[BigDecimal]
-  ): ResultOrErrIo[Vector[(BigDecimal, BigDecimal)]] =
-    for {
-      cdfReversed <- ResultOrErrIo.fromCalculation {
-                       values.foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
-                         (i.head + j) +: i
-                       }
-                     }
-      normalisedCdf <- ResultOrErrIo.fromCalculation {
-                         cdfReversed.map(_ / cdfReversed.head).reverse
-                       }
-      result <- ResultOrErrIo.fromCalculation {
-                  normalisedCdf.dropRight(1).zip(normalisedCdf.tail)
-                }
-    } yield result
+  ): Vector[(BigDecimal, BigDecimal)] = {
+    val cdfReversed = values
+      .foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
+        (i.head + j) +: i
+      }
+
+    val normalisedCdf = cdfReversed
+      .map(_ / cdfReversed.head)
+      .reverse
+
+    normalisedCdf
+      .dropRight(1)
+      .zip(normalisedCdf.tail)
+  }
+
+  private[thylacine] def vectorCdfStaircase(
+      values: Vector[Double]
+  ): Vector[(Double, Double)] = {
+    val cdfReversed = values
+      .foldLeft(Vector(0d)) { (i, j) =>
+        (i.head + j) +: i
+      }
+
+    val normalisedCdf = cdfReversed
+      .map(_ / cdfReversed.head)
+      .reverse
+
+    normalisedCdf
+      .dropRight(1)
+      .zip(normalisedCdf.tail)
+  }
+
+  private[thylacine] def modifyVectorIndex(input: Vector[Double])(index: Int, f: Double => Double): Vector[Double] =
+    input.updated(index, f(input(index)))
+
+  private[thylacine] def scalarMultipleVector(input: Vector[Double], multiplier: Double): Vector[Double] =
+    input.map(multiplier * _)
+
+  private[thylacine] def vectorMagnitude(input: Vector[Double]): Double =
+    Math.sqrt(vectorMagnitudeSquared(input))
+
+  private[thylacine] def vectorMagnitudeSquared(input: Vector[Double]): Double =
+    input.map(Math.pow(_, 2.0)).sum
+
+  private[thylacine] def vectorDotProduct(input1: Vector[Double], input2: Vector[Double]): Double =
+    input1
+      .zip(input2)
+      .map { case (coord1, coord2) =>
+        coord1 * coord2
+      }
+      .sum
+
+  private[thylacine] def vectorAddition(input1: Vector[Double], input2: Vector[Double]): Vector[Double] =
+    input1.zip(input2).map { case (coord1, coord2) =>
+      coord1 + coord2
+    }
 
 }

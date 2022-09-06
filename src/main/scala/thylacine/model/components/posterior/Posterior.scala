@@ -19,59 +19,56 @@ package thylacine.model.components.posterior
 
 import thylacine.model.components.likelihood._
 import thylacine.model.components.prior._
-import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core._
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.modelparameters.{ModelParameterPdf, ModelParameterContext}
 
-import cats.effect.implicits._
-import cats.implicits._
+import cats.syntax.all._
 
-private[thylacine] trait Posterior[P <: Prior[_], L <: Likelihood[_, _]]
-    extends ModelParameterPdf
-    with ModelParameterRawMappings {
+private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _, _]]
+    extends ModelParameterPdf[F]
+    with ModelParameterContext {
+  this: AsyncImplicits[F] =>
+
   private[thylacine] def priors: Set[P]
   private[thylacine] def likelihoods: Set[L]
-  private[thylacine] def isAnalytic: Boolean
 
   override final val domainDimension =
     priors.toVector.map(_.domainDimension).sum
 
-  protected override final lazy val orderedParameterIdentifiersWithDimension
-      : ResultOrErrIo[Vector[(ModelParameterIdentifier, Int)]] =
-    ResultOrErrIo.fromCalculation {
-      priors.toVector
-        .sortBy(_.posteriorTermIdentifier)
-        .map(i =>
-          ModelParameterIdentifier(
-            i.posteriorTermIdentifier.value
-          ) -> i.generatorDimension
-        )
-    }
+  private[thylacine] override final lazy val orderedParameterIdentifiersWithDimension
+      : Vector[(ModelParameterIdentifier, Int)] =
+    priors.toVector
+      .sortBy(_.posteriorTermIdentifier)
+      .map(i =>
+        ModelParameterIdentifier(
+          i.posteriorTermIdentifier.value
+        ) -> i.generatorDimension
+      )
 
   private[thylacine] override final def logPdfGradientAt(
       input: ModelParameterCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
+  ): F[ModelParameterCollection] =
     for {
-      priorLogPdfGradSumFib <-
+      priorSum <-
         priors.toList
-          .parTraverse(_.logPdfGradientAt(input))
+          .traverse(_.logPdfGradientAt(input))
           .map(_.reduce(_ rawSumWith _))
-          .start
-      likelihoodLogPdfGradSumFib <-
+      likelihoodSum <-
         likelihoods.toList
-          .parTraverse(_.logPdfGradientAt(input))
+          .traverse(_.logPdfGradientAt(input))
           .map(_.reduce(_ rawSumWith _))
-          .start
-      priorSum      <- priorLogPdfGradSumFib.joinWithNever
-      likelihoodSum <- likelihoodLogPdfGradSumFib.joinWithNever
     } yield priorSum rawSumWith likelihoodSum
 
-  private[thylacine] def samplePriors: ResultOrErrIo[ModelParameterCollection] =
+  private[thylacine] def samplePriors: F[ModelParameterCollection] =
+    priors.toVector.traverse(_.sampleModelParameters).map(_.reduce(_ rawMergeWith _))
+
+  private[thylacine] override def logPdfAt(
+      input: ModelParameterCollection
+  ): F[Double] =
     for {
-      sampleCollection <-
-        priors.toVector.parTraverse(_.sampleModelParameters)
-      result <-
-        ResultOrErrIo.fromCalculation(sampleCollection.reduce(_ rawMergeWith _))
-    } yield result
+      priorEvaluations      <- priors.toList.traverse(_.logPdfAt(input))
+      likelihoodEvaluations <- likelihoods.toList.traverse(_.logPdfAt(input))
+    } yield (priorEvaluations ++ likelihoodEvaluations).sum
 }

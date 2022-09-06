@@ -42,11 +42,7 @@ private[thylacine] case class QuadratureDomainTelemetry(
   private[thylacine] lazy val isConverged: Boolean = rejectionStreak >= 100000
 
   private[thylacine] lazy val resetForRebuild: QuadratureDomainTelemetry =
-    this.copy(currentScaleFactor = 1.0,
-              acceptances = 0,
-              rejections = 0,
-              acceptancesSinceLastRebuild = 0
-    )
+    this.copy(currentScaleFactor = 1.0, acceptances = 0, rejections = 0, acceptancesSinceLastRebuild = 0)
 
   private[thylacine] lazy val initiateRebuild: Boolean =
     (rejectionStreak >= 1000 && acceptancesSinceLastRebuild >= 1) || currentScaleFactor == Double.MinPositiveValue
@@ -75,8 +71,7 @@ private[thylacine] case class QuadratureDomainTelemetry(
     } else if (newAcceptanceRatio < nominalAcceptance) {
       if (rescalingEnabled) {
         this.copy(
-          currentScaleFactor =
-            Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
+          currentScaleFactor = Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
           acceptances = newAcceptance,
           acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
           rejectionStreak = 0
@@ -89,10 +84,8 @@ private[thylacine] case class QuadratureDomainTelemetry(
         )
       }
     } else {
-      this.copy(acceptances = newAcceptance,
-                acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-                rejectionStreak = 0
-      )
+      this
+        .copy(acceptances = newAcceptance, acceptancesSinceLastRebuild = newAcceptanceSinceRebuild, rejectionStreak = 0)
     }
   }
 
@@ -102,15 +95,15 @@ private[thylacine] case class QuadratureDomainTelemetry(
       acceptances.toDouble / (acceptances + newRejection)
     if (newAcceptanceRatio > nominalAcceptance) {
       this.copy(
-//        currentScaleFactor =
-//          Math.min(currentScaleFactor + (1.0 - currentScaleFactor) / 2.0, 1.0),
+        //        currentScaleFactor =
+        //          Math.min(currentScaleFactor + (1.0 - currentScaleFactor) / 2.0, 1.0),
         rejections = newRejection,
         rejectionStreak = rejectionStreak + 1
       )
     } else if (newAcceptanceRatio < nominalAcceptance) {
       this.copy(
-//        currentScaleFactor =
-//          Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
+        //        currentScaleFactor =
+        //          Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
         rejections = newRejection,
         rejectionStreak = rejectionStreak + 1
       )

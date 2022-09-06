@@ -17,39 +17,42 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
+import thylacine.model.core.values.VectorContainer
+import thylacine.model.distributions.CauchyDistribution
 
-case class CauchyPrior(
+import cats.effect.kernel.Async
+
+case class CauchyPrior[F[_]: Async](
     private[thylacine] override val identifier: ModelParameterIdentifier,
-    private[thylacine] val priorData: BelievedData,
+    private[thylacine] val priorData: RecordedData,
     private[thylacine] override val validated: Boolean = false
-) extends Prior[CauchyBeliefModel] {
+) extends AsyncImplicits[F]
+    with Prior[F, CauchyDistribution] {
 
-  protected override lazy val priorModel: CauchyBeliefModel =
-    CauchyBeliefModel(priorData)
+  protected override lazy val priorDistribution: CauchyDistribution =
+    CauchyDistribution(priorData)
 
-  private[thylacine] override lazy val getValidated: CauchyPrior =
+  private[thylacine] override lazy val getValidated: CauchyPrior[F] =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters
-      : ResultOrErrIo[VectorContainer] =
-    ResultOrErrIo.fromCalculation(priorModel.getRawSample)
+  protected override def rawSampleModelParameters: F[VectorContainer] =
+    Async[F].delay(priorDistribution.getRawSample)
 }
 
 object CauchyPrior {
 
-  def apply(
+  def apply[F[_]: Async](
       label: String,
       values: Vector[Double],
       confidenceIntervals: Vector[Double]
-  ): CauchyPrior = {
+  ): CauchyPrior[F] = {
     assert(values.size == confidenceIntervals.size)
     CauchyPrior(
       identifier = ModelParameterIdentifier(label),
-      priorData = BelievedData(
+      priorData = RecordedData(
         values = VectorContainer(values),
         symmetricConfidenceIntervals = VectorContainer(confidenceIntervals)
       )

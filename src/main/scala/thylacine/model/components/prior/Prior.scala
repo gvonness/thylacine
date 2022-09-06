@@ -17,19 +17,27 @@
 package ai.entrolution
 package thylacine.model.components.prior
 
-import thylacine.model.core.Erratum._
+import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core.IndexedVectorCollection._
 import thylacine.model.core._
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
+import thylacine.model.distributions.Distribution
+import thylacine.model.sampling.ModelParameterSampler
 
-private[thylacine] trait Prior[+BM <: BeliefModel]
-    extends ModelParameterPdf
+import cats.effect.kernel.Async
+import cats.syntax.all._
+
+private[thylacine] trait Prior[F[_], +D <: Distribution]
+    extends ModelParameterPdf[F]
     with PosteriorTerm
-    with ModelParameterSampler
+    with ModelParameterSampler[F]
     with ModelParameterGenerator
-    with CanValidate[Prior[_]] {
+    with CanValidate[Prior[F, _]] {
+  this: AsyncImplicits[F] =>
 
-  protected def priorModel: BM
+  protected def priorDistribution: D
 
   final val label: String = identifier.value
 
@@ -37,31 +45,28 @@ private[thylacine] trait Prior[+BM <: BeliefModel]
     identifier.value
   )
 
-  override final val domainDimension: Int    = priorModel.domainDimension
-  override final val generatorDimension: Int = priorModel.domainDimension
+  override final val domainDimension: Int    = priorDistribution.domainDimension
+  override final val generatorDimension: Int = priorDistribution.domainDimension
 
   override final def logPdfAt(
       input: IndexedVectorCollection
-  ): ResultOrErrIo[Double] =
-    for {
-      vector <- input.retrieveIndex(identifier)
-      res    <- priorModel.logPdfAt(vector)
-    } yield res
+  ): F[Double] =
+    Async[F].delay(priorDistribution.logPdfAt(input.retrieveIndex(identifier)))
 
   override final def logPdfGradientAt(
       input: IndexedVectorCollection
-  ): ResultOrErrIo[ModelParameterCollection] =
-    for {
-      vector  <- input.retrieveIndex(identifier)
-      gradLog <- priorModel.logPdfGradientAt(vector)
-      res <- ResultOrErrIo.fromCalculation(
-               IndexedVectorCollection(identifier, gradLog)
-             )
-    } yield res
+  ): F[ModelParameterCollection] =
+    Async[F].delay {
+      IndexedVectorCollection(identifier,
+                              priorDistribution
+                                .logPdfGradientAt(input.retrieveIndex(identifier))
+      )
+    }
 
-  override final def sampleModelParameters
-      : ResultOrErrIo[ModelParameterCollection] =
-    for {
-      vectorResult <- rawSampleModelParameters
-    } yield IndexedVectorCollection(identifier, vectorResult)
+  override final def sampleModelParameters: F[ModelParameterCollection] =
+    rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))
+
+  // testing
+  private[thylacine] def rawLogPdfGradientAt(input: Vector[Double]): Vector[Double] =
+    priorDistribution.logPdfGradientAt(VectorContainer(input)).scalaVector
 }

@@ -18,30 +18,28 @@ package ai.entrolution
 package thylacine.visualisation
 
 import bengal.stm._
+import bengal.stm.model._
+import bengal.stm.syntax.all._
 import thylacine.util.MathOps.trapezoidalQuadrature
 
 import cats.data.NonEmptyVector
-import cats.effect.IO
-import cats.effect.unsafe.implicits.global
-import cats.implicits._
+import cats.effect.implicits._
+import cats.effect.kernel.Async
+import cats.syntax.all._
 
-case class CartesianSurface(
+import scala.annotation.unused
+
+case class CartesianSurface[F[_]: STM: Async](
     xAbscissa: Vector[Double],
     yAbscissa: Vector[Double],
-    progressSetCallback: Int => Unit,
-    progressIncrementCallback: Unit => Unit,
-    progressFinishCallback: Unit => Unit
-)(implicit val stm: STM[IO]) {
-
-  import stm._
-
-  progressSetCallback(0)
+    progressSetCallback: Int => F[Unit],
+    progressIncrementCallback: Unit => F[Unit],
+    progressFinishCallback: Unit => F[Unit],
+    private val scalarValues: TxnVar[F, Map[GraphPoint, Double]]
+) {
 
   private val xScale = xAbscissa.max - xAbscissa.min
   private val yScale = yAbscissa.max - yAbscissa.min
-
-  private val scalarValues =
-    TxnVar.of(Map[GraphPoint, Double]()).unsafeRunSync()
 
   private val keys: Vector[GraphPoint] =
     xAbscissa.flatMap { x =>
@@ -53,47 +51,40 @@ case class CartesianSurface(
   private val normaliseColumns: Txn[Unit] = {
     for {
       values <- scalarValues.get
-      groupMap = values.groupBy(_._1.x).toVector match {
+      groupMap = (values.groupBy(_._1.x).toVector match {
                    case h +: t =>
                      NonEmptyVector(h, t).parTraverse { col =>
-                       for {
-                         integration <- trapezoidalQuadrature(
-                                          yAbscissa,
-                                          col._2.values.toVector
-                                        )
-                         //integration <- ResultOrErrIo.fromCalculation(col._2.values.toVector.max)
-                       } yield
+                       Async[F].delay {
+                         trapezoidalQuadrature(
+                           yAbscissa,
+                           col._2.values.toVector
+                         )
+                       }.map { integration =>
                          if (integration > 0) {
                            col._2.view.mapValues(v => v / integration).toSeq
                          } else {
                            col._2.toSeq
                          }
-                     }.map(_.reduce).value.unsafeRunSync()
+                       }
+                     }.map(_.reduce)
                    case _ =>
-                     Right(Seq())
-                 }
-      _ <- groupMap match {
-             case Right(res) =>
-               scalarValues.set(res.toMap)
-             case Left(erratum) =>
-               stm.abort(new RuntimeException(erratum.message))
-           }
+                     Async[F].pure(Seq[(GraphPoint, Double)]())
+                 }).map(_.toMap)
+      _ <- scalarValues.setF(groupMap).handleErrorWith(STM[F].abort)
     } yield ()
   }
 
   private val zeroValuesSpec =
-    keys.parTraverse { p =>
+    keys.traverse { p =>
       scalarValues.modify(i => i + (p -> 0d)).commit.map(_ => ())
     }
 
   private def addSimplexChain(
       input: SimplexChain,
       kernelVariance: Double
-  ): IO[Unit] =
-    scalarValues.modify { pvs =>
-      Map(
-        concatenateMapping(pvs, input, kernelVariance).unsafeRunSync(): _*
-      )
+  ): F[Unit] =
+    scalarValues.modifyF { pvs =>
+      concatenateMapping(pvs, input, kernelVariance).map(_.toMap)
     }.commit
 
   private def addValues(
@@ -101,13 +92,13 @@ case class CartesianSurface(
       values: Vector[Double],
       ds: Double,
       kernelVariance: Double
-  ): IO[Unit] =
+  ): F[Unit] =
     for {
-      _ <- IO(progressIncrementCallback(()))
-      chain <- IO(
+      _ <- progressIncrementCallback(())
+      chain <- Async[F].delay(
                  SimplexChain(
                    abcissa.zip(values).map(GraphPoint(_))
-                 ).reinterp(ds)
+                 ).linearInterpolationUsing(ds)
                )
       _ <- addSimplexChain(chain, kernelVariance)
     } yield ()
@@ -116,11 +107,11 @@ case class CartesianSurface(
       startMap: Map[GraphPoint, Double],
       chain: SimplexChain,
       kernelVariance: Double
-  ): IO[Vector[(GraphPoint, Double)]] =
+  ): F[Vector[(GraphPoint, Double)]] =
     startMap.toVector match {
       case h +: t =>
         NonEmptyVector(h, t).parTraverse { pv =>
-          IO {
+          Async[F].delay {
             pv._1 -> chain.getPoints.foldLeft(pv._2) { (i, j) =>
               i + Math.exp(
                 -0.5 * j.scaledDistSquaredTo(pv._1, xScale, yScale) / kernelVariance
@@ -128,34 +119,61 @@ case class CartesianSurface(
             }
           }
         }.map(_.toVector)
-      case _ => IO.pure(Vector[(GraphPoint, Double)]())
+      case _ => Async[F].pure(Vector[(GraphPoint, Double)]())
     }
 
+  @unused
   def addSamples(
       abcissa: Vector[Double],
       samples: Vector[Vector[Double]],
       ds: Double,
       kernelVariance: Double
-  ): IO[Unit] =
+  ): F[Unit] =
     samples match {
       case h +: t =>
         for {
-          _ <- IO(progressSetCallback(samples.size))
+          _ <- progressSetCallback(samples.size)
           _ <-
             NonEmptyVector(h, t)
               .traverse(i => addValues(abcissa, i, ds, kernelVariance))
-          _ <- IO(progressIncrementCallback)
-          _ <- IO(progressFinishCallback(()))
+          _ <- progressIncrementCallback(())
+          _ <- progressFinishCallback(())
         } yield ()
       case _ =>
-        IO.unit
+        Async[F].unit
     }
 
-  def getResults: IO[Map[(Double, Double), Double]] =
+  @unused
+  def getResults: F[Map[(Double, Double), Double]] =
     (for {
       _        <- normaliseColumns
       plotData <- scalarValues.get
     } yield plotData.map(i => i._1.primitiveValue -> i._2)).commit
+}
 
-  zeroValuesSpec.unsafeRunSync()
+object CartesianSurface {
+
+  @unused
+  def of[F[_]: STM: Async](
+      xAbscissa: Vector[Double],
+      yAbscissa: Vector[Double],
+      progressSetCallback: Int => F[Unit],
+      progressIncrementCallback: Unit => F[Unit],
+      progressFinishCallback: Unit => F[Unit]
+  ): F[CartesianSurface[F]] =
+    for {
+      scalarValues <- TxnVar.of(Map[GraphPoint, Double]())
+      result <-
+        Async[F].delay(
+          CartesianSurface(xAbscissa,
+                           yAbscissa,
+                           progressSetCallback,
+                           progressIncrementCallback,
+                           progressFinishCallback,
+                           scalarValues
+          )
+        )
+      _ <- result.zeroValuesSpec
+    } yield result
+
 }
