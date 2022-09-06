@@ -18,12 +18,12 @@ package ai.entrolution
 package thylacine.model.components
 
 import bengal.stm.STM
-import thylacine.config.{CoordinateSlideConfig, ConjugateGradientConfig, HookeAndJeevesConfig, MdsConfig}
+import thylacine.config.{ConjugateGradientConfig, CoordinateSlideConfig, HookeAndJeevesConfig, MdsConfig}
+import thylacine.model.components.forwardmodel.NonLinearForwardModel
 import thylacine.model.components.likelihood.{GaussianLikelihood, GaussianLinearLikelihood}
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior.{GaussianPrior, UniformPrior}
 
-import ai.entrolution.thylacine.model.components.forwardmodel.NonLinearForwardModel
 import cats.effect.IO
 
 object ComponentFixture {
@@ -173,19 +173,20 @@ object ComponentFixture {
                    )
     } yield posterior
 
-  val gradientDescentConfig: ConjugateGradientConfig = ConjugateGradientConfig(
-    convergenceThreshold = 1e-5,
+  val conjugateGradientConfig: ConjugateGradientConfig = ConjugateGradientConfig(
+    convergenceThreshold = 1e-20,
     goldenSectionTolerance = 1e-10,
-    lineProbeExpansionFactor = 2.0
+    lineProbeExpansionFactor = 2.0,
+    numberOfResultsToRetain = 100
   )
 
-  def gradientDescentOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
+  def conjugateGradientOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
     } yield ConjugateGradientOptimisedPosterior.from[IO](
-      gradientDescentConfig = gradientDescentConfig,
+      conjugateGradientConfig = conjugateGradientConfig,
       posterior = unnormalisedPosterior,
-      newMaximumCallback = newMax => IO(print(s"\rNew max: $newMax")),
+      newMaximumCallback = _ => IO.unit,
       isConvergedCallback = _ => IO.unit
     )
 

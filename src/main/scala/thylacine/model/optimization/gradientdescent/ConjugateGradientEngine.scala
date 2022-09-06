@@ -29,21 +29,24 @@ import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
+import scala.collection.immutable.Queue
+
 trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with GoldenSectionSearch[F] {
   this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
   protected def convergenceThreshold: Double
 
+  protected def numberOfResultsToRetain: Int
+
   protected def newMaximumCallback: Double => F[Unit]
 
   protected def isConvergedCallback: Unit => F[Unit]
 
-  private def probeDifferential: Double = 0.001
-
   private def calculateNextLogPdf(
       startingEvaluation: LineEvaluationResult,
       previousGradient: Vector[Double],
-      previousSearchDirection: Vector[Double]
+      previousSearchDirection: Vector[Double],
+      previousResults: Queue[Double]
   ): F[(Double, ModelParameterCollection)] =
     (for {
       gradientLogPdf                   <- logPdfGradientAt(startingEvaluation.modelParameterArgument)
@@ -73,18 +76,35 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
                                   vectorValuesToModelParameterCollection(lineSearchResults._2)
                                 )
                               }
-      differenceMagnitude <- Async[F].delay(lineSearchResults._2.subtract(startingEvaluation.vectorArgument).magnitude)
-    } yield (differenceMagnitude, lineSearchEvaluation, gradientLogPdfVector, newDirection)).flatMap {
-      case (differenceMagnitude, lineSearchEvaluation, gradientLogPdfVector, newDirection)
-          if Math.abs(
-            lineSearchEvaluation.result - startingEvaluation.result
-          ) > convergenceThreshold || differenceMagnitude > convergenceThreshold =>
-        newMaximumCallback(lineSearchEvaluation.result).start >> calculateNextLogPdf(lineSearchEvaluation,
-                                                                                     gradientLogPdfVector,
-                                                                                     newDirection
+    } yield (lineSearchEvaluation, gradientLogPdfVector, newDirection)).flatMap {
+      case (lineSearchEvaluation, gradientLogPdfVector, newDirection)
+          if previousResults.size < numberOfResultsToRetain =>
+        (if (previousResults.isEmpty || lineSearchEvaluation.result > previousResults.dequeue._1) {
+           newMaximumCallback(lineSearchEvaluation.result)
+         } else {
+           Async[F].unit
+         }) >> calculateNextLogPdf(
+          lineSearchEvaluation,
+          gradientLogPdfVector,
+          newDirection,
+          previousResults.enqueue(lineSearchEvaluation.result)
         )
-      case (differenceMagnitude, lineSearchEvaluation, _, _) =>
-        isConvergedCallback().start >> Async[F].pure {
+      case (lineSearchEvaluation, gradientLogPdfVector, newDirection)
+          if Math.abs(
+            previousResults.dequeue._1 - lineSearchEvaluation.result
+          ) > convergenceThreshold =>
+        (if (lineSearchEvaluation.result > previousResults.dequeue._1) {
+           newMaximumCallback(lineSearchEvaluation.result)
+         } else {
+           Async[F].unit
+         }) >> calculateNextLogPdf(
+          lineSearchEvaluation,
+          gradientLogPdfVector,
+          newDirection,
+          previousResults.enqueue(lineSearchEvaluation.result).dequeue._2
+        )
+      case (lineSearchEvaluation, _, _) =>
+        isConvergedCallback(()).start >> Async[F].pure {
           (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
         }
     }
@@ -98,7 +118,8 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
       startingPointVector  <- Async[F].delay(modelParameterCollectionToVectorValues(startingPt))
       result <- calculateNextLogPdf(LineEvaluationResult(logPdf, startingPointVector, startingPt),
                                     gradientLogPdfVector,
-                                    gradientLogPdfVector
+                                    gradientLogPdfVector,
+                                    Queue[Double]()
                 )
     } yield result
 

@@ -10,13 +10,21 @@ A few aspects differentiate Thylacine from other Bayesian inference frameworks:
 * Designed to be multi-threaded from the ground up using a high-performance Software Transactional Memory (STM) implementation to facilitate efficient concurrency across the differing computational profiles for sampling, integration, visualisation, etc.
 * Analytic gradient calculations can be specified on a component level that enables automatic differentiation to be used in gradient calculations. This is essential if aiming to perform high-dimension inference using gradient information.
 * A growing list of advanced algorithms/concepts have already been implementated:
-  * Hamiltonian MCMC
-  * An advanced version of Nested Sampling: Stochastic Lebesgue Quadrature (SLQ) 
   * Gaussian analytic posteriors
-  * Automatic differentiation that falls back to finite-differences when analytic gradient calculations are not available
-  * Hookes & Jeeves optimisation: This is one of the best optimisation algorithms I've ever come across that works across a wide range of posterior distributions
-  * Likelihoods that support in-memory caching of evaluation and Jacobian calculations
-  * Support for Cauchy distributions (in addition to standard Gaussian and uniform distributions)
+  * Optimisation
+    * Hooke & Jeeves
+    * Coordinate line search (Coordinate Slide) 
+    * Multi-direction search (MDS)
+    * Nonlinear conjugate gradient 
+  * Sampling
+    * Hamiltonian MCMC
+    * Leapfrog MCMC
+  * Integration/Sampling
+    * An advanced version of Nested Sampling: Stochastic Lebesgue Quadrature (SLQ) 
+  * General 
+    * Component-wise automatic differentiation that falls back to finite-differences when analytic gradient calculations are not available for a particular component
+    * Likelihoods that support in-memory caching of evaluation and Jacobian calculations
+    * Support for Cauchy distributions (in addition to standard Gaussian and uniform distributions)
 
 ---
 

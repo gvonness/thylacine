@@ -19,7 +19,7 @@ package thylacine.model.components.posterior
 
 import bengal.stm.STM
 import thylacine.TestUtils._
-import thylacine.model.components.ComponentFixture.gradientDescentOptimisedPosteriorF
+import thylacine.model.components.ComponentFixture.conjugateGradientOptimisedPosteriorF
 
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
@@ -31,11 +31,11 @@ class ConjugateGradientOptimisedPosteriorSpec extends AsyncFreeSpec with AsyncIO
     "find the parameters that correspond to the posterior maximum" in {
       (for {
         implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        posterior               <- gradientDescentOptimisedPosteriorF
+        posterior               <- conjugateGradientOptimisedPosteriorF
         optimisationResult <-
           posterior.findMaximumLogPdf(Map("fooniform" -> Vector(.5d, .5d), "barniform" -> Vector(3d)))
       } yield maxIndexVectorDiff(optimisationResult._2, Map("fooniform" -> Vector(1, 2), "barniform" -> Vector(5))))
-        .asserting(_ shouldBe (0.0 +- 1e-5))
+        .asserting(_ shouldBe (0.0 +- 1e-3))
     }
   }
 }

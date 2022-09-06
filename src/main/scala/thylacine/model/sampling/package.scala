@@ -15,11 +15,13 @@
  */
 
 package ai.entrolution
-package thylacine.config
+package thylacine.model
 
-case class ConjugateGradientConfig(
-    convergenceThreshold: Double,
-    goldenSectionTolerance: Double,
-    lineProbeExpansionFactor: Double,
-    numberOfResultsToRetain: Int
-)
+import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+
+import cats.effect.Deferred
+
+package object sampling {
+  private[thylacine] type SampleRequest[F[_]] = Deferred[F, ModelParameterCollection]
+
+}

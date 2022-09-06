@@ -25,7 +25,7 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
-import thylacine.model.sampling.ModelParameterSampler
+import thylacine.model.sampling.{ModelParameterSampler, SampleRequest}
 
 import cats.effect.Deferred
 import cats.effect.implicits._
@@ -38,8 +38,6 @@ import scala.collection.immutable.Queue
   */
 private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
-
-  import HmcmcEngine._
 
   /*
    * - - -- --- ----- -------- -------------
@@ -239,16 +237,22 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         setAndAcquireNewSample(position)
     }
 
-  private val getNextRequest: Txn[SampleRequest[F]] =
+  private val waitForNextRequest: Txn[Unit] =
     for {
       requests <- sampleRequests.get
       _        <- STM[F].waitFor(requests.nonEmpty)
+    } yield ()
+
+  private val getNextRequest: Txn[SampleRequest[F]] =
+    for {
+      requests <- sampleRequests.get
       result   <- STM[F].delay(requests.dequeue)
       _        <- sampleRequests.set(result._2)
     } yield result._1
 
   private val processRequest: F[Unit] =
     secureWorkRight.commit >> (for {
+      _         <- waitForNextRequest.commit
       request   <- getNextRequest.commit
       position  <- getNextPosition.commit
       newSample <- setAndAcquireNewSample(position)
@@ -325,9 +329,4 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   protected override val rawSampleModelParameters: F[VectorContainer] =
     sampleModelParameters.map(s => VectorContainer(modelParameterCollectionToRawVector(s)))
 
-}
-
-private[thylacine] object HmcmcEngine {
-
-  private[thylacine] type SampleRequest[F[_]] = Deferred[F, ModelParameterCollection]
 }

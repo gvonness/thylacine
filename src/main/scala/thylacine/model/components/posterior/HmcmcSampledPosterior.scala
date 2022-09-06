@@ -25,8 +25,8 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.sampling.SampleRequest
 import thylacine.model.sampling.hmcmc.HmcmcEngine
-import thylacine.model.sampling.hmcmc.HmcmcEngine.SampleRequest
 
 import cats.effect.kernel.Async
 import cats.syntax.all._

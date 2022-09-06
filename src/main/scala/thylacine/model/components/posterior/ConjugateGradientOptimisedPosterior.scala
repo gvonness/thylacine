@@ -38,6 +38,9 @@ case class ConjugateGradientOptimisedPosterior[F[_]: Async](
   override protected val convergenceThreshold: Double =
     gradientDescentConfig.convergenceThreshold
 
+  override protected val numberOfResultsToRetain: Int =
+    gradientDescentConfig.numberOfResultsToRetain
+
   override protected val goldenSectionTolerance: Double =
     gradientDescentConfig.goldenSectionTolerance
 
@@ -48,13 +51,13 @@ case class ConjugateGradientOptimisedPosterior[F[_]: Async](
 object ConjugateGradientOptimisedPosterior {
 
   def from[F[_]: Async](
-      gradientDescentConfig: ConjugateGradientConfig,
-      posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      newMaximumCallback: Double => F[Unit],
-      isConvergedCallback: Unit => F[Unit]
+                         conjugateGradientConfig: ConjugateGradientConfig,
+                         posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+                         newMaximumCallback: Double => F[Unit],
+                         isConvergedCallback: Unit => F[Unit]
   ): ConjugateGradientOptimisedPosterior[F] =
     ConjugateGradientOptimisedPosterior(
-      gradientDescentConfig = gradientDescentConfig,
+      gradientDescentConfig = conjugateGradientConfig,
       newMaximumCallback = newMaximumCallback,
       isConvergedCallback = isConvergedCallback,
       priors = posterior.priors,

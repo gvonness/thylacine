@@ -69,6 +69,23 @@ private[thylacine] object MathOps {
       .zip(normalisedCdf.tail)
   }
 
+  private[thylacine] def vectorCdfStaircase(
+      values: Vector[Double]
+  ): Vector[(Double, Double)] = {
+    val cdfReversed = values
+      .foldLeft(Vector(0d)) { (i, j) =>
+        (i.head + j) +: i
+      }
+
+    val normalisedCdf = cdfReversed
+      .map(_ / cdfReversed.head)
+      .reverse
+
+    normalisedCdf
+      .dropRight(1)
+      .zip(normalisedCdf.tail)
+  }
+
   private[thylacine] def modifyVectorIndex(input: Vector[Double])(index: Int, f: Double => Double): Vector[Double] =
     input.updated(index, f(input(index)))
 
