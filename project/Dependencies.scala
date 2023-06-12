@@ -3,7 +3,7 @@ import sbt._
 object DependencyVersions {
   val scala2p13Version = "2.13.8"
 
-  val bengalStmVersion           = "0.7.1-SNAPSHOT-1-93f1082"
+  val bengalStmVersion           = "0.7.1-SNAPSHOT-2-18714da"
   val bigMathVersion             = "2.3.0"
   val breezeVersion              = "2.0"
   val catsEffectVersion          = "3.3.14"
