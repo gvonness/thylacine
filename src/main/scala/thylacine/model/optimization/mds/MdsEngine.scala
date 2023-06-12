@@ -120,12 +120,12 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     } yield ()
 
   private def runComparison(totalEvaluations: Int): F[Unit] =
-    (for {
-      _          <- waitForEvaluationsToComplete(totalEvaluations)
-      results    <- currentResults.get
-      bestResult <- STM[F].delay(results.maxBy(_._2))
-      _          <- recordBest(bestResult)
-    } yield ()).commit
+    for {
+      _          <- waitForEvaluationsToComplete(totalEvaluations).commit
+      results    <- currentResults.get.commit
+      bestResult <- Async[F].delay(results.maxBy(_._2))
+      _          <- recordBest(bestResult).commit
+    } yield ()
 
   private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[Unit] =
     for {
