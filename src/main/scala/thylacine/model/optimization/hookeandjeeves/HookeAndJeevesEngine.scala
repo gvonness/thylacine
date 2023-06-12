@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2020-2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,9 +118,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
       scanResult <-
         dimensionScan(scaleAndBest._1, scaleAndBest._2._2, scaleAndBest._2._1)
       _ <- if (scanResult._1 > scaleAndBest._2._1) {
-             currentBest.set(scanResult).commit >> newMaximumCallback(scanResult._1)
-               .start
-               .void
+             currentBest.set(scanResult).commit >> newMaximumCallback(scanResult._1).start.void
            } else if (scaleAndBest._1 > convergenceThreshold) {
              (for {
                scale    <- currentScale.get

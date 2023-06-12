@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2020-2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +22,13 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.optimization.line.GoldenSectionSearch
 
+import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
 import scala.util.Random
 import scala.{Vector => ScalaVector}
+import ai.entrolution.thylacine.util.ScalaVectorOps.Implicits._
 
 // Modification of standard Hooke and Jeeves to leverage
 // line searches along each coordinate direction.
@@ -45,11 +47,25 @@ private[thylacine] trait CoordinateSlideEngine[F[_]] extends HookeAndJeevesEngin
       .shuffle(startingPoint.indices.toList)
       .foldLeft(Async[F].pure((startingLogPdf, startingPoint))) { case (previousF, testIndex) =>
         previousF.flatMap { case previous @ (_, currentArgMax) =>
-          List(-nudgeAmount, nudgeAmount)
-            .traverse(nudgeAndEvaluate(testIndex, _, currentArgMax))
-            .flatMap { results =>
-              searchColinearTriple(results.head, previous, results.last)
-            }
+          for {
+            result <- List(-nudgeAmount, nudgeAmount)
+                        .traverse(nudgeAndEvaluate(testIndex, _, currentArgMax))
+                        .flatMap { results =>
+                          searchColinearTriple(results.head, previous, results.last)
+                        }
+            magnitudeDifference <- Async[F].delay(previous._2.subtract(result._2).magnitude)
+            finalResult <- if (magnitudeDifference > convergenceThreshold) {
+                             Async[F]
+                               .delay(
+                                 print(
+                                   s"\rCoordinate Slide Optimisation :: New maximum obtained ${result._1} // Difference Magnitude: $magnitudeDifference"
+                                 )
+                               )
+                               .start >> Async[F].pure(result)
+                           } else {
+                             Async[F].pure(previous)
+                           }
+          } yield finalResult
         }
       }
 

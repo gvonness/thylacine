@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2020-2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,12 +120,12 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     } yield ()
 
   private def runComparison(totalEvaluations: Int): F[Unit] =
-    for {
-      _          <- waitForEvaluationsToComplete(totalEvaluations).commit
-      results    <- currentResults.get.commit
-      bestResult <- Async[F].delay(results.maxBy(_._2))
-      _          <- recordBest(bestResult).commit
-    } yield ()
+    (for {
+      _          <- waitForEvaluationsToComplete(totalEvaluations)
+      results    <- currentResults.get
+      bestResult <- STM[F].delay(results.maxBy(_._2))
+      _          <- recordBest(bestResult)
+    } yield ()).commit
 
   private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[Unit] =
     for {
