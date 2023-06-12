@@ -89,15 +89,14 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     queuedEvaluations.modify(_.enqueue(indexAndPosition))
 
   private val runEvaluation: F[Unit] =
-    secureWorkRight.commit >>
-      (for {
-        indexAndPosition <- getNextEvaluation.commit
-        (index, position) = indexAndPosition
-        result <- logPdfAt(position)
-        _      <- currentResults.set(index, result).commit
-        _      <- parallelismTokenPool.modify(_ + 1).commit
-      } yield ()).start.void >>
-      currentResultsTally.modify(_ + 1).commit.start.void
+    for {
+      _                <- secureWorkRight.commit
+      indexAndPosition <- getNextEvaluation.commit
+      (index, position) = indexAndPosition
+      result <- logPdfAt(position)
+      _      <- (currentResults.set(index, result) >> currentResultsTally.modify(_ + 1)).commit
+      _      <- parallelismTokenPool.modify(_ + 1).commit
+    } yield ()
 
   private val evaluationRecursion: F[Unit] =
     runEvaluation.flatMap { _ =>
