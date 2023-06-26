@@ -1,7 +1,7 @@
 import sbt._
 
 object DependencyVersions {
-  val scala2p13Version = "2.13.8"
+  val scala2p13Version = "2.13.11"
 
   val bengalStmVersion           = "0.9.0"
   val bigMathVersion             = "2.3.0"
