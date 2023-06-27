@@ -31,8 +31,6 @@ import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-import scala.collection.immutable.Queue
-
 trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
   this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
@@ -48,64 +46,16 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   protected def isConvergedCallback: Unit => F[Unit]
 
-  protected val parallelismTokenPool: TxnVar[F, Int]
-
-  protected val queuedEvaluations: TxnVar[F, Queue[(Int, ModelParameterCollection)]]
-
-  protected val currentResults: TxnVarMap[F, Int, Double]
-
-  protected val currentResultsTally: TxnVar[F, Int]
-
   protected val currentBest: TxnVar[F, (Int, Double)]
 
   protected val currentSimplex: TxnVar[F, ModelParameterSimplex]
 
   protected val isConverged: TxnVar[F, Boolean]
 
-  private val secureWorkRight: Txn[Unit] =
+  private def runEvaluation(indexAndPosition: (Int, ModelParameterCollection)): F[(Int, Double)] =
     for {
-      tokenCount <- parallelismTokenPool.get
-      _          <- STM[F].waitFor(tokenCount > 0)
-      _          <- parallelismTokenPool.modify(_ - 1)
-    } yield ()
-
-  private val getNextEvaluation: Txn[(Int, ModelParameterCollection)] =
-    for {
-      evaluations <- queuedEvaluations.get
-      _           <- STM[F].waitFor(evaluations.nonEmpty)
-      result      <- STM[F].delay(evaluations.dequeue)
-      _           <- queuedEvaluations.set(result._2)
-    } yield result._1
-
-  private def waitForEvaluationsToComplete(totalEvaluations: Int): Txn[Unit] =
-    for {
-      completedEvaluations <- currentResultsTally.get
-      _                    <- STM[F].waitFor(totalEvaluations == completedEvaluations)
-    } yield ()
-
-  private def queueEvaluation(
-      indexAndPosition: (Int, ModelParameterCollection)
-  ): Txn[Unit] =
-    queuedEvaluations.modify(_.enqueue(indexAndPosition))
-
-  private val runEvaluation: F[Unit] =
-    secureWorkRight.commit >>
-      (for {
-        indexAndPosition <- getNextEvaluation.commit
-        (index, position) = indexAndPosition
-        result <- logPdfAt(position)
-        _      <- currentResults.set(index, result).commit
-        _      <- parallelismTokenPool.modify(_ + 1).commit
-      } yield ()).start.void >>
-      currentResultsTally.modify(_ + 1).commit.start.void
-
-  private val evaluationRecursion: F[Unit] =
-    runEvaluation.flatMap { _ =>
-      isConverged.get.commit.flatMap {
-        case false => evaluationRecursion
-        case true  => Async[F].unit
-      }
-    }
+      result <- logPdfAt(indexAndPosition._2)
+    } yield (indexAndPosition._1, result)
 
   private def recordBest(bestResult: (Int, Double)): Txn[Unit] =
     for {
@@ -115,23 +65,14 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
            } else {
              STM[F].unit
            }
-      _ <- currentResults.set(Map[Int, Double]())
-      _ <- currentResultsTally.set(0)
-    } yield ()
-
-  private def runComparison(totalEvaluations: Int): F[Unit] =
-    for {
-      _          <- waitForEvaluationsToComplete(totalEvaluations).commit
-      results    <- currentResults.get.commit
-      bestResult <- Async[F].delay(results.maxBy(_._2))
-      _          <- recordBest(bestResult).commit
     } yield ()
 
   private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[Unit] =
     for {
       vertices <- Async[F].delay((simplex.verticesAsModelParameters(this) - indexToExclude).toList)
-      _        <- vertices.traverse(queueEvaluation(_).commit)
-      _        <- runComparison(vertices.size)
+      results       <- vertices.parTraverse(runEvaluation).map(_.toMap)
+      bestResult <- Async[F].delay(results.maxBy(_._2))
+      _ <- recordBest(bestResult).commit
     } yield ()
 
   private val evaluateSimplex: F[Double] = {
@@ -222,7 +163,6 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
              _ <- currentBest.set(simplexAndStartingBest._2)
              _ <- currentSimplex.set(simplexAndStartingBest._1)
            } yield ()).commit
-      _ <- evaluationRecursion.start.void
       _ <- simplexRecursion.start.void
       _ <- (for {
              converged <- isConverged.get
