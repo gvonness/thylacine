@@ -194,7 +194,6 @@ object ComponentFixture {
     convergenceThreshold = 1e-15,
     expansionMultiplier = 2.0,
     contractionMultiplier = .5,
-    evaluationParallelism = 4,
     numberOfPriorSamplesToSetStartingPoint = Some(100)
   )
 

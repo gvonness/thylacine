@@ -21,6 +21,5 @@ case class MdsConfig(
     convergenceThreshold: Double,
     expansionMultiplier: Double,
     contractionMultiplier: Double,
-    evaluationParallelism: Int,
     numberOfPriorSamplesToSetStartingPoint: Option[Int]
 )

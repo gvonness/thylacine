@@ -25,9 +25,8 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
-import thylacine.model.sampling.{ModelParameterSampler, SampleRequest}
+import thylacine.model.sampling.ModelParameterSampler
 
-import cats.effect.Deferred
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -51,12 +50,9 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   protected def maxEpsilonHistory: Int
   protected def targetAcceptance: Double
   protected def warmUpSimulationCount: Int
-  protected def sampleParallelism: Int
 
   protected def startingPoint: F[ModelParameterCollection]
 
-  protected def sampleRequestUpdateCallback: Int => F[Unit]
-  protected def sampleRequestSetCallback: Int => F[Unit]
   protected def dhMonitorCallback: Double => F[Unit]
   protected def epsilonUpdateCallback: Double => F[Unit]
 
@@ -66,17 +62,15 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  protected val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]]
+  protected val currentMcmcPosition: TxnVar[F, Option[ModelParameterCollection]]
 
-  protected val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]]
+  protected val currentlySampling: TxnVar[F, Boolean]
 
   protected val burnInComplete: TxnVar[F, Boolean]
 
   protected val simulationEpsilon: TxnVar[F, Double]
 
   protected val epsilonAdjustmentResults: TxnVar[F, Queue[Double]]
-
-  protected val parallelismTokenPool: TxnVar[F, Int]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -121,23 +115,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
   private val secureWorkRight: Txn[Unit] =
     for {
-      tokenCount <- parallelismTokenPool.get
-      _          <- STM[F].waitFor(tokenCount > 0)
-      _          <- parallelismTokenPool.modify(_ - 1)
+      isSampling <- currentlySampling.get
+      _          <- STM[F].waitFor(!isSampling)
+      _          <- currentlySampling.set(true)
     } yield ()
-
-  private val getNextPosition: Txn[ModelParameterCollection] =
-    for {
-      positions          <- currentMcmcPositions.get
-      _                  <- STM[F].waitFor(positions.nonEmpty)
-      (result, newQueue) <- STM[F].delay(positions.dequeue)
-      _                  <- currentMcmcPositions.set(newQueue)
-    } yield result
-
-  private def submitNextPosition(
-      position: ModelParameterCollection
-  ): Txn[Unit] =
-    currentMcmcPositions.modify(_.enqueue(position))
 
   private def runLeapfrogAt(
       input: ModelParameterCollection,
@@ -232,38 +213,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   ): F[ModelParameterCollection] =
     runDynamicSimulationFrom(position, simulationsBetweenSamples).flatMap {
       case result if result != position =>
-        submitNextPosition(result).commit >> Async[F].pure(result)
+        currentMcmcPosition.set(Option(result)).commit >> Async[F].pure(result)
       case _ =>
         setAndAcquireNewSample(position)
     }
-
-  private val waitForNextRequest: Txn[Unit] =
-    for {
-      requests <- sampleRequests.get
-      _        <- STM[F].waitFor(requests.nonEmpty)
-    } yield ()
-
-  private val getNextRequest: Txn[SampleRequest[F]] =
-    for {
-      requests <- sampleRequests.get
-      result   <- STM[F].delay(requests.dequeue)
-      _        <- sampleRequests.set(result._2)
-    } yield result._1
-
-  private val processRequest: F[Unit] =
-    secureWorkRight.commit >> (for {
-      _         <- waitForNextRequest.commit
-      request   <- getNextRequest.commit
-      position  <- getNextPosition.commit
-      newSample <- setAndAcquireNewSample(position)
-      remaining <- sampleRequests.get.map(_.size).commit
-      _         <- sampleRequestUpdateCallback(remaining).start
-      _         <- request.complete(newSample)
-      _         <- parallelismTokenPool.modify(_ + 1).commit
-    } yield ()).start.void
-
-  private val processingRecursion: F[Unit] =
-    processRequest.flatMap(_ => processingRecursion)
 
   /*
    * - - -- --- ----- -------- -------------
@@ -297,13 +250,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       _            <- simulationEpsilon.set(simulationInitialEpsilon).commit
       burninResult <- burnIn
       _ <- (for {
-             _ <- parallelismTokenPool.set(sampleParallelism)
-             _ <- currentMcmcPositions.set(
-                    Queue.fill(sampleParallelism)(burninResult)
-                  )
+             _ <- currentlySampling.set(false)
+             _ <- currentMcmcPosition.set(Option(burninResult))
              _ <- burnInComplete.set(true)
            } yield ()).commit
-      _ <- processingRecursion.start
     } yield ()
 
   private[thylacine] val waitForInitialisationCompletion: F[Unit] =
@@ -314,14 +264,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
   protected val getHmcmcSample: F[ModelParameterCollection] =
     for {
-      deferred <- Deferred[F, ModelParameterCollection]
-      newRequestSize <- (for {
-                          _                 <- sampleRequests.modify(_.enqueue(deferred))
-                          sampleRequestSize <- sampleRequests.get.map(_.size)
-                        } yield sampleRequestSize).commit
-      _      <- sampleRequestSetCallback(newRequestSize).start
-      result <- deferred.get
-    } yield result
+      position <- (secureWorkRight >> currentMcmcPosition.get).commit
+      newSample <- setAndAcquireNewSample(position.get)
+      _ <- currentlySampling.set(false).commit
+    } yield newSample
 
   protected override val sampleModelParameters: F[ModelParameterCollection] =
     getHmcmcSample
