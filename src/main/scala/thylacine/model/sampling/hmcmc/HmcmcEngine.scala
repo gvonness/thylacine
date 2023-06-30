@@ -55,6 +55,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
   protected def dhMonitorCallback: Double => F[Unit]
   protected def epsilonUpdateCallback: Double => F[Unit]
+  protected def processedSamplesCallback: Int => F[Unit]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -65,6 +66,8 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   protected val currentMcmcPosition: TxnVar[F, Option[ModelParameterCollection]]
 
   protected val currentlySampling: TxnVar[F, Boolean]
+
+  protected val numberOfSamplesProcessed: TxnVar[F, Int]
 
   protected val burnInComplete: TxnVar[F, Boolean]
 
@@ -262,11 +265,18 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       _               <- STM[F].waitFor(burnInCompleted)
     } yield ()).commit
 
+  private[thylacine] def sampleUpdateReport: F[Unit] =
+    for {
+      numberOfSamples <- (numberOfSamplesProcessed.modify(_ + 1) >> numberOfSamplesProcessed.get).commit
+      _               <- processedSamplesCallback(numberOfSamples)
+    } yield ()
+
   protected val getHmcmcSample: F[ModelParameterCollection] =
     for {
-      position <- (secureWorkRight >> currentMcmcPosition.get).commit
+      position  <- (secureWorkRight >> currentMcmcPosition.get).commit
       newSample <- setAndAcquireNewSample(position.get)
-      _ <- currentlySampling.set(false).commit
+      _         <- currentlySampling.set(false).commit
+      _         <- sampleUpdateReport.start
     } yield newSample
 
   protected override val sampleModelParameters: F[ModelParameterCollection] =

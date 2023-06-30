@@ -36,6 +36,7 @@ case class HmcmcSampledPosterior[F[_]: STM: Async](
     private[thylacine] val hmcmcConfig: HmcmcConfig,
     protected override val epsilonUpdateCallback: Double => F[Unit],
     protected override val dhMonitorCallback: Double => F[Unit],
+    protected override val processedSamplesCallback: Int => F[Unit],
     private[thylacine] val seed: Map[String, Vector[Double]],
     private[thylacine] override val priors: Set[Prior[F, _]],
     private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
@@ -43,7 +44,8 @@ case class HmcmcSampledPosterior[F[_]: STM: Async](
     protected override val burnInComplete: TxnVar[F, Boolean],
     protected override val simulationEpsilon: TxnVar[F, Double],
     protected override val epsilonAdjustmentResults: TxnVar[F, Queue[Double]],
-    protected override val currentlySampling: TxnVar[F, Boolean]
+    protected override val currentlySampling: TxnVar[F, Boolean],
+    protected override val numberOfSamplesProcessed: TxnVar[F, Int]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HmcmcEngine[F] {
@@ -77,12 +79,14 @@ object HmcmcSampledPosterior {
       posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
       epsilonUpdateCallback: Double => F[Unit],
       dhMonitorCallback: Double => F[Unit],
+      processedSamplesCallback: Int => F[Unit],
       seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
     for {
       currentMcmcPosition      <- TxnVar.of[F, Option[ModelParameterCollection]](None)
       burnInComplete           <- TxnVar.of(false)
       simulationEpsilon        <- TxnVar.of(0.1)
+      numberOfProcssedSamples  <- TxnVar.of(0)
       epsilonAdjustmentResults <- TxnVar.of(Queue[Double]())
       currentlySampling        <- TxnVar.of(false)
       posterior <- Async[F].delay {
@@ -90,6 +94,7 @@ object HmcmcSampledPosterior {
                        hmcmcConfig = hmcmcConfig,
                        epsilonUpdateCallback = epsilonUpdateCallback,
                        dhMonitorCallback = dhMonitorCallback,
+                       processedSamplesCallback = processedSamplesCallback,
                        seed = seed,
                        priors = posterior.priors,
                        likelihoods = posterior.likelihoods,
@@ -97,7 +102,8 @@ object HmcmcSampledPosterior {
                        burnInComplete = burnInComplete,
                        simulationEpsilon = simulationEpsilon,
                        epsilonAdjustmentResults = epsilonAdjustmentResults,
-                       currentlySampling = currentlySampling
+                       currentlySampling = currentlySampling,
+                       numberOfSamplesProcessed = numberOfProcssedSamples
                      )
                    }
       _ <- posterior.launchInitialisation
