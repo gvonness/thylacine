@@ -55,7 +55,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
   protected def dhMonitorCallback: Double => F[Unit]
   protected def epsilonUpdateCallback: Double => F[Unit]
-  protected def processedSamplesCallback: Int => F[Unit]
+  protected def samplesRemainingCallback: Int => F[Unit]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -67,7 +67,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
   protected val currentlySampling: TxnVar[F, Boolean]
 
-  protected val numberOfSamplesProcessed: TxnVar[F, Int]
+  protected val numberOfSamplesRemaining: TxnVar[F, Int]
 
   protected val burnInComplete: TxnVar[F, Boolean]
 
@@ -256,6 +256,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
              _ <- currentlySampling.set(false)
              _ <- currentMcmcPosition.set(Option(burninResult))
              _ <- burnInComplete.set(true)
+             _ <- numberOfSamplesRemaining.set(0)
            } yield ()).commit
     } yield ()
 
@@ -265,18 +266,19 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       _               <- STM[F].waitFor(burnInCompleted)
     } yield ()).commit
 
-  private[thylacine] def sampleUpdateReport: F[Unit] =
+  private[thylacine] def sampleUpdateReport(incrementAmount: Int): F[Unit] =
     for {
-      numberOfSamples <- (numberOfSamplesProcessed.modify(_ + 1) >> numberOfSamplesProcessed.get).commit
-      _               <- processedSamplesCallback(numberOfSamples)
+      numberOfSamples <- (numberOfSamplesRemaining.modify(_ + incrementAmount) >> numberOfSamplesRemaining.get).commit
+      _               <- samplesRemainingCallback(numberOfSamples)
     } yield ()
 
   protected val getHmcmcSample: F[ModelParameterCollection] =
     for {
+      _         <- sampleUpdateReport(1).start
       position  <- (secureWorkRight >> currentMcmcPosition.get).commit
       newSample <- setAndAcquireNewSample(position.get)
       _         <- currentlySampling.set(false).commit
-      _         <- sampleUpdateReport.start
+      _         <- sampleUpdateReport(-1).start
     } yield newSample
 
   protected override val sampleModelParameters: F[ModelParameterCollection] =
