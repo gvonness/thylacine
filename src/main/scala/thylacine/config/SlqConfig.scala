@@ -22,5 +22,7 @@ case class SlqConfig(
     abscissaNumber: Int,
     domainScalingIncrement: Double,
     targetAcceptanceProbability: Double,
-    sampleParallelism: Int
+    sampleParallelism: Int,
+    maxIterationCount: Int,
+    minIterationCount: Int
 )

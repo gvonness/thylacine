@@ -68,6 +68,10 @@ case class SlqIntegratedPosterior[F[_]: STM: Async](
   override protected final val slqSampleParallelism: Int =
     slqConfig.sampleParallelism
 
+  override protected final val maxIterationCount: Int = slqConfig.maxIterationCount
+
+  override protected final val minIterationCount: Int = slqConfig.minIterationCount
+
   @unused
   def rebuildSampleSimulation: F[Unit] =
     for {

@@ -73,6 +73,8 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
 
   protected def slqSamplePoolSize: Int
   protected def slqNumberOfAbscissa: Int
+  protected def minIterationCount: Int
+  protected def maxIterationCount: Int
   protected def slqScalingIncrement: Double
   protected def slqNominalAcceptanceRatio: Double
   protected def slqSampleParallelism: Int
@@ -226,17 +228,17 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                          } yield (samples, scalingFactorTelemetry, integrations)).commit
             negEntStats <- Async[F].delay(telemetry._3.negativeEntropyStats)
             result <- slqTelemetryUpdateCallback(
-              SlqTelemetryUpdate(
-                negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
-                logPdf = logPdf,
-                samplePoolMinimumLogPdf = telemetry._1.keySet.min,
-                domainVolumeScaling = telemetry._2.currentScaleFactor,
-                acceptancesSinceDomainRebuild = telemetry._2.acceptancesSinceLastRebuild,
-                samplePoolSize = telemetry._1.size,
-                domainCubeCount = domain.pointsInCube.size,
-                iterationCount = telemetry._3.logPdfs.size
-              )
-            )
+                        SlqTelemetryUpdate(
+                          negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
+                          logPdf = logPdf,
+                          samplePoolMinimumLogPdf = telemetry._1.keySet.min,
+                          domainVolumeScaling = telemetry._2.currentScaleFactor,
+                          acceptancesSinceDomainRebuild = telemetry._2.acceptancesSinceLastRebuild,
+                          samplePoolSize = telemetry._1.size,
+                          domainCubeCount = domain.pointsInCube.size,
+                          iterationCount = telemetry._3.logPdfs.size
+                        )
+                      )
           } yield result
         } else {
           Async[F].unit
@@ -263,8 +265,9 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
         negativeEntropyStats: Vector[BigDecimal]
     ): Boolean =
       if (negativeEntropyStats.nonEmpty) {
-        iterationCount > 1000 &&
-        iterationCount >= 10 * numberSamplePoints * negativeEntropyStats.max
+        (iterationCount > minIterationCount &&
+        iterationCount >= 10 * numberSamplePoints * negativeEntropyStats.max) ||
+          iterationCount >= maxIterationCount
       } else {
         false
       }
