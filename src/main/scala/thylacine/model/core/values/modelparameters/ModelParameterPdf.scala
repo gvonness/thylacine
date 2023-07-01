@@ -21,6 +21,8 @@ import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollect
 import thylacine.model.core.values._
 import thylacine.model.core.{AsyncImplicits, GenericScalarValuedMapping}
 
+import cats.effect.Async
+import cats.effect.implicits._
 import cats.syntax.all._
 
 private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapping {
@@ -40,6 +42,26 @@ private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapp
   private[thylacine] def logPdfGradientAt(
       input: ModelParameterCollection
   ): F[ModelParameterCollection]
+
+  final private[thylacine] def logPdfFiniteDifferenceGradientAt(
+      input: ModelParameterCollection,
+      differential: Double
+  ): F[ModelParameterCollection] =
+    for {
+      currentEvaluation <- logPdfAt(input)
+      componentResults <- input.rawNudgeComponents(differential).toList.parTraverse { case (identifier, nudges) =>
+                            for {
+                              finiteDifferenceResults <- nudges.parTraverse { nudge =>
+                                                           for {
+                                                             nudgedEval <- logPdfAt(nudge)
+                                                           } yield (nudgedEval - currentEvaluation) / differential
+                                                         }
+                            } yield IndexedVectorCollection(identifier,
+                                                            VectorContainer(finiteDifferenceResults.toVector)
+                            )
+                          }
+      result <- Async[F].delay(componentResults.reduce(_ rawMergeWith _))
+    } yield result
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)

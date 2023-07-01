@@ -139,6 +139,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
           Async[F].delay(p.rawSumWith(gradLogPdf.rawScalarMultiplyWith(epsilon / 2)))
         xNew <- Async[F].delay(input.rawSumWith(pNew.rawScalarMultiplyWith(epsilon)))
         gNew <- logPdfGradientAt(xNew)
+        finiteDifferenceGradLogPdf <- logPdfFiniteDifferenceGradientAt(xNew, 1e-5)
         pNewNew <- Async[F].delay {
                      modelParameterCollectionToRawVector(
                        pNew.rawSumWith(
@@ -187,7 +188,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                            } else {
                              Async[F].unit
                            }
-                      newGradLogPdf <- logPdfGradientAt(xNew)
+                      newGradLogPdf              <- logPdfGradientAt(xNew)
                     } yield (xNew, eNew, newGradLogPdf)
                   } else {
                     for {
