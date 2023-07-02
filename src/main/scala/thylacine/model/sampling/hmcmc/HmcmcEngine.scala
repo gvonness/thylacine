@@ -124,10 +124,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     } yield ()
 
   private def runLeapfrogAt(
-      input: ModelParameterCollection,
-      rawP: VectorContainer,
-      gradLogPdf: ModelParameterCollection,
-      iterationCount: Int = 1
+                             input: ModelParameterCollection,
+                             rawP: VectorContainer,
+                             gradNegLogPdf: ModelParameterCollection,
+                             iterationCount: Int = 1
   ): F[(ModelParameterCollection, VectorContainer)] =
     if (iterationCount > stepsInSimulation) {
       Async[F].pure((input, rawP))
@@ -136,14 +136,13 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         epsilon <- simulationEpsilon.get.commit
         p       <- Async[F].delay(rawVectorToModelParameterCollection(rawP.rawVector))
         pNew <-
-          Async[F].delay(p.rawSumWith(gradLogPdf.rawScalarMultiplyWith(epsilon / 2)))
+          Async[F].delay(p.rawSumWith(gradNegLogPdf.rawScalarMultiplyWith(-epsilon / 2)))
         xNew <- Async[F].delay(input.rawSumWith(pNew.rawScalarMultiplyWith(epsilon)))
-        gNew <- logPdfGradientAt(xNew)
-        finiteDifferenceGradLogPdf <- logPdfFiniteDifferenceGradientAt(xNew, 1e-5)
+        gNew <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
         pNewNew <- Async[F].delay {
                      modelParameterCollectionToRawVector(
                        pNew.rawSumWith(
-                         gNew.rawScalarMultiplyWith(epsilon / 2)
+                         gNew.rawScalarMultiplyWith(-epsilon / 2)
                        )
                      )
                    }
@@ -153,7 +152,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     }
 
   private def getHamiltonianValue(p: VectorContainer, E: Double): Double =
-    p.rawDotProductWith(p) / 2.0 - E
+    p.rawDotProductWith(p) / 2.0 + E
 
   private def runDynamicSimulationFrom(
       input: ModelParameterCollection,
@@ -165,19 +164,19 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   ): F[ModelParameterCollection] =
     if (iterationCount <= maxIterations) {
       (for {
-        logPdf <- logPdfOpt match {
+        negLogPdf <- logPdfOpt match {
                     case Some(res) => Async[F].pure(res)
-                    case _         => logPdfAt(input)
+                    case _         => logPdfAt(input).map(_ * -1)
                   }
-        gradLogPdf <- gradLogPdfOpt match {
+        gradNegLogPdf <- gradLogPdfOpt match {
                         case Some(res) => Async[F].pure(res)
-                        case _         => logPdfGradientAt(input)
+                        case _         => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
                       }
         p           <- Async[F].delay(VectorContainer.random(domainDimension))
-        hamiltonian <- Async[F].delay(getHamiltonianValue(p, logPdf))
-        xAndPNew    <- runLeapfrogAt(input, p, gradLogPdf)
+        hamiltonian <- Async[F].delay(getHamiltonianValue(p, negLogPdf))
+        xAndPNew    <- runLeapfrogAt(input, p, gradNegLogPdf)
         (xNew, pNew) = xAndPNew
-        eNew <- logPdfAt(xNew)
+        eNew <- logPdfAt(xNew).map(_ * -1)
         hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
         dH   <- Async[F].delay(hNew - hamiltonian)
         _    <- dhMonitorCallback(dH).start
@@ -188,8 +187,8 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                            } else {
                              Async[F].unit
                            }
-                      newGradLogPdf              <- logPdfGradientAt(xNew)
-                    } yield (xNew, eNew, newGradLogPdf)
+                      newGradNegLogPdf              <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
+                    } yield (xNew, eNew, newGradNegLogPdf)
                   } else {
                     for {
                       _ <- if (burnIn) {
@@ -197,7 +196,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                            } else {
                              Async[F].unit
                            }
-                    } yield (input, logPdf, gradLogPdf)
+                    } yield (input, negLogPdf, gradNegLogPdf)
                   }
       } yield result).flatMap { case (xNew, eNew, gNew) =>
         runDynamicSimulationFrom(xNew, maxIterations, Some(eNew), Some(gNew), burnIn, iterationCount + 1)
