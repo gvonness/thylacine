@@ -124,10 +124,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     } yield ()
 
   private def runLeapfrogAt(
-                             input: ModelParameterCollection,
-                             rawP: VectorContainer,
-                             gradNegLogPdf: ModelParameterCollection,
-                             iterationCount: Int = 1
+      input: ModelParameterCollection,
+      rawP: VectorContainer,
+      gradNegLogPdf: ModelParameterCollection,
+      iterationCount: Int = 1
   ): F[(ModelParameterCollection, VectorContainer)] =
     if (iterationCount > stepsInSimulation) {
       Async[F].pure((input, rawP))
@@ -165,13 +165,13 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     if (iterationCount <= maxIterations) {
       (for {
         negLogPdf <- logPdfOpt match {
-                    case Some(res) => Async[F].pure(res)
-                    case _         => logPdfAt(input).map(_ * -1)
-                  }
+                       case Some(res) => Async[F].pure(res)
+                       case _         => logPdfAt(input).map(_ * -1)
+                     }
         gradNegLogPdf <- gradLogPdfOpt match {
-                        case Some(res) => Async[F].pure(res)
-                        case _         => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
-                      }
+                           case Some(res) => Async[F].pure(res)
+                           case _         => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
+                         }
         p           <- Async[F].delay(VectorContainer.random(domainDimension))
         hamiltonian <- Async[F].delay(getHamiltonianValue(p, negLogPdf))
         xAndPNew    <- runLeapfrogAt(input, p, gradNegLogPdf)
@@ -187,7 +187,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                            } else {
                              Async[F].unit
                            }
-                      newGradNegLogPdf              <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
+                      newGradNegLogPdf <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
                     } yield (xNew, eNew, newGradNegLogPdf)
                   } else {
                     for {
@@ -258,6 +258,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
              _ <- burnInComplete.set(true)
              _ <- numberOfSamplesRemaining.set(0)
            } yield ()).commit
+      _ <- simulationEpsilon.set(.01).commit
     } yield ()
 
   private[thylacine] val waitForInitialisationCompletion: F[Unit] =
