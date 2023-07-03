@@ -23,6 +23,7 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 import thylacine.model.sampling.ModelParameterSampler
@@ -43,19 +44,14 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * Configuration
    * - - -- --- ----- -------- -------------
    */
-
+  protected def sampleParallelism: Int
   protected def simulationsBetweenSamples: Int
   protected def stepsInSimulation: Int
-  protected def simulationInitialEpsilon: Double
-  protected def maxEpsilonHistory: Int
-  protected def targetAcceptance: Double
+  protected def simulationEpsilon: Double
   protected def warmUpSimulationCount: Int
 
   protected def startingPoint: F[ModelParameterCollection]
-
-  protected def dhMonitorCallback: Double => F[Unit]
-  protected def epsilonUpdateCallback: Double => F[Unit]
-  protected def samplesRemainingCallback: Int => F[Unit]
+  protected def sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -63,17 +59,17 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  protected val currentMcmcPosition: TxnVar[F, Option[ModelParameterCollection]]
+  protected val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]]
 
-  protected val currentlySampling: TxnVar[F, Boolean]
+  protected val workTokenPool: TxnVar[F, Int]
 
   protected val numberOfSamplesRemaining: TxnVar[F, Int]
 
   protected val burnInComplete: TxnVar[F, Boolean]
 
-  protected val simulationEpsilon: TxnVar[F, Double]
+  protected val jumpAcceptances: TxnVar[F, Int]
 
-  protected val epsilonAdjustmentResults: TxnVar[F, Queue[Double]]
+  protected val jumpAttempts: TxnVar[F, Int]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -81,46 +77,11 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private def updateSimulationEpsilon(
-      success: Boolean,
-      iteration: Int
-  ): F[Unit] = {
-    def multiplier(goUp: Boolean): Double =
-      Math.max(1d + (if (goUp) 1.0 else -1.0) * (1d - (Math
-                 .min(iteration, warmUpSimulationCount)
-                 .toDouble / warmUpSimulationCount)),
-               .01
-      )
-
-    for {
-      result <- (for {
-                  _ <- if (success) {
-                         epsilonAdjustmentResults.modify(
-                           _.enqueue(1.0).takeRight(maxEpsilonHistory)
-                         )
-                       } else {
-                         epsilonAdjustmentResults.modify(
-                           _.enqueue(0.0).takeRight(maxEpsilonHistory)
-                         )
-                       }
-                  epsilonHistory <- epsilonAdjustmentResults.get
-                  newMultiplier <- STM[F].delay {
-                                     multiplier(
-                                       epsilonHistory.sum / epsilonHistory.size >= targetAcceptance
-                                     )
-                                   }
-                  _      <- simulationEpsilon.modify(_ * newMultiplier)
-                  result <- simulationEpsilon.get
-                } yield result).commit
-      _ <- epsilonUpdateCallback(result)
-    } yield ()
-  }
-
   private val secureWorkRight: Txn[Unit] =
     for {
-      isSampling <- currentlySampling.get
-      _          <- STM[F].waitFor(!isSampling)
-      _          <- currentlySampling.set(true)
+      numberOfTokens <- workTokenPool.get
+      _              <- STM[F].waitFor(numberOfTokens > 0)
+      _              <- workTokenPool.modify(_ - 1)
     } yield ()
 
   private def runLeapfrogAt(
@@ -133,16 +94,15 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       Async[F].pure((input, rawP))
     } else {
       (for {
-        epsilon <- simulationEpsilon.get.commit
-        p       <- Async[F].delay(rawVectorToModelParameterCollection(rawP.rawVector))
+        p <- Async[F].delay(rawVectorToModelParameterCollection(rawP.rawVector))
         pNew <-
-          Async[F].delay(p.rawSumWith(gradNegLogPdf.rawScalarMultiplyWith(-epsilon / 2)))
-        xNew <- Async[F].delay(input.rawSumWith(pNew.rawScalarMultiplyWith(epsilon)))
+          Async[F].delay(p.rawSumWith(gradNegLogPdf.rawScalarMultiplyWith(-simulationEpsilon / 2)))
+        xNew <- Async[F].delay(input.rawSumWith(pNew.rawScalarMultiplyWith(simulationEpsilon)))
         gNew <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
         pNewNew <- Async[F].delay {
                      modelParameterCollectionToRawVector(
                        pNew.rawSumWith(
-                         gNew.rawScalarMultiplyWith(-epsilon / 2)
+                         gNew.rawScalarMultiplyWith(-simulationEpsilon / 2)
                        )
                      )
                    }
@@ -179,25 +139,21 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         eNew <- logPdfAt(xNew).map(_ * -1)
         hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
         dH   <- Async[F].delay(hNew - hamiltonian)
-        _    <- dhMonitorCallback(dH).start
-        result <- if (dH < 0 || Math.random() < Math.exp(-dH)) {
+        result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
                     for {
-                      _ <- if (burnIn) {
-                             updateSimulationEpsilon(success = true, iterationCount)
-                           } else {
-                             Async[F].unit
-                           }
+                      _ <- Async[F].ifM(Async[F].pure(burnIn))(
+                             Async[F].unit,
+                             (jumpAcceptances.modify(_ + 1) >> jumpAttempts.modify(_ + 1)).commit
+                           )
                       newGradNegLogPdf <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
-                    } yield (xNew, eNew, newGradNegLogPdf)
-                  } else {
+                    } yield (xNew, eNew, newGradNegLogPdf),
                     for {
-                      _ <- if (burnIn) {
-                             updateSimulationEpsilon(success = false, iterationCount)
-                           } else {
-                             Async[F].unit
-                           }
+                      _ <- Async[F].ifM(Async[F].pure(burnIn))(
+                             Async[F].unit,
+                             jumpAttempts.modify(_ + 1).commit
+                           )
                     } yield (input, negLogPdf, gradNegLogPdf)
-                  }
+                  )
       } yield result).flatMap { case (xNew, eNew, gNew) =>
         runDynamicSimulationFrom(xNew, maxIterations, Some(eNew), Some(gNew), burnIn, iterationCount + 1)
       }
@@ -216,7 +172,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   ): F[ModelParameterCollection] =
     runDynamicSimulationFrom(position, simulationsBetweenSamples).flatMap {
       case result if result != position =>
-        currentMcmcPosition.set(Option(result)).commit >> Async[F].pure(result)
+        currentMcmcPositions.modify(_.enqueue(result)).commit >> Async[F].pure(result)
       case _ =>
         setAndAcquireNewSample(position)
     }
@@ -227,7 +183,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private lazy val burnIn: F[ModelParameterCollection] =
+  private lazy val burnIn: F[List[ModelParameterCollection]] =
     for {
       possibleStartingPoint <- startingPoint
       priorSample <-
@@ -236,9 +192,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         } else {
           Async[F].pure(possibleStartingPoint)
         }
-      result <-
-        runDynamicSimulationFrom(priorSample, warmUpSimulationCount, burnIn = true)
-    } yield result
+      results <- List.fill(sampleParallelism)(priorSample).parTraverse { startPt =>
+                   runDynamicSimulationFrom(startPt, warmUpSimulationCount, burnIn = true)
+                 }
+    } yield results
 
   /*
    * - - -- --- ----- -------- -------------
@@ -249,16 +206,15 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   private[thylacine] lazy val launchInitialisation: F[Unit] =
     for {
       _            <- burnInComplete.set(false).commit
-      _            <- epsilonAdjustmentResults.set(Queue()).commit
-      _            <- simulationEpsilon.set(simulationInitialEpsilon).commit
       burninResult <- burnIn
       _ <- (for {
-             _ <- currentlySampling.set(false)
-             _ <- currentMcmcPosition.set(Option(burninResult))
+             _ <- workTokenPool.set(sampleParallelism)
+             _ <- currentMcmcPositions.set(Queue.from(burninResult))
              _ <- burnInComplete.set(true)
              _ <- numberOfSamplesRemaining.set(0)
+             _ <- jumpAttempts.set(0)
+             _ <- jumpAcceptances.set(0)
            } yield ()).commit
-      _ <- simulationEpsilon.set(.1).commit
     } yield ()
 
   private[thylacine] val waitForInitialisationCompletion: F[Unit] =
@@ -270,15 +226,24 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   private[thylacine] def sampleUpdateReport(incrementAmount: Int): F[Unit] =
     for {
       numberOfSamples <- (numberOfSamplesRemaining.modify(_ + incrementAmount) >> numberOfSamplesRemaining.get).commit
-      _               <- samplesRemainingCallback(numberOfSamples)
+      jumpsAndAttempts <- (for {
+                            jumps    <- jumpAcceptances.get
+                            attempts <- jumpAttempts.get
+                          } yield (jumps, attempts)).commit
+      telemetryResult <- Async[F].delay(HmcmcTelemetryUpdate(numberOfSamples, jumpsAndAttempts._2, jumpsAndAttempts._1))
+      _               <- sampleProcessedCallback(telemetryResult)
     } yield ()
 
   protected val getHmcmcSample: F[ModelParameterCollection] =
     for {
-      _         <- sampleUpdateReport(1).start
-      position  <- (secureWorkRight >> currentMcmcPosition.get).commit
-      newSample <- setAndAcquireNewSample(position.get)
-      _         <- currentlySampling.set(false).commit
+      _ <- sampleUpdateReport(1).start
+      position <- (for {
+                    _      <- secureWorkRight
+                    result <- currentMcmcPositions.get.map(_.dequeue)
+                    _      <- currentMcmcPositions.set(result._2)
+                  } yield result._1).commit
+      newSample <- setAndAcquireNewSample(position)
+      _         <- workTokenPool.modify(_ + 1).commit
       _         <- sampleUpdateReport(-1).start
     } yield newSample
 

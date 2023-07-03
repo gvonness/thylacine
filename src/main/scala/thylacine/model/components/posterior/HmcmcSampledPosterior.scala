@@ -23,6 +23,7 @@ import thylacine.config.HmcmcConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.sampling.hmcmc.HmcmcEngine
@@ -34,21 +35,26 @@ import scala.collection.immutable.Queue
 
 case class HmcmcSampledPosterior[F[_]: STM: Async](
     private[thylacine] val hmcmcConfig: HmcmcConfig,
-    protected override val epsilonUpdateCallback: Double => F[Unit],
-    protected override val dhMonitorCallback: Double => F[Unit],
-    protected override val samplesRemainingCallback: Int => F[Unit],
+    protected override val sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
     private[thylacine] val seed: Map[String, Vector[Double]],
     private[thylacine] override val priors: Set[Prior[F, _]],
     private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-    protected override val currentMcmcPosition: TxnVar[F, Option[ModelParameterCollection]],
+    protected override val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]],
     protected override val burnInComplete: TxnVar[F, Boolean],
-    protected override val simulationEpsilon: TxnVar[F, Double],
-    protected override val epsilonAdjustmentResults: TxnVar[F, Queue[Double]],
-    protected override val currentlySampling: TxnVar[F, Boolean],
-    protected override val numberOfSamplesRemaining: TxnVar[F, Int]
+    protected override val workTokenPool: TxnVar[F, Int],
+    protected override val numberOfSamplesRemaining: TxnVar[F, Int],
+    protected override val jumpAcceptances: TxnVar[F, Int],
+    protected override val jumpAttempts: TxnVar[F, Int]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HmcmcEngine[F] {
+
+  override protected final val sampleParallelism: Int =
+    hmcmcConfig.sampleParallelism.getOrElse(
+      Math
+        .max(Math.ceil(Runtime.getRuntime.availableProcessors() / 2.0), 1)
+        .toInt
+    )
 
   override protected final val simulationsBetweenSamples: Int =
     hmcmcConfig.stepsBetweenSamples
@@ -56,14 +62,8 @@ case class HmcmcSampledPosterior[F[_]: STM: Async](
   override protected final val stepsInSimulation: Int =
     hmcmcConfig.stepsInDynamicsSimulation
 
-  override protected final val simulationInitialEpsilon: Double =
+  override protected final val simulationEpsilon: Double =
     hmcmcConfig.dynamicsSimulationStepSize
-
-  override protected final val maxEpsilonHistory: Int =
-    hmcmcConfig.maxStepSizeHistoryForAdjustment
-
-  override protected final val targetAcceptance: Double =
-    hmcmcConfig.targetAcceptanceRatio
 
   override protected final val warmUpSimulationCount: Int =
     hmcmcConfig.warmupStepCount
@@ -77,32 +77,28 @@ object HmcmcSampledPosterior {
   def of[F[_]: STM: Async](
       hmcmcConfig: HmcmcConfig,
       posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      epsilonUpdateCallback: Double => F[Unit],
-      dhMonitorCallback: Double => F[Unit],
-      samplesRemainingCallback: Int => F[Unit],
+      sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
       seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
     for {
-      currentMcmcPosition      <- TxnVar.of[F, Option[ModelParameterCollection]](None)
+      currentMcmcPositions     <- TxnVar.of(Queue[ModelParameterCollection]())
       burnInComplete           <- TxnVar.of(false)
-      simulationEpsilon        <- TxnVar.of(0.1)
       numberOfSamplesRemaining <- TxnVar.of(0)
-      epsilonAdjustmentResults <- TxnVar.of(Queue[Double]())
-      currentlySampling        <- TxnVar.of(false)
+      workTokenPool            <- TxnVar.of(0)
+      jumpAcceptances          <- TxnVar.of(0)
+      jumpAttempts             <- TxnVar.of(0)
       posterior <- Async[F].delay {
                      HmcmcSampledPosterior(
                        hmcmcConfig = hmcmcConfig,
-                       epsilonUpdateCallback = epsilonUpdateCallback,
-                       dhMonitorCallback = dhMonitorCallback,
-                       samplesRemainingCallback = samplesRemainingCallback,
+                       sampleProcessedCallback = sampleProcessedCallback,
                        seed = seed,
                        priors = posterior.priors,
                        likelihoods = posterior.likelihoods,
-                       currentMcmcPosition = currentMcmcPosition,
+                       currentMcmcPositions = currentMcmcPositions,
                        burnInComplete = burnInComplete,
-                       simulationEpsilon = simulationEpsilon,
-                       epsilonAdjustmentResults = epsilonAdjustmentResults,
-                       currentlySampling = currentlySampling,
+                       workTokenPool = workTokenPool,
+                       jumpAcceptances = jumpAcceptances,
+                       jumpAttempts = jumpAttempts,
                        numberOfSamplesRemaining = numberOfSamplesRemaining
                      )
                    }
