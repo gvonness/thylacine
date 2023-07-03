@@ -124,6 +124,11 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   ): F[ModelParameterCollection] =
     if (iterationCount <= maxIterations) {
       (for {
+        _ <- if (burnIn) {
+          Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount"))
+        } else {
+          Async[F].unit
+        }
         negLogPdf <- logPdfOpt match {
                        case Some(res) => Async[F].pure(res)
                        case _         => logPdfAt(input).map(_ * -1)
@@ -139,6 +144,11 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         eNew <- logPdfAt(xNew).map(_ * -1)
         hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
         dH   <- Async[F].delay(hNew - hamiltonian)
+        _ <- if (burnIn) {
+          Async[F].unit
+        } else {
+          Async[F].delay(print(s"\rHMCMC Sampling :: exp(-dH) = ${Math.exp(-dH)}"))
+        }
         result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
                     for {
                       _ <- Async[F].ifM(Async[F].pure(burnIn))(
