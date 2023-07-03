@@ -98,6 +98,11 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         pNew <-
           Async[F].delay(p.rawSumWith(gradNegLogPdf.rawScalarMultiplyWith(-simulationEpsilon / 2)))
         xNew <- Async[F].delay(input.rawSumWith(pNew.rawScalarMultiplyWith(simulationEpsilon)))
+        _ <- if (xNew.index.values.flatMap(_.values.values).toSet.contains(Double.NaN)) {
+          Async[F].delay(println("NaN detected"))
+        } else{
+          Async[F].unit
+        }
         gNew <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
         pNewNew <- Async[F].delay {
                      modelParameterCollectionToRawVector(
