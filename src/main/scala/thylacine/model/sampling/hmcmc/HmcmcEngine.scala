@@ -258,7 +258,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
              _ <- burnInComplete.set(true)
              _ <- numberOfSamplesRemaining.set(0)
            } yield ()).commit
-      _ <- simulationEpsilon.set(.01).commit
+      _ <- simulationEpsilon.set(.1).commit
     } yield ()
 
   private[thylacine] val waitForInitialisationCompletion: F[Unit] =
