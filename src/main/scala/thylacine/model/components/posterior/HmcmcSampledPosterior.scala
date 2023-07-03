@@ -35,6 +35,7 @@ import scala.collection.immutable.Queue
 
 case class HmcmcSampledPosterior[F[_]: STM: Async](
     private[thylacine] val hmcmcConfig: HmcmcConfig,
+    protected override val hamiltonianDifferentialUpdateCallback: Double => F[Unit],
     protected override val sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
     private[thylacine] val seed: Map[String, Vector[Double]],
     private[thylacine] override val priors: Set[Prior[F, _]],
@@ -77,6 +78,7 @@ object HmcmcSampledPosterior {
   def of[F[_]: STM: Async](
       hmcmcConfig: HmcmcConfig,
       posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+      hamiltonianDifferentialUpdateCallback: Double => F[Unit],
       sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
       seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
@@ -90,6 +92,7 @@ object HmcmcSampledPosterior {
       posterior <- Async[F].delay {
                      HmcmcSampledPosterior(
                        hmcmcConfig = hmcmcConfig,
+                       hamiltonianDifferentialUpdateCallback = hamiltonianDifferentialUpdateCallback,
                        sampleProcessedCallback = sampleProcessedCallback,
                        seed = seed,
                        priors = posterior.priors,

@@ -51,6 +51,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   protected def warmUpSimulationCount: Int
 
   protected def startingPoint: F[ModelParameterCollection]
+  protected def hamiltonianDifferentialUpdateCallback: Double => F[Unit]
   protected def sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit]
 
   /*
@@ -98,11 +99,6 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         pNew <-
           Async[F].delay(p.rawSumWith(gradNegLogPdf.rawScalarMultiplyWith(-simulationEpsilon / 2)))
         xNew <- Async[F].delay(input.rawSumWith(pNew.rawScalarMultiplyWith(simulationEpsilon)))
-        _ <- if (xNew.index.values.flatMap(_.values.values).toSet.contains(Double.NaN)) {
-          Async[F].delay(println("NaN detected"))
-        } else{
-          Async[F].unit
-        }
         gNew <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
         pNewNew <- Async[F].delay {
                      modelParameterCollectionToRawVector(
@@ -152,7 +148,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         _ <- if (burnIn) {
           Async[F].unit
         } else {
-          Async[F].delay(print(s"\rHMCMC Sampling :: exp(-dH) = ${Math.exp(-dH)}"))
+          hamiltonianDifferentialUpdateCallback(dH)
         }
         result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
                     for {
@@ -222,6 +218,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     for {
       _            <- burnInComplete.set(false).commit
       burninResult <- burnIn
+      _ <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
       _ <- (for {
              _ <- workTokenPool.set(sampleParallelism)
              _ <- currentMcmcPositions.set(Queue.from(burninResult))
