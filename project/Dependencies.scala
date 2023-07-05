@@ -5,7 +5,7 @@ object DependencyVersions {
 
   val bengalStmVersion           = "0.9.1-1-2abfd04"
   val bigMathVersion             = "2.3.0"
-  val breezeVersion              = "2.0"
+  val breezeVersion              = "2.1.0"
   val catsEffectVersion          = "3.3.14"
   val catsEffectTestingVersion   = "1.4.0"
   val commonMathVersion          = "3.6.1"
