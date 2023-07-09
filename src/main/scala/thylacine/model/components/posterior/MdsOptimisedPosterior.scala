@@ -23,7 +23,7 @@ import thylacine.config.MdsConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.telemetry.MdsTelemetryUpdate
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.optimization.mds.{MdsEngine, ModelParameterSimplex}
 
 import cats.effect.kernel.Async
@@ -33,7 +33,7 @@ import scala.annotation.unused
 
 case class MdsOptimisedPosterior[F[_]: STM: Async](
     private[thylacine] val mdsConfig: MdsConfig,
-    protected override val iterationUpdateCallback: MdsTelemetryUpdate => F[Unit],
+    protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
     protected override val isConvergedCallback: Unit => F[Unit],
     private[thylacine] override val priors: Set[Prior[F, _]],
     private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
@@ -63,11 +63,11 @@ object MdsOptimisedPosterior {
   def of[F[_]: STM: Async](
       mdsConfig: MdsConfig,
       posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      iterationUpdateCallback: MdsTelemetryUpdate => F[Unit],
+      iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
       isConvergedCallback: Unit => F[Unit]
   ): F[MdsOptimisedPosterior[F]] =
     for {
-      currentBest          <- TxnVar.of((0, Double.NegativeInfinity))
+      currentBest <- TxnVar.of((0, Double.NegativeInfinity))
       currentSimplex <-
         TxnVar.of(
           ModelParameterSimplex.unitRegularCenteredOnZero(posterior)

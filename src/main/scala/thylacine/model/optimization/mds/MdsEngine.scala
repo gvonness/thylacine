@@ -23,7 +23,7 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.telemetry.MdsTelemetryUpdate
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
 
@@ -42,7 +42,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   protected def numberOfPriorSamplesToSetStartingPoint: Int
 
-  protected def iterationUpdateCallback: MdsTelemetryUpdate => F[Unit]
+  protected def iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit]
 
   protected def isConvergedCallback: Unit => F[Unit]
 
@@ -105,7 +105,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
       finalBest          <- currentBest.get.commit
       convergenceMeasure <- Async[F].delay(finalSimplex.maxAdjacentEdgeLength(finalBest._1))
       _ <- iterationUpdateCallback(
-             MdsTelemetryUpdate(maxLogPdf = finalBest._2, currentScale = convergenceMeasure)
+             OptimisationTelemetryUpdate(maxLogPdf = finalBest._2, currentScale = convergenceMeasure, prefix = "MDS")
            ).start
     } yield convergenceMeasure
   }

@@ -23,7 +23,7 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.telemetry.HookeAndJeevesTelemetryUpdate
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
 import thylacine.util.MathOps
@@ -37,10 +37,12 @@ import scala.{Vector => ScalaVector}
 
 private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimizer[F] {
   this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+
+  protected val telemetryPrefix: String = "Hooke and Jeeves"
   protected def convergenceThreshold: Double
   protected def numberOfSamplesToSetScale: Int
 
-  protected def iterationUpdateCallback: HookeAndJeevesTelemetryUpdate => F[Unit]
+  protected def iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit]
 
   protected def isConvergedCallback: Unit => F[Unit]
 
@@ -123,7 +125,10 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
                _     <- currentBest.set(scanResult).commit
                scale <- currentScale.get.commit
                _ <- iterationUpdateCallback(
-                      HookeAndJeevesTelemetryUpdate(maxLogPdf = scanResult._1, currentScale = scale)
+                      OptimisationTelemetryUpdate(maxLogPdf = scanResult._1,
+                                                  currentScale = scale,
+                                                  prefix = telemetryPrefix
+                      )
                     ).start
              } yield (),
              Async[F].ifM(Async[F].delay(scaleAndBest._1 > convergenceThreshold))(
@@ -135,7 +140,10 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
                                 } yield newScale).commit
                  maxLogPdf <- currentBest.get.commit
                  _ <- iterationUpdateCallback(
-                        HookeAndJeevesTelemetryUpdate(maxLogPdf = maxLogPdf._1, currentScale = scaleResult)
+                        OptimisationTelemetryUpdate(maxLogPdf = maxLogPdf._1,
+                                                    currentScale = scaleResult,
+                                                    prefix = telemetryPrefix
+                        )
                       ).start
                } yield (),
                isConverged.set(true).commit >> isConvergedCallback(()).start.void
