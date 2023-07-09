@@ -69,10 +69,10 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[Unit] =
     for {
-      vertices <- Async[F].delay((simplex.verticesAsModelParameters(this) - indexToExclude).toList)
-      results       <- vertices.parTraverse(runEvaluation).map(_.toMap)
+      vertices   <- Async[F].delay((simplex.verticesAsModelParameters(this) - indexToExclude).toList)
+      results    <- vertices.parTraverse(runEvaluation).map(_.toMap)
       bestResult <- Async[F].delay(results.maxBy(_._2))
-      _ <- recordBest(bestResult).commit
+      _          <- recordBest(bestResult).commit
     } yield ()
 
   private val evaluateSimplex: F[Double] = {
@@ -104,7 +104,9 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
       finalSimplex       <- currentSimplex.get.commit
       finalBest          <- currentBest.get.commit
       convergenceMeasure <- Async[F].delay(finalSimplex.maxAdjacentEdgeLength(finalBest._1))
-      _                  <- iterationUpdateCallback(MdsTelemetryUpdate(convergenceMeasure, finalBest._2)).start
+      _ <- iterationUpdateCallback(
+             MdsTelemetryUpdate(maxLogPdf = finalBest._2, currentScale = convergenceMeasure)
+           ).start
     } yield convergenceMeasure
   }
 

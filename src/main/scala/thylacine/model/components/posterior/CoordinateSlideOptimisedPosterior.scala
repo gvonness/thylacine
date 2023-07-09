@@ -23,6 +23,7 @@ import thylacine.config.CoordinateSlideConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.HookeAndJeevesTelemetryUpdate
 import thylacine.model.optimization.hookeandjeeves.CoordinateSlideEngine
 
 import cats.effect.kernel.Async
@@ -30,8 +31,7 @@ import cats.syntax.all._
 
 case class CoordinateSlideOptimisedPosterior[F[_]: STM: Async](
     private[thylacine] val coordinateSlideConfig: CoordinateSlideConfig,
-    protected override val newMaximumCallback: Double => F[Unit],
-    protected override val newScaleCallback: Double => F[Unit],
+    protected override val iterationUpdateCallback: HookeAndJeevesTelemetryUpdate => F[Unit],
     protected override val isConvergedCallback: Unit => F[Unit],
     private[thylacine] override val priors: Set[Prior[F, _]],
     private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
@@ -60,8 +60,7 @@ object CoordinateSlideOptimisedPosterior {
   def of[F[_]: STM: Async](
       coordinateSlideConfig: CoordinateSlideConfig,
       posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      newMaximumCallback: Double => F[Unit],
-      newScaleCallback: Double => F[Unit],
+      iterationUpdateCallback: HookeAndJeevesTelemetryUpdate => F[Unit],
       isConvergedCallback: Unit => F[Unit]
   ): F[CoordinateSlideOptimisedPosterior[F]] =
     for {
@@ -70,8 +69,7 @@ object CoordinateSlideOptimisedPosterior {
       isConverged  <- TxnVar.of(false)
     } yield CoordinateSlideOptimisedPosterior(
       coordinateSlideConfig = coordinateSlideConfig,
-      newMaximumCallback = newMaximumCallback,
-      newScaleCallback = newScaleCallback,
+      iterationUpdateCallback = iterationUpdateCallback,
       isConvergedCallback = isConvergedCallback,
       priors = posterior.priors,
       likelihoods = posterior.likelihoods,

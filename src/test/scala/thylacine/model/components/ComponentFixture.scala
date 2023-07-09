@@ -148,8 +148,7 @@ object ComponentFixture {
       posterior <- HookeAndJeevesOptimisedPosterior.of[IO](
                      hookeAndJeevesConfig = hookesAndJeevesConfig,
                      posterior = unnormalisedPosterior,
-                     newMaximumCallback = _ => IO.unit,
-                     newScaleCallback = _ => IO.unit,
+                     iterationUpdateCallback = _ => IO.unit,
                      isConvergedCallback = _ => IO.unit
                    )
     } yield posterior
@@ -167,8 +166,7 @@ object ComponentFixture {
       posterior <- CoordinateSlideOptimisedPosterior.of[IO](
                      coordinateSlideConfig = coordinateSlideConfig,
                      posterior = unnormalisedPosterior,
-                     newMaximumCallback = _ => IO.unit,
-                     newScaleCallback = _ => IO.unit,
+                     iterationUpdateCallback = _ => IO.unit,
                      isConvergedCallback = _ => IO.unit
                    )
     } yield posterior

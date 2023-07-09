@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core.telemetry
 
-case class MdsTelemetryUpdate(maxLogPdf: Double, currentScale: Double) extends TelemetryReport {
+case class HookeAndJeevesTelemetryUpdate(maxLogPdf: Double, currentScale: Double) extends TelemetryReport {
 
   override lazy val logMessage =
     s"MDS optimisation :: Max ln(pdf) - $maxLogPdf // Current scale - $currentScale"

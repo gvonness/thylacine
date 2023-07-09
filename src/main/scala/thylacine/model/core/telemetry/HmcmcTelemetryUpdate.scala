@@ -24,5 +24,5 @@ case class HmcmcTelemetryUpdate(
 ) extends TelemetryReport {
 
   override lazy val logMessage: String =
-    s"HMCMC Sampling :: Samples remaining - $samplesRemaining // Acceptance Ratio - ${jumpAcceptances.toDouble/jumpAttempts}"
+    s"HMCMC Sampling :: Samples remaining - $samplesRemaining // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
 }
