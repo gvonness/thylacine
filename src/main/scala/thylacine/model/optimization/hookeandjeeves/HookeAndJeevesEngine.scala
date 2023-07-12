@@ -23,10 +23,11 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
+import thylacine.util.MathOps
 
-import ai.entrolution.thylacine.util.MathOps
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -36,11 +37,13 @@ import scala.{Vector => ScalaVector}
 
 private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimizer[F] {
   this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+
+  protected val telemetryPrefix: String = "Hooke and Jeeves"
   protected def convergenceThreshold: Double
   protected def numberOfSamplesToSetScale: Int
 
-  protected def newMaximumCallback: Double => F[Unit]
-  protected def newScaleCallback: Double => F[Unit]
+  protected def iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit]
+
   protected def isConvergedCallback: Unit => F[Unit]
 
   protected val currentBest: TxnVar[F, (Double, ScalaVector[Double])]
@@ -117,19 +120,35 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
                       } yield (scale, best)).commit
       scanResult <-
         dimensionScan(scaleAndBest._1, scaleAndBest._2._2, scaleAndBest._2._1)
-      _ <- if (scanResult._1 > scaleAndBest._2._1) {
-             currentBest.set(scanResult).commit >> newMaximumCallback(scanResult._1)
-               .start
-               .void
-           } else if (scaleAndBest._1 > convergenceThreshold) {
-             (for {
-               scale    <- currentScale.get
-               newScale <- STM[F].delay(scale / 2)
-               _        <- currentScale.set(newScale)
-             } yield newScale).commit.flatMap(newScaleCallback)
-           } else {
-             isConverged.set(true).commit >> isConvergedCallback(()).start.void
-           }
+      _ <- Async[F].ifM(Async[F].delay(scanResult._1 > scaleAndBest._2._1))(
+             for {
+               _     <- currentBest.set(scanResult).commit
+               scale <- currentScale.get.commit
+               _ <- iterationUpdateCallback(
+                      OptimisationTelemetryUpdate(maxLogPdf = scanResult._1,
+                                                  currentScale = scale,
+                                                  prefix = telemetryPrefix
+                      )
+                    ).start
+             } yield (),
+             Async[F].ifM(Async[F].delay(scaleAndBest._1 > convergenceThreshold))(
+               for {
+                 scaleResult <- (for {
+                                  scale    <- currentScale.get
+                                  newScale <- STM[F].delay(scale / 2)
+                                  _        <- currentScale.set(newScale)
+                                } yield newScale).commit
+                 maxLogPdf <- currentBest.get.commit
+                 _ <- iterationUpdateCallback(
+                        OptimisationTelemetryUpdate(maxLogPdf = maxLogPdf._1,
+                                                    currentScale = scaleResult,
+                                                    prefix = telemetryPrefix
+                        )
+                      ).start
+               } yield (),
+               isConverged.set(true).commit >> isConvergedCallback(()).start.void
+             )
+           )
     } yield ()
 
   protected val optimisationRecursion: F[Unit] =

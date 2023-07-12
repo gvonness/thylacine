@@ -17,7 +17,11 @@
 package ai.entrolution
 package thylacine.util
 
+import scala.util.Random
+
 private[thylacine] object MathOps {
+
+  private val randomGenerator = Random
 
   private[thylacine] def trapezoidalQuadrature(
       abscissa: Vector[Double],
@@ -110,5 +114,8 @@ private[thylacine] object MathOps {
     input1.zip(input2).map { case (coord1, coord2) =>
       coord1 + coord2
     }
+
+  private[thylacine] def nextGaussian: Double =
+    randomGenerator.nextGaussian()
 
 }

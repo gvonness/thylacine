@@ -23,21 +23,21 @@ import thylacine.config.HookeAndJeevesConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.optimization.hookeandjeeves.HookeAndJeevesEngine
 
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
 case class HookeAndJeevesOptimisedPosterior[F[_]: STM: Async](
-    private[thylacine] val hookeAndJeevesConfig: HookeAndJeevesConfig,
-    protected override val newMaximumCallback: Double => F[Unit],
-    protected override val newScaleCallback: Double => F[Unit],
-    protected override val isConvergedCallback: Unit => F[Unit],
-    private[thylacine] override val priors: Set[Prior[F, _]],
-    private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-    protected override val currentBest: TxnVar[F, (Double, Vector[Double])],
-    protected override val currentScale: TxnVar[F, Double],
-    protected override val isConverged: TxnVar[F, Boolean]
+                                                               private[thylacine] val hookeAndJeevesConfig: HookeAndJeevesConfig,
+                                                               protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
+                                                               protected override val isConvergedCallback: Unit => F[Unit],
+                                                               private[thylacine] override val priors: Set[Prior[F, _]],
+                                                               private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
+                                                               protected override val currentBest: TxnVar[F, (Double, Vector[Double])],
+                                                               protected override val currentScale: TxnVar[F, Double],
+                                                               protected override val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HookeAndJeevesEngine[F] {
@@ -53,11 +53,10 @@ case class HookeAndJeevesOptimisedPosterior[F[_]: STM: Async](
 object HookeAndJeevesOptimisedPosterior {
 
   def of[F[_]: STM: Async](
-      hookeAndJeevesConfig: HookeAndJeevesConfig,
-      posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      newMaximumCallback: Double => F[Unit],
-      newScaleCallback: Double => F[Unit],
-      isConvergedCallback: Unit => F[Unit]
+                            hookeAndJeevesConfig: HookeAndJeevesConfig,
+                            posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+                            iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
+                            isConvergedCallback: Unit => F[Unit]
   ): F[HookeAndJeevesOptimisedPosterior[F]] =
     for {
       currentBest  <- TxnVar.of((0d, Vector[Double]()))
@@ -65,8 +64,7 @@ object HookeAndJeevesOptimisedPosterior {
       isConverged  <- TxnVar.of(false)
     } yield HookeAndJeevesOptimisedPosterior(
       hookeAndJeevesConfig = hookeAndJeevesConfig,
-      newMaximumCallback = newMaximumCallback,
-      newScaleCallback = newScaleCallback,
+      iterationUpdateCallback = iterationUpdateCallback,
       isConvergedCallback = isConvergedCallback,
       priors = posterior.priors,
       likelihoods = posterior.likelihoods,

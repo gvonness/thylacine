@@ -18,6 +18,7 @@ package ai.entrolution
 package thylacine.model.core.values
 
 import thylacine.model.core.CanValidate
+import thylacine.util.MathOps
 
 import breeze.linalg._
 
@@ -50,6 +51,14 @@ private[thylacine] case class VectorContainer(
 
   private[thylacine] lazy val squaredMagnitude: Double =
     values.values.map(Math.pow(_, 2)).sum
+
+  private[thylacine] lazy val magnitude: Double =
+    Math.sqrt(squaredMagnitude)
+
+  private[thylacine] lazy val normalised: VectorContainer =
+    if (magnitude != 1.0d) {
+      this.copy(values = values.map(v => v._1 -> v._2 / magnitude))
+    } else this
 
   private[thylacine] lazy val scalaVector: ScalaVector[Double] =
     rawVector.toScalaVector
@@ -141,5 +150,5 @@ private[thylacine] object VectorContainer {
     fill(dimension)(0d)
 
   private[thylacine] def random(dimension: Int): VectorContainer =
-    VectorContainer((1 to dimension).map(_ => Math.random()).toVector)
+    VectorContainer((1 to dimension).map(_ => MathOps.nextGaussian).toVector)
 }

@@ -1,5 +1,7 @@
 # Thylacine
 ![Build Status](https://github.com/gvonness/thylacine/actions/workflows/build.yml/badge.svg)
+[![Maven Central](https://img.shields.io/maven-central/v/ai.entrolution/thylacine_2.13)](https://maven-badges.herokuapp.com/maven-central/ai.entrolution/thylacine_2.13)
+
 
 First, let me say this work is very much a WIP; please be patient :).
 
@@ -34,6 +36,19 @@ A few aspects differentiate Thylacine from other Bayesian inference frameworks:
 The theory of Bayesian inference is too vast to cover here. However, two references I highly recommend are:
 * [Information Theory, Inference, and Learning Algorithms](https://www.inference.org.uk/itprnn/book.pdf) - An amazing book that shows how deeply connected Bayesian inference, coding theory, information theory, ML models and learning really are (i.e. all different facets of the same concept). What's even better is that David MacKay has made the book freely available to the public (definitely worth buying if you like physical books though).
 * [Data Analysis: A Bayesian Tutorial](https://blackwells.co.uk/bookshop/product/Data-Analysis-by-D-S-Sivia-J-Skilling/9780198568322) - While many references can get bogged down in theory that can be cumbersome to penetrate for pragmatic approaches, this book cuts right to the chase and focuses on experimental data analysis from the start. This is an excellent reference for people who want to get up and running fast with Bayesian methods. The book is also a much faster read at ~250 pages than most other references out there.
+
+---
+
+## Quick Start
+
+To use Thylacine in an existing SBT project with Scala 2.13 or a later version, add the following dependency to your
+`build.sbt`:
+
+```scala
+libraryDependencies += "ai.entrolution" %% "thylacine" % VERSION
+```
+
+See the Maven badge above for the latest version.
 
 ---
 

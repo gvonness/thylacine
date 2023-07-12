@@ -24,6 +24,7 @@ import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.telemetry.SlqTelemetryUpdate
+import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.integration.slq._
 
@@ -67,6 +68,10 @@ case class SlqIntegratedPosterior[F[_]: STM: Async](
   override protected final val slqSampleParallelism: Int =
     slqConfig.sampleParallelism
 
+  override protected final val maxIterationCount: Int = slqConfig.maxIterationCount
+
+  override protected final val minIterationCount: Int = slqConfig.minIterationCount
+
   @unused
   def rebuildSampleSimulation: F[Unit] =
     for {
@@ -83,7 +88,7 @@ object SlqIntegratedPosterior {
       slqTelemetryUpdateCallback: SlqTelemetryUpdate => F[Unit],
       domainRebuildStartCallback: Unit => F[Unit],
       domainRebuildFinishCallback: Unit => F[Unit],
-      seedsSpec: F[Set[ModelParameterCollection]]
+      seedsSpec: F[Set[Map[String, Vector[Double]]]]
   ): F[SlqIntegratedPosterior[F]] =
     for {
       sampleDomain             <- TxnVar.of(PointInCubeCollection.empty)
@@ -96,7 +101,7 @@ object SlqIntegratedPosterior {
       quadratureIntegrations   <- TxnVar.of(QuadratureIntegrator.empty)
       samplingSimulation       <- TxnVar.of(SamplingSimulation.empty)
       isConverged              <- TxnVar.of(false)
-      seeds                    <- seedsSpec
+      seeds                    <- seedsSpec.map(seeds => seeds.map(IndexedVectorCollection(_)))
     } yield SlqIntegratedPosterior(
       slqConfig = slqConfig,
       slqTelemetryUpdateCallback = slqTelemetryUpdateCallback,

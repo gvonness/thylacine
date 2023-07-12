@@ -17,8 +17,8 @@
 package ai.entrolution
 package thylacine.model.core.telemetry
 
-case class MdsTelemetryUpdate(convergenceMeasure: Double, currentMax: Double) extends TelemetryReport {
+case class OptimisationTelemetryUpdate(maxLogPdf: Double, currentScale: Double, prefix: String) extends TelemetryReport {
 
   override lazy val logMessage =
-    s"MDS optimisation :: Current best - $currentMax // Convergence measure - $convergenceMeasure"
+    s"$prefix optimisation :: Max ln(pdf) - $maxLogPdf // Current scale - $currentScale"
 }

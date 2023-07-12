@@ -15,12 +15,14 @@
  */
 
 package ai.entrolution
-package thylacine.config
+package thylacine.model.core.telemetry
 
-case class HmcmcConfig(
-    stepsBetweenSamples: Int,
-    stepsInDynamicsSimulation: Int,
-    warmupStepCount: Int,
-    dynamicsSimulationStepSize: Double,
-    sampleParallelism: Option[Int]
-)
+case class HmcmcTelemetryUpdate(
+    samplesRemaining: Int,
+    jumpAttempts: Int,
+    jumpAcceptances: Int
+) extends TelemetryReport {
+
+  override lazy val logMessage: String =
+    s"HMCMC Sampling :: Samples remaining - $samplesRemaining // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
+}
