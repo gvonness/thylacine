@@ -71,6 +71,10 @@ case class GaussianAnalyticPosterior[F[_]: Async](
   @unused
   lazy val maxLogPdf: F[Double] = logPdfAt(mean)
 
+  lazy val entropy: Double = rawDistribution.entropy
+
+  lazy val priorEntropies = priors.map(_.entropy)
+
   private lazy val rawDistribution: MultivariateGaussian = {
     val priorsAdded: AnalyticPosteriorAccumulation[F] =
       priors.toVector
