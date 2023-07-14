@@ -53,6 +53,8 @@ case class GaussianPrior[F[_]: Async](
 
   private[thylacine] lazy val covariance: Vector[Double] =
     rawDistribution.covariance.toArray.toVector
+
+  lazy val entropy = rawDistribution.entropy
 }
 
 object GaussianPrior {
