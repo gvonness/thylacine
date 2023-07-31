@@ -20,24 +20,24 @@ package thylacine.model.optimization.line
 private[thylacine] trait LineSearch[F[_]] {
 
   private[thylacine] def searchColinearTriple(
-      startPointEvaluation: (Double, Vector[Double]),
-      midPointEvaluation: (Double, Vector[Double]),
-      endPointEvaluation: (Double, Vector[Double])
+    startPointEvaluation: (Double, Vector[Double]),
+    midPointEvaluation: (Double, Vector[Double]),
+    endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])]
 
   private[thylacine] def searchDirectionAlong(
-      startPointEvaluation: (Double, Vector[Double]),
-      direction: Vector[Double]
+    startPointEvaluation: (Double, Vector[Double]),
+    direction: Vector[Double]
   ): F[(Double, Vector[Double])]
 
   private[thylacine] def searchAlongLineJoining(
-      startPointEvaluation: (Double, Vector[Double]),
-      endPointEvaluation: (Double, Vector[Double])
+    startPointEvaluation: (Double, Vector[Double]),
+    endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])]
 
   private[thylacine] def searchLineBetween(
-      startPointEvaluation: (Double, Vector[Double]),
-      endPointEvaluation: (Double, Vector[Double])
+    startPointEvaluation: (Double, Vector[Double]),
+    endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])]
 
 }

@@ -29,7 +29,7 @@ private[thylacine] trait ModelParameterOptimizer[F[_]] {
   this: AsyncImplicits[F] =>
 
   protected def calculateMaximumLogPdf(
-      startingPt: ModelParameterCollection
+    startingPt: ModelParameterCollection
   ): F[(Double, ModelParameterCollection)]
 
   final def findMaximumLogPdf(startPt: Map[String, Vector[Double]]): F[(Double, Map[String, Vector[Double]])] =

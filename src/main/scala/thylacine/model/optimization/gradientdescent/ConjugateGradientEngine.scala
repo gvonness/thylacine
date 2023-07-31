@@ -22,7 +22,7 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
-import thylacine.model.optimization.line.{GoldenSectionSearch, LineEvaluationResult}
+import thylacine.model.optimization.line.{ GoldenSectionSearch, LineEvaluationResult }
 import thylacine.util.ScalaVectorOps.Implicits._
 
 import cats.effect.implicits._
@@ -43,10 +43,10 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
   protected def isConvergedCallback: Unit => F[Unit]
 
   private def calculateNextLogPdf(
-      startingEvaluation: LineEvaluationResult,
-      previousGradient: Vector[Double],
-      previousSearchDirection: Vector[Double],
-      previousResults: Queue[Double]
+    startingEvaluation: LineEvaluationResult,
+    previousGradient: Vector[Double],
+    previousSearchDirection: Vector[Double],
+    previousResults: Queue[Double]
   ): F[(Double, ModelParameterCollection)] =
     (for {
       gradientLogPdf                   <- logPdfGradientAt(startingEvaluation.modelParameterArgument)
@@ -110,16 +110,17 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
     }
 
   protected def calculateMaximumLogPdf(
-      startingPt: ModelParameterCollection
+    startingPt: ModelParameterCollection
   ): F[(Double, ModelParameterCollection)] =
     for {
       logPdf               <- logPdfAt(startingPt)
       gradientLogPdfVector <- logPdfGradientAt(startingPt).map(modelParameterCollectionToVectorValues)
       startingPointVector  <- Async[F].delay(modelParameterCollectionToVectorValues(startingPt))
-      result <- calculateNextLogPdf(LineEvaluationResult(logPdf, startingPointVector, startingPt),
-                                    gradientLogPdfVector,
-                                    gradientLogPdfVector,
-                                    Queue[Double]()
+      result <- calculateNextLogPdf(
+                  LineEvaluationResult(logPdf, startingPointVector, startingPt),
+                  gradientLogPdfVector,
+                  gradientLogPdfVector,
+                  Queue[Double]()
                 )
     } yield result
 

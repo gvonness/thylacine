@@ -25,9 +25,9 @@ private[thylacine] case class GraphPoint(x: Double, y: Double) {
     Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2)
 
   private[thylacine] def scaledDistSquaredTo(
-      point: GraphPoint,
-      xScale: Double,
-      yScale: Double
+    point: GraphPoint,
+    xScale: Double,
+    yScale: Double
   ): Double =
     Math.pow((x - point.x) / xScale, 2) + Math.pow((y - point.y) / yScale, 2)
 

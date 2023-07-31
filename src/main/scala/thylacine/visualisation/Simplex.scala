@@ -25,7 +25,7 @@ private[thylacine] case class Simplex(start: GraphPoint, end: GraphPoint) {
   private[thylacine] lazy val length: Double =
     start.distanceTo(end)
 
-  private[thylacine] def getInterp(t: Double): GraphPoint =
+  private[thylacine] def getInterpolation(t: Double): GraphPoint =
     if (t <= 0) {
       start
     } else if (t >= 1) {
@@ -36,14 +36,14 @@ private[thylacine] case class Simplex(start: GraphPoint, end: GraphPoint) {
 
   @tailrec
   private[thylacine] final def getInterpolationPoints(
-      start: Double,
-      ds: Double,
-      prev: List[GraphPoint] = List()
+    start: Double,
+    ds: Double,
+    prev: List[GraphPoint] = List()
   ): (List[GraphPoint], Double) =
     if (start >= length) {
       (prev, start - length)
     } else {
-      getInterpolationPoints(start + ds, ds, List(getInterp(start / length)) ++ prev)
+      getInterpolationPoints(start + ds, ds, List(getInterpolation(start / length)) ++ prev)
     }
 }
 

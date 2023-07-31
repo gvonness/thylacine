@@ -24,9 +24,9 @@ import thylacine.model.optimization.mds.ModelParameterSimplex.differenceMagnitud
 import thylacine.util.MathOps
 
 private[thylacine] case class ModelParameterSimplex(
-    private[thylacine] val vertices: Map[Int, Vector[Double]],
-    private[thylacine] val isRegular: Boolean = false,
-    private[thylacine] val validated: Boolean = false
+  private[thylacine] val vertices: Map[Int, Vector[Double]],
+  private[thylacine] val isRegular: Boolean = false,
+  private[thylacine] val validated: Boolean = false
 ) extends CanValidate[ModelParameterSimplex] {
 
   private lazy val randomAdjacentEdgeLength: Double =
@@ -58,7 +58,7 @@ private[thylacine] case class ModelParameterSimplex(
     this.copy(validated = true)
 
   private[thylacine] def verticesAsModelParameters(
-      modelParameterContext: ModelParameterContext
+    modelParameterContext: ModelParameterContext
   ): Map[Int, ModelParameterCollection] =
     vertices.view.mapValues(modelParameterContext.vectorValuesToModelParameterCollection).toMap
 
@@ -93,8 +93,8 @@ private[thylacine] object ModelParameterSimplex {
     Math.sqrt(input1.zip(input2).map(i => Math.pow(i._1 - i._2, 2.0)).sum)
 
   private[thylacine] def unitRegularCenteredOn(
-      input: ModelParameterCollection,
-      rawMappings: ModelParameterContext
+    input: ModelParameterCollection,
+    rawMappings: ModelParameterContext
   ): ModelParameterSimplex = {
     val n                = input.totalDimension
     val baseScalar       = -Math.pow(n.toDouble, -1.5) * (Math.sqrt(n + 1d) + 1)
@@ -112,15 +112,16 @@ private[thylacine] object ModelParameterSimplex {
         .map(index => MathOps.modifyVectorIndex(baseVertex)(index, _ + nudgeScalar)) :+ lastVertex)
         .map(_.zip(vectorInput).map(i => i._1 + i._2))
 
-    ModelParameterSimplex(recenteredVertices.indices
-                            .zip(recenteredVertices)
-                            .toMap,
-                          isRegular = true
+    ModelParameterSimplex(
+      recenteredVertices.indices
+        .zip(recenteredVertices)
+        .toMap,
+      isRegular = true
     ).getValidated
   }
 
   private[thylacine] def unitRegularCenteredOnZero(
-      rawMappings: ModelParameterContext
+    rawMappings: ModelParameterContext
   ): ModelParameterSimplex =
     unitRegularCenteredOn(
       rawMappings.zeroModelParameterCollection,

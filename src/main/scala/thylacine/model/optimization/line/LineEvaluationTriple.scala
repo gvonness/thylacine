@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.optimization.line
 
 private[thylacine] case class LineEvaluationTriple(
-    private[thylacine] val firstEndPoint: LineEvaluationResult,
-    private[thylacine] val middlePoint: LineEvaluationResult,
-    private[thylacine] val secondEndPoint: LineEvaluationResult
+  private[thylacine] val firstEndPoint: LineEvaluationResult,
+  private[thylacine] val middlePoint: LineEvaluationResult,
+  private[thylacine] val secondEndPoint: LineEvaluationResult
 )

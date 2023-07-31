@@ -22,8 +22,8 @@ import ch.obermuhlner.math.big.DefaultBigDecimalMath
 import scala.collection.parallel.CollectionConverters._
 
 private[thylacine] case class QuadratureIntegrator(
-    logPdfs: Vector[Double],
-    quadratures: Vector[Vector[Double]]
+  logPdfs: Vector[Double],
+  quadratures: Vector[Vector[Double]]
 ) {
 
   private lazy val minLogPdf: BigDecimal = (logPdfs.max + logPdfs.min) / 2.0
@@ -43,14 +43,16 @@ private[thylacine] case class QuadratureIntegrator(
 
   // Can be used in a number of places and is worth memoizing
   private[thylacine] lazy val negativeEntropyStats: Vector[BigDecimal] =
-    integrandGraphs.map { ig =>
-      ig.par
-        .map(p =>
-          BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal))
-            * p._2 * p._1
-        )
-        .sum
-    }.zip(evidenceStats)
+    integrandGraphs
+      .map { ig =>
+        ig.par
+          .map(p =>
+            BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal))
+              * p._2 * p._1
+          )
+          .sum
+      }
+      .zip(evidenceStats)
       .par
       .map { evs =>
         evs._1 / evs._2 - BigDecimal(
@@ -60,16 +62,18 @@ private[thylacine] case class QuadratureIntegrator(
       .toVector
 
   private[thylacine] def getIntegrationStats(
-      integrand: BigDecimal => BigDecimal
+    integrand: BigDecimal => BigDecimal
   ): Vector[BigDecimal] =
-    integrandGraphs.map { ig =>
-      ig.par
-        .map(p =>
-          integrand(BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal)))
-            * p._1
-        )
-        .sum
-    }.zip(evidenceStats)
+    integrandGraphs
+      .map { ig =>
+        ig.par
+          .map(p =>
+            integrand(BigDecimal(DefaultBigDecimalMath.exp(p._2.bigDecimal)))
+              * p._1
+          )
+          .sum
+      }
+      .zip(evidenceStats)
       .par
       .map { evs =>
         evs._1 / evs._2 - BigDecimal(

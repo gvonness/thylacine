@@ -18,11 +18,11 @@ package ai.entrolution
 package thylacine.model.components
 
 import bengal.stm.STM
-import thylacine.config.{ConjugateGradientConfig, CoordinateSlideConfig, HookeAndJeevesConfig, MdsConfig}
+import thylacine.config.{ ConjugateGradientConfig, CoordinateSlideConfig, HookeAndJeevesConfig, MdsConfig }
 import thylacine.model.components.forwardmodel.NonLinearForwardModel
-import thylacine.model.components.likelihood.{GaussianLikelihood, GaussianLinearLikelihood}
+import thylacine.model.components.likelihood.{ GaussianLikelihood, GaussianLinearLikelihood }
 import thylacine.model.components.posterior._
-import thylacine.model.components.prior.{GaussianPrior, UniformPrior}
+import thylacine.model.components.prior.{ GaussianPrior, UniformPrior }
 
 import cats.effect.IO
 
@@ -30,23 +30,23 @@ object ComponentFixture {
 
   val fooPrior: GaussianPrior[IO] =
     GaussianPrior.fromConfidenceIntervals[IO](
-      label = "foo",
-      values = Vector(1, 2),
+      label               = "foo",
+      values              = Vector(1, 2),
       confidenceIntervals = Vector(3, 5)
     )
 
   val fooUniformPrior: UniformPrior[IO] =
     UniformPrior.fromBounds[IO](
-      label = "fooniform",
+      label     = "fooniform",
       maxBounds = Vector(5, 5),
       minBounds = Vector(-5, -5)
     )
 
-  def fooLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
-    coefficients = Vector(Vector(1, 3), Vector(2, 4)),
-    measurements = Vector(7, 10),
-    uncertainties = Vector(0.01, 0.01),
-    prior = fooPrior,
+  def fooLikelihoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
+    coefficients   = Vector(Vector(1, 3), Vector(2, 4)),
+    measurements   = Vector(7, 10),
+    uncertainties  = Vector(0.01, 0.01),
+    prior          = fooPrior,
     evalCacheDepth = None
   )
 
@@ -57,69 +57,69 @@ object ComponentFixture {
 
   private def fooNonAnalyticForwardModelF(implicit stm: STM[IO]): IO[NonLinearForwardModel[IO]] =
     NonLinearForwardModel.of[IO](
-      evaluation = linearMapping,
-      differential = .0001,
-      domainDimensions = Map("foo" -> 2),
-      rangeDimension = 2,
-      evalCacheDepth = None,
+      evaluation         = linearMapping,
+      differential       = .0001,
+      domainDimensions   = Map("foo" -> 2),
+      rangeDimension     = 2,
+      evalCacheDepth     = None,
       jacobianCacheDepth = None
     )
 
-  def fooNonAnalyticLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLikelihood[IO, NonLinearForwardModel[IO]]] =
+  def fooNonAnalyticLikelihoodF(implicit stm: STM[IO]): IO[GaussianLikelihood[IO, NonLinearForwardModel[IO]]] =
     for {
       nonAnalyticForwardModel <- fooNonAnalyticForwardModelF
     } yield GaussianLikelihood.from[IO, NonLinearForwardModel[IO]](
-      forwardModel = nonAnalyticForwardModel,
-      measurements = Vector(7, 10),
+      forwardModel  = nonAnalyticForwardModel,
+      measurements  = Vector(7, 10),
       uncertainties = Vector(0.01, 0.01)
     )
 
-  def fooTwoLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
-    coefficients = Vector(Vector(1, 3), Vector(2, 4)),
-    measurements = Vector(7, 10),
-    uncertainties = Vector(0.01, 0.01),
-    prior = fooUniformPrior,
+  def fooTwoLikelihoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
+    coefficients   = Vector(Vector(1, 3), Vector(2, 4)),
+    measurements   = Vector(7, 10),
+    uncertainties  = Vector(0.01, 0.01),
+    prior          = fooUniformPrior,
     evalCacheDepth = None
   )
 
   val barPrior: GaussianPrior[IO] =
     GaussianPrior.fromConfidenceIntervals[IO](
-      label = "bar",
-      values = Vector(5),
+      label               = "bar",
+      values              = Vector(5),
       confidenceIntervals = Vector(.1)
     )
 
   val barUniformPrior: UniformPrior[IO] =
     UniformPrior.fromBounds[IO](
-      label = "barniform",
+      label     = "barniform",
       maxBounds = Vector(10),
       minBounds = Vector(-10)
     )
 
-  def barLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
-    coefficients = Vector(Vector(3), Vector(4)),
-    measurements = Vector(15, 20),
-    uncertainties = Vector(0.00001, 0.00001),
-    prior = barPrior,
+  def barLikelihoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
+    coefficients   = Vector(Vector(3), Vector(4)),
+    measurements   = Vector(15, 20),
+    uncertainties  = Vector(0.00001, 0.00001),
+    prior          = barPrior,
     evalCacheDepth = None
   )
 
-  def barTwoLikeliHoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
-    coefficients = Vector(Vector(3), Vector(4)),
-    measurements = Vector(15, 20),
-    uncertainties = Vector(0.00001, 0.00001),
-    prior = barUniformPrior,
+  def barTwoLikelihoodF(implicit stm: STM[IO]): IO[GaussianLinearLikelihood[IO]] = GaussianLinearLikelihood.of[IO](
+    coefficients   = Vector(Vector(3), Vector(4)),
+    measurements   = Vector(15, 20),
+    uncertainties  = Vector(0.00001, 0.00001),
+    prior          = barUniformPrior,
     evalCacheDepth = None
   )
 
   def analyticPosteriorF(implicit stm: STM[IO]): IO[GaussianAnalyticPosterior[IO]] =
     for {
-      fooLikeliHood <- fooLikeliHoodF
-      barLikeliHood <- barLikeliHoodF
+      fooLikelihood <- fooLikelihoodF
+      barLikelihood <- barLikelihoodF
       posterior <- IO {
                      GaussianAnalyticPosterior[IO](
-                       priors = Set(fooPrior, barPrior),
-                       likelihoods = Set(fooLikeliHood, barLikeliHood)
+                       priors      = Set(fooPrior, barPrior),
+                       likelihoods = Set(fooLikelihood, barLikelihood)
                      )
                    }
       _ <- posterior.init
@@ -127,18 +127,18 @@ object ComponentFixture {
 
   def unnormalisedPosteriorF(implicit stm: STM[IO]): IO[UnnormalisedPosterior[IO]] =
     for {
-      fooTwoLikeliHood <- fooTwoLikeliHoodF
-      barTwoLikeliHood <- barTwoLikeliHoodF
+      fooTwoLikelihood <- fooTwoLikelihoodF
+      barTwoLikelihood <- barTwoLikelihoodF
       posterior <- IO {
                      UnnormalisedPosterior[IO](
-                       priors = Set(fooUniformPrior, barUniformPrior),
-                       likelihoods = Set(fooTwoLikeliHood, barTwoLikeliHood)
+                       priors      = Set(fooUniformPrior, barUniformPrior),
+                       likelihoods = Set(fooTwoLikelihood, barTwoLikelihood)
                      )
                    }
     } yield posterior
 
-  val hookesAndJeevesConfig: HookeAndJeevesConfig = HookeAndJeevesConfig(
-    convergenceThreshold = 1e-7,
+  val hookeAndJeevesConfig: HookeAndJeevesConfig = HookeAndJeevesConfig(
+    convergenceThreshold           = 1e-7,
     numberOfPriorSamplesToSetScale = Some(100)
   )
 
@@ -146,17 +146,17 @@ object ComponentFixture {
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
       posterior <- HookeAndJeevesOptimisedPosterior.of[IO](
-                     hookeAndJeevesConfig = hookesAndJeevesConfig,
-                     posterior = unnormalisedPosterior,
+                     hookeAndJeevesConfig    = hookeAndJeevesConfig,
+                     posterior               = unnormalisedPosterior,
                      iterationUpdateCallback = _ => IO.unit,
-                     isConvergedCallback = _ => IO.unit
+                     isConvergedCallback     = _ => IO.unit
                    )
     } yield posterior
 
   val coordinateSlideConfig: CoordinateSlideConfig = CoordinateSlideConfig(
-    convergenceThreshold = 1e-7,
-    goldenSectionTolerance = 1e-10,
-    lineProbeExpansionFactor = 2.0,
+    convergenceThreshold           = 1e-7,
+    goldenSectionTolerance         = 1e-10,
+    lineProbeExpansionFactor       = 2.0,
     numberOfPriorSamplesToSetScale = Some(100)
   )
 
@@ -164,18 +164,18 @@ object ComponentFixture {
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
       posterior <- CoordinateSlideOptimisedPosterior.of[IO](
-                     coordinateSlideConfig = coordinateSlideConfig,
-                     posterior = unnormalisedPosterior,
+                     coordinateSlideConfig   = coordinateSlideConfig,
+                     posterior               = unnormalisedPosterior,
                      iterationUpdateCallback = _ => IO.unit,
-                     isConvergedCallback = _ => IO.unit
+                     isConvergedCallback     = _ => IO.unit
                    )
     } yield posterior
 
   val conjugateGradientConfig: ConjugateGradientConfig = ConjugateGradientConfig(
-    convergenceThreshold = 1e-20,
-    goldenSectionTolerance = 1e-10,
+    convergenceThreshold     = 1e-20,
+    goldenSectionTolerance   = 1e-10,
     lineProbeExpansionFactor = 2.0,
-    numberOfResultsToRetain = 100
+    numberOfResultsToRetain  = 100
   )
 
   def conjugateGradientOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
@@ -183,15 +183,15 @@ object ComponentFixture {
       unnormalisedPosterior <- unnormalisedPosteriorF
     } yield ConjugateGradientOptimisedPosterior.from[IO](
       conjugateGradientConfig = conjugateGradientConfig,
-      posterior = unnormalisedPosterior,
-      newMaximumCallback = _ => IO.unit,
-      isConvergedCallback = _ => IO.unit
+      posterior               = unnormalisedPosterior,
+      newMaximumCallback      = _ => IO.unit,
+      isConvergedCallback     = _ => IO.unit
     )
 
   val mdsConfig: MdsConfig = MdsConfig(
-    convergenceThreshold = 1e-15,
-    expansionMultiplier = 2.0,
-    contractionMultiplier = .5,
+    convergenceThreshold                   = 1e-15,
+    expansionMultiplier                    = 2.0,
+    contractionMultiplier                  = .5,
     numberOfPriorSamplesToSetStartingPoint = Some(100)
   )
 
@@ -199,10 +199,10 @@ object ComponentFixture {
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
       posterior <- MdsOptimisedPosterior.of[IO](
-                     mdsConfig = mdsConfig,
-                     posterior = unnormalisedPosterior,
+                     mdsConfig               = mdsConfig,
+                     posterior               = unnormalisedPosterior,
                      iterationUpdateCallback = _ => IO.unit,
-                     isConvergedCallback = _ => IO.unit
+                     isConvergedCallback     = _ => IO.unit
                    )
     } yield posterior
 }

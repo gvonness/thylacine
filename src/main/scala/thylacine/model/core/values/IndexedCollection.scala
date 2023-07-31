@@ -23,14 +23,10 @@ private[thylacine] trait IndexedCollection[T <: Container] {
   private[thylacine] def index: Map[ModelParameterIdentifier, T]
 
   private[thylacine] def retrieveIndex(identifier: ModelParameterIdentifier): T =
-    index.getOrElse(identifier,
-                    throw new RuntimeException(
-                      s"Identifier $identifier not found in indexed collection: $index"
-                    )
+    index.getOrElse(
+      identifier,
+      throw new RuntimeException(
+        s"Identifier $identifier not found in indexed collection: $index"
+      )
     )
-
-  private[thylacine] def getSortedValues: List[T] =
-    index.toList
-      .sortBy(_._1)
-      .map(_._2)
 }

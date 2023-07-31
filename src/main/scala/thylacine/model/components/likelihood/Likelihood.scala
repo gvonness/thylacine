@@ -22,7 +22,7 @@ import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.modelparameters.ModelParameterPdf
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.distributions.Distribution
 
 import cats.effect.kernel.Async
@@ -41,7 +41,7 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
     forwardModel.domainDimension
 
   private[thylacine] override final def logPdfAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Double] =
     for {
       mappedVec <- forwardModel.evalAt(input)
@@ -49,16 +49,18 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
     } yield res
 
   private[thylacine] override final def logPdfGradientAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     for {
       mappedVec  <- forwardModel.evalAt(input)
       forwardJac <- forwardModel.jacobianAt(input)
       measGrad   <- Async[F].delay(observationDistribution.logPdfGradientAt(mappedVec))
-    } yield forwardJac.index.toList.map { fj =>
-      IndexedVectorCollection(
-        fj._1,
-        VectorContainer((measGrad.rawVector.t * fj._2.rawMatrix).t)
-      )
-    }.reduce(_ rawMergeWith _)
+    } yield forwardJac.index.toList
+      .map { fj =>
+        IndexedVectorCollection(
+          fj._1,
+          VectorContainer((measGrad.rawVector.t * fj._2.rawMatrix).t)
+        )
+      }
+      .reduce(_ rawMergeWith _)
 }

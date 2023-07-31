@@ -23,8 +23,8 @@ import scala.annotation.tailrec
 // of points. This should not be accessed outside of a transactional
 // variable
 private[thylacine] case class QuadratureAbscissa(
-    samplePool: Set[Double],
-    abscissa: Vector[Double]
+  samplePool: Set[Double],
+  abscissa: Vector[Double]
 ) {
   import QuadratureAbscissa._
 
@@ -68,7 +68,7 @@ private[thylacine] object QuadratureAbscissa {
 
     QuadratureAbscissa(
       samplePool = randomVector,
-      abscissa = Vector()
+      abscissa   = Vector()
     )
   }
 }

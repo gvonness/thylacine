@@ -27,13 +27,14 @@ import thylacine.model.distributions.UniformDistribution
 import cats.effect.kernel.Async
 
 import java.util.UUID
+import scala.annotation.unused
 
 case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
-    private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] val upperBounds: VectorContainer,
-    private[thylacine] val lowerBounds: VectorContainer,
-    private[thylacine] override val forwardModel: T,
-    private[thylacine] override val validated: Boolean = false
+  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  private[thylacine] val upperBounds: VectorContainer,
+  private[thylacine] val lowerBounds: VectorContainer,
+  private[thylacine] override val forwardModel: T,
+  private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, T, UniformDistribution] {
   if (!validated) {
@@ -47,7 +48,7 @@ case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
       this.copy(
         lowerBounds = lowerBounds.getValidated,
         upperBounds = upperBounds.getValidated,
-        validated = true
+        validated   = true
       )
     }
 
@@ -56,17 +57,18 @@ case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
 
 }
 
+@unused
 object UniformLikelihood {
 
   def apply[F[_]: Async, T <: ForwardModel[F]](
-      forwardModel: T,
-      upperBounds: Vector[Double],
-      lowerBounds: Vector[Double]
+    forwardModel: T,
+    upperBounds: Vector[Double],
+    lowerBounds: Vector[Double]
   ): UniformLikelihood[F, T] =
     UniformLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
-      upperBounds = VectorContainer(upperBounds),
-      lowerBounds = VectorContainer(lowerBounds),
-      forwardModel = forwardModel
+      upperBounds             = VectorContainer(upperBounds),
+      lowerBounds             = VectorContainer(lowerBounds),
+      forwardModel            = forwardModel
     )
 }

@@ -24,7 +24,7 @@ import thylacine.model.core.computation.CachedComputation
 import thylacine.model.core.values._
 import thylacine.model.core.values.modelparameters.ModelParameterContext
 
-import breeze.linalg.{DenseMatrix, DenseVector}
+import breeze.linalg.{ DenseMatrix, DenseVector }
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
@@ -33,13 +33,13 @@ import scala.annotation.unused
 // A linear forward model may work across more than
 // one model parameter generator
 case class LinearForwardModel[F[_]: STM: Async](
-    protected override val evalCache: CachedComputation[F, VectorContainer],
-    protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
-    private[thylacine] val transform: IndexedMatrixCollection,
-    private[thylacine] val vectorOffset: Option[VectorContainer],
-    override val domainDimension: Int,
-    override val rangeDimension: Int,
-    private[thylacine] override val validated: Boolean = false
+  protected override val evalCache: CachedComputation[F, VectorContainer],
+  protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+  private[thylacine] val transform: IndexedMatrixCollection,
+  private[thylacine] val vectorOffset: Option[VectorContainer],
+  override val domainDimension: Int,
+  override val rangeDimension: Int,
+  private[thylacine] override val validated: Boolean = false
 ) extends StmImplicits[F]
     with InMemoryMemoizedForwardModel[F] {
   if (!validated) {
@@ -54,9 +54,9 @@ case class LinearForwardModel[F[_]: STM: Async](
       this
     } else {
       this.copy(
-        transform = transform.getValidated,
+        transform    = transform.getValidated,
         vectorOffset = vectorOffset.map(_.getValidated),
-        validated = true
+        validated    = true
       )
     }
 
@@ -66,7 +66,7 @@ case class LinearForwardModel[F[_]: STM: Async](
     transform
 
   private[thylacine] override def jacobianAt(
-      input: IndexedVectorCollection
+    input: IndexedVectorCollection
   ): F[IndexedMatrixCollection] =
     Async[F].pure(getJacobian)
 }
@@ -74,9 +74,9 @@ case class LinearForwardModel[F[_]: STM: Async](
 object LinearForwardModel {
 
   def of[F[_]: STM: Async](
-      transform: IndexedMatrixCollection,
-      vectorOffset: Option[VectorContainer],
-      evalCacheDepth: Option[Int]
+    transform: IndexedMatrixCollection,
+    vectorOffset: Option[VectorContainer],
+    evalCacheDepth: Option[Int]
   ): F[LinearForwardModel[F]] = {
     val rangeDimension: Int =
       transform.index.head._2.rowTotalNumber
@@ -109,7 +109,7 @@ object LinearForwardModel {
     }
 
     def transformedEval(
-        input: IndexedVectorCollection
+      input: IndexedVectorCollection
     ): VectorContainer =
       VectorContainer(applyOffset(rawMatrixTransform * rawMappings.modelParameterCollectionToRawVector(input)))
 
@@ -125,37 +125,37 @@ object LinearForwardModel {
 
   @unused
   private[thylacine] def of[F[_]: STM: Async](
-      identifier: ModelParameterIdentifier,
-      values: Vector[Vector[Double]],
-      evalCacheDepth: Option[Int]
+    identifier: ModelParameterIdentifier,
+    values: Vector[Vector[Double]],
+    evalCacheDepth: Option[Int]
   ): F[LinearForwardModel[F]] =
     of[F](
-      transform = IndexedMatrixCollection(identifier, values),
-      vectorOffset = None,
+      transform      = IndexedMatrixCollection(identifier, values),
+      vectorOffset   = None,
       evalCacheDepth = evalCacheDepth
     )
 
   def of[F[_]: STM: Async](
-      label: String,
-      values: Vector[Vector[Double]],
-      evalCacheDepth: Option[Int]
+    label: String,
+    values: Vector[Vector[Double]],
+    evalCacheDepth: Option[Int]
   ): F[LinearForwardModel[F]] =
     of[F](
-      transform = IndexedMatrixCollection(ModelParameterIdentifier(label), values),
-      vectorOffset = None,
+      transform      = IndexedMatrixCollection(ModelParameterIdentifier(label), values),
+      vectorOffset   = None,
       evalCacheDepth = evalCacheDepth
     )
 
   @unused
   def identityOf[F[_]: STM: Async](
-      label: String,
-      dimension: Int,
-      evalCacheDepth: Option[Int]
+    label: String,
+    dimension: Int,
+    evalCacheDepth: Option[Int]
   ): F[LinearForwardModel[F]] =
     of[F](
       transform = IndexedMatrixCollection
         .squareIdentity(ModelParameterIdentifier(label), dimension),
-      vectorOffset = None,
+      vectorOffset   = None,
       evalCacheDepth = evalCacheDepth
     )
 }

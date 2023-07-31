@@ -25,27 +25,30 @@ import cats.effect.Async
 import cats.effect.implicits._
 import cats.syntax.all._
 
+import scala.annotation.unused
+
 private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapping {
   this: AsyncImplicits[F] =>
 
   private[thylacine] def logPdfAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Double]
 
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Double] =
     logPdfAt(input).map(Math.exp)
 
   private[thylacine] def logPdfGradientAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[ModelParameterCollection]
 
+  @unused
   final private[thylacine] def logPdfFiniteDifferenceGradientAt(
-      input: ModelParameterCollection,
-      differential: Double
+    input: ModelParameterCollection,
+    differential: Double
   ): F[ModelParameterCollection] =
     for {
       currentEvaluation <- logPdfAt(input)
@@ -56,8 +59,9 @@ private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapp
                                                              nudgedEval <- logPdfAt(nudge)
                                                            } yield (nudgedEval - currentEvaluation) / differential
                                                          }
-                            } yield IndexedVectorCollection(identifier,
-                                                            VectorContainer(finiteDifferenceResults.toVector)
+                            } yield IndexedVectorCollection(
+                              identifier,
+                              VectorContainer(finiteDifferenceResults.toVector)
                             )
                           }
       result <- Async[F].delay(componentResults.reduce(_ rawMergeWith _))
@@ -66,29 +70,33 @@ private[thylacine] trait ModelParameterPdf[F[_]] extends GenericScalarValuedMapp
   // Will work most of the time but will require
   // adjustment for pathological cases (e.g. Uniform distributions)
   private[thylacine] def pdfGradientAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     for {
       pdf      <- pdfAt(input)
       gradLogs <- logPdfGradientAt(input)
-    } yield gradLogs.index.toList.map { gl =>
-      IndexedVectorCollection(gl._1, VectorContainer(pdf * gl._2.rawVector))
-    }.reduce(_ rawMergeWith _)
+    } yield gradLogs.index.toList
+      .map { gl =>
+        IndexedVectorCollection(gl._1, VectorContainer(pdf * gl._2.rawVector))
+      }
+      .reduce(_ rawMergeWith _)
 
   final def logPdfAt(input: Map[String, Vector[Double]]): F[Double] =
     logPdfAt(IndexedVectorCollection(input))
 
+  @unused
   final def pdfAt(input: Map[String, Vector[Double]]): F[Double] =
     logPdfAt(input).map(Math.exp)
 
   final def logPdfGradientAt(
-      input: Map[String, Vector[Double]]
+    input: Map[String, Vector[Double]]
   ): F[Map[String, Vector[Double]]] =
     logPdfGradientAt(IndexedVectorCollection(input))
       .map(_.genericScalaRepresentation)
 
+  @unused
   final def pdfGradientAt(
-      input: Map[String, Vector[Double]]
+    input: Map[String, Vector[Double]]
   ): F[Map[String, Vector[Double]]] =
     pdfGradientAt(IndexedVectorCollection(input))
       .map(_.genericScalaRepresentation)

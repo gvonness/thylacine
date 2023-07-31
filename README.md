@@ -12,7 +12,7 @@ A few aspects differentiate Thylacine from other Bayesian inference frameworks:
 * Framework and design largely de-coupled from Bayesian graphical representations of the problem (more details in the FAQ below)
 * Designed to be multi-threaded from the ground up using a high-performance Software Transactional Memory (STM) implementation to facilitate efficient concurrency across the differing computational profiles for sampling, integration, visualisation, etc.
 * Analytic gradient calculations can be specified on a component level that enables automatic differentiation to be used in gradient calculations. This is essential if aiming to perform high-dimension inference using gradient information.
-* A growing list of advanced algorithms/concepts have already been implementated:
+* A growing list of advanced algorithms/concepts have already been implemented:
   * Gaussian analytic posteriors
   * Optimisation
     * Hooke & Jeeves

@@ -24,6 +24,6 @@ private[thylacine] trait Distribution extends GenericScalarValuedMapping {
   private[thylacine] def logPdfAt(input: VectorContainer): Double
 
   private[thylacine] def logPdfGradientAt(
-      input: VectorContainer
+    input: VectorContainer
   ): VectorContainer
 }

@@ -20,17 +20,17 @@ package thylacine.model.components.prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.distributions
 import thylacine.model.distributions.UniformDistribution
 
 import cats.effect.kernel.Async
 
 case class UniformPrior[F[_]: Async](
-    private[thylacine] override val identifier: ModelParameterIdentifier,
-    private[thylacine] val maxBounds: Vector[Double],
-    private[thylacine] val minBounds: Vector[Double],
-    private[thylacine] override val validated: Boolean = false
+  private[thylacine] override val identifier: ModelParameterIdentifier,
+  private[thylacine] val maxBounds: Vector[Double],
+  private[thylacine] val minBounds: Vector[Double],
+  private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Prior[F, UniformDistribution] {
 
@@ -44,7 +44,7 @@ case class UniformPrior[F[_]: Async](
     else this.copy(validated = true)
 
   private[thylacine] final override def pdfAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Double] =
     Async[F].delay {
       if (priorDistribution.insideBounds(input.retrieveIndex(identifier))) {
@@ -55,7 +55,7 @@ case class UniformPrior[F[_]: Async](
     }
 
   private[thylacine] final override def pdfGradientAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     Async[F].delay(IndexedVectorCollection(identifier, priorDistribution.zeroVector))
 
@@ -66,13 +66,13 @@ case class UniformPrior[F[_]: Async](
 object UniformPrior {
 
   def fromBounds[F[_]: Async](
-      label: String,
-      maxBounds: Vector[Double],
-      minBounds: Vector[Double]
+    label: String,
+    maxBounds: Vector[Double],
+    minBounds: Vector[Double]
   ): UniformPrior[F] =
     UniformPrior(
       identifier = ModelParameterIdentifier(label),
-      maxBounds = maxBounds,
-      minBounds = minBounds
+      maxBounds  = maxBounds,
+      minBounds  = minBounds
     )
 }

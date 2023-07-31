@@ -31,21 +31,22 @@ import thylacine.model.sampling.hmcmc.HmcmcEngine
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
+import scala.annotation.unused
 import scala.collection.immutable.Queue
 
 case class HmcmcSampledPosterior[F[_]: STM: Async](
-    private[thylacine] val hmcmcConfig: HmcmcConfig,
-    protected override val hamiltonianDifferentialUpdateCallback: Double => F[Unit],
-    protected override val sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
-    private[thylacine] val seed: Map[String, Vector[Double]],
-    private[thylacine] override val priors: Set[Prior[F, _]],
-    private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-    protected override val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]],
-    protected override val burnInComplete: TxnVar[F, Boolean],
-    protected override val workTokenPool: TxnVar[F, Int],
-    protected override val numberOfSamplesRemaining: TxnVar[F, Int],
-    protected override val jumpAcceptances: TxnVar[F, Int],
-    protected override val jumpAttempts: TxnVar[F, Int]
+  private[thylacine] val hmcmcConfig: HmcmcConfig,
+  protected override val hamiltonianDifferentialUpdateCallback: Double => F[Unit],
+  protected override val sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
+  private[thylacine] val seed: Map[String, Vector[Double]],
+  private[thylacine] override val priors: Set[Prior[F, _]],
+  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
+  protected override val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]],
+  protected override val burnInComplete: TxnVar[F, Boolean],
+  protected override val workTokenPool: TxnVar[F, Int],
+  protected override val numberOfSamplesRemaining: TxnVar[F, Int],
+  protected override val jumpAcceptances: TxnVar[F, Int],
+  protected override val jumpAttempts: TxnVar[F, Int]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HmcmcEngine[F] {
@@ -73,14 +74,16 @@ case class HmcmcSampledPosterior[F[_]: STM: Async](
     Async[F].delay(IndexedVectorCollection(seed))
 }
 
+@unused
 object HmcmcSampledPosterior {
 
+  @unused
   def of[F[_]: STM: Async](
-      hmcmcConfig: HmcmcConfig,
-      posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      hamiltonianDifferentialUpdateCallback: Double => F[Unit],
-      sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
-      seed: Map[String, Vector[Double]]
+    hmcmcConfig: HmcmcConfig,
+    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    hamiltonianDifferentialUpdateCallback: Double => F[Unit],
+    sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit],
+    seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
     for {
       currentMcmcPositions     <- TxnVar.of(Queue[ModelParameterCollection]())
@@ -91,18 +94,18 @@ object HmcmcSampledPosterior {
       jumpAttempts             <- TxnVar.of(0)
       posterior <- Async[F].delay {
                      HmcmcSampledPosterior(
-                       hmcmcConfig = hmcmcConfig,
+                       hmcmcConfig                           = hmcmcConfig,
                        hamiltonianDifferentialUpdateCallback = hamiltonianDifferentialUpdateCallback,
-                       sampleProcessedCallback = sampleProcessedCallback,
-                       seed = seed,
-                       priors = posterior.priors,
-                       likelihoods = posterior.likelihoods,
-                       currentMcmcPositions = currentMcmcPositions,
-                       burnInComplete = burnInComplete,
-                       workTokenPool = workTokenPool,
-                       jumpAcceptances = jumpAcceptances,
-                       jumpAttempts = jumpAttempts,
-                       numberOfSamplesRemaining = numberOfSamplesRemaining
+                       sampleProcessedCallback               = sampleProcessedCallback,
+                       seed                                  = seed,
+                       priors                                = posterior.priors,
+                       likelihoods                           = posterior.likelihoods,
+                       currentMcmcPositions                  = currentMcmcPositions,
+                       burnInComplete                        = burnInComplete,
+                       workTokenPool                         = workTokenPool,
+                       jumpAcceptances                       = jumpAcceptances,
+                       jumpAttempts                          = jumpAttempts,
+                       numberOfSamplesRemaining              = numberOfSamplesRemaining
                      )
                    }
       _ <- posterior.launchInitialisation

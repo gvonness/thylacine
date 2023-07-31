@@ -25,7 +25,7 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.sampling.ModelParameterSampler
 
 import cats.effect.implicits._
@@ -86,10 +86,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     } yield ()
 
   private def runLeapfrogAt(
-      input: ModelParameterCollection,
-      rawP: VectorContainer,
-      gradNegLogPdf: ModelParameterCollection,
-      iterationCount: Int = 1
+    input: ModelParameterCollection,
+    rawP: VectorContainer,
+    gradNegLogPdf: ModelParameterCollection,
+    iterationCount: Int = 1
   ): F[(ModelParameterCollection, VectorContainer)] =
     if (iterationCount > stepsInSimulation) {
       Async[F].pure((input, rawP))
@@ -116,27 +116,27 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     p.rawDotProductWith(p) / 2.0 + E
 
   private def runDynamicSimulationFrom(
-      input: ModelParameterCollection,
-      maxIterations: Int,
-      logPdfOpt: Option[Double] = None,
-      gradLogPdfOpt: Option[ModelParameterCollection] = None,
-      burnIn: Boolean = false,
-      iterationCount: Int = 1
+    input: ModelParameterCollection,
+    maxIterations: Int,
+    logPdfOpt: Option[Double]                       = None,
+    gradLogPdfOpt: Option[ModelParameterCollection] = None,
+    burnIn: Boolean                                 = false,
+    iterationCount: Int                             = 1
   ): F[ModelParameterCollection] =
     if (iterationCount <= maxIterations) {
       (for {
         _ <- if (burnIn) {
-          Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount"))
-        } else {
-          Async[F].unit
-        }
+               Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount"))
+             } else {
+               Async[F].unit
+             }
         negLogPdf <- logPdfOpt match {
                        case Some(res) => Async[F].pure(res)
-                       case _         => logPdfAt(input).map(_ * -1)
+                       case _ => logPdfAt(input).map(_ * -1)
                      }
         gradNegLogPdf <- gradLogPdfOpt match {
                            case Some(res) => Async[F].pure(res)
-                           case _         => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
+                           case _ => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
                          }
         p           <- Async[F].delay(VectorContainer.random(domainDimension))
         hamiltonian <- Async[F].delay(getHamiltonianValue(p, negLogPdf))
@@ -146,10 +146,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
         dH   <- Async[F].delay(hNew - hamiltonian)
         _ <- if (burnIn) {
-          Async[F].unit
-        } else {
-          hamiltonianDifferentialUpdateCallback(dH)
-        }
+               Async[F].unit
+             } else {
+               hamiltonianDifferentialUpdateCallback(dH)
+             }
         result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
                     for {
                       _ <- Async[F].ifM(Async[F].pure(burnIn))(
@@ -179,7 +179,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    */
 
   private def setAndAcquireNewSample(
-      position: ModelParameterCollection
+    position: ModelParameterCollection
   ): F[ModelParameterCollection] =
     runDynamicSimulationFrom(position, simulationsBetweenSamples).flatMap {
       case result if result != position =>
@@ -218,7 +218,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     for {
       _            <- burnInComplete.set(false).commit
       burninResult <- burnIn
-      _ <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
+      _            <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
       _ <- (for {
              _ <- workTokenPool.set(sampleParallelism)
              _ <- currentMcmcPositions.set(Queue.from(burninResult))
@@ -246,7 +246,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       _               <- sampleProcessedCallback(telemetryResult)
     } yield ()
 
-  protected val getHmcmcSample: F[ModelParameterCollection] =
+  private val getHmcmcSample: F[ModelParameterCollection] =
     for {
       _ <- sampleUpdateReport(1).start
       position <- (for {

@@ -1,9 +1,9 @@
-import sbt._
+import sbt.*
 
 object DependencyVersions {
   val scala2p13Version = "2.13.11"
 
-  val bengalStmVersion           = "0.9.2"
+  val bengalStmVersion           = "0.9.3"
   val bigMathVersion             = "2.3.0"
   val breezeVersion              = "2.1.0"
   val catsEffectVersion          = "3.4.8"
@@ -13,7 +13,7 @@ object DependencyVersions {
 }
 
 object Dependencies {
-  import DependencyVersions._
+  import DependencyVersions.*
 
   private val bengalStm: ModuleID =
     "ai.entrolution" %% "bengal-stm" % bengalStmVersion

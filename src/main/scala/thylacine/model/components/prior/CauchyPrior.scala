@@ -24,10 +24,12 @@ import thylacine.model.distributions.CauchyDistribution
 
 import cats.effect.kernel.Async
 
+import scala.annotation.unused
+
 case class CauchyPrior[F[_]: Async](
-    private[thylacine] override val identifier: ModelParameterIdentifier,
-    private[thylacine] val priorData: RecordedData,
-    private[thylacine] override val validated: Boolean = false
+  private[thylacine] override val identifier: ModelParameterIdentifier,
+  private[thylacine] val priorData: RecordedData,
+  private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Prior[F, CauchyDistribution] {
 
@@ -42,18 +44,19 @@ case class CauchyPrior[F[_]: Async](
     Async[F].delay(priorDistribution.getRawSample)
 }
 
+@unused
 object CauchyPrior {
 
   def apply[F[_]: Async](
-      label: String,
-      values: Vector[Double],
-      confidenceIntervals: Vector[Double]
+    label: String,
+    values: Vector[Double],
+    confidenceIntervals: Vector[Double]
   ): CauchyPrior[F] = {
     assert(values.size == confidenceIntervals.size)
     CauchyPrior(
       identifier = ModelParameterIdentifier(label),
       priorData = RecordedData(
-        values = VectorContainer(values),
+        values                       = VectorContainer(values),
         symmetricConfidenceIntervals = VectorContainer(confidenceIntervals)
       )
     )

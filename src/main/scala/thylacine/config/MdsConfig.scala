@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.config
 
 case class MdsConfig(
-    convergenceThreshold: Double,
-    expansionMultiplier: Double,
-    contractionMultiplier: Double,
-    numberOfPriorSamplesToSetStartingPoint: Option[Int]
+  convergenceThreshold: Double,
+  expansionMultiplier: Double,
+  contractionMultiplier: Double,
+  numberOfPriorSamplesToSetStartingPoint: Option[Int]
 )

@@ -33,7 +33,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 import scala.util.Random
-import scala.{Vector => ScalaVector}
+import scala.{ Vector => ScalaVector }
 
 private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimizer[F] {
   this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
@@ -52,7 +52,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
 
   protected val isConverged: TxnVar[F, Boolean]
 
-  protected def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
+  private def findMaxDimensionalDifference(input: List[Vector[Double]]): Double =
     input.tail
       .foldLeft(input.head.zip(input.head)) { (i, j) =>
         i.zip(j).map { k =>
@@ -63,8 +63,8 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
       .max
 
   // Can parallel traverse, as there probably isn't much else going on
-  protected def initialize(
-      numberOfPriorSamples: Int
+  private def initialize(
+    numberOfPriorSamples: Int
   ): F[Unit] =
     for {
       samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ => samplePriors)
@@ -84,9 +84,9 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
     } yield ()
 
   protected def nudgeAndEvaluate(
-      index: Int,
-      nudgeAmount: Double,
-      input: ScalaVector[Double]
+    index: Int,
+    nudgeAmount: Double,
+    input: ScalaVector[Double]
   ): F[(Double, ScalaVector[Double])] =
     for {
       nudgedRawVector <- Async[F].delay(MathOps.modifyVectorIndex(input)(index, _ + nudgeAmount))
@@ -96,9 +96,9 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
     } yield (logPdf, nudgedRawVector)
 
   protected def dimensionScan(
-      nudgeAmount: Double,
-      startingPoint: ScalaVector[Double],
-      startingLogPdf: Double
+    nudgeAmount: Double,
+    startingPoint: ScalaVector[Double],
+    startingLogPdf: Double
   ): F[(Double, ScalaVector[Double])] =
     Random
       .shuffle(startingPoint.indices.toList)
@@ -112,7 +112,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
         }
       }
 
-  protected val runDimensionalIteration: F[Unit] =
+  private val runDimensionalIteration: F[Unit] =
     for {
       scaleAndBest <- (for {
                         scale <- currentScale.get
@@ -125,9 +125,10 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
                _     <- currentBest.set(scanResult).commit
                scale <- currentScale.get.commit
                _ <- iterationUpdateCallback(
-                      OptimisationTelemetryUpdate(maxLogPdf = scanResult._1,
-                                                  currentScale = scale,
-                                                  prefix = telemetryPrefix
+                      OptimisationTelemetryUpdate(
+                        maxLogPdf    = scanResult._1,
+                        currentScale = scale,
+                        prefix       = telemetryPrefix
                       )
                     ).start
              } yield (),
@@ -140,9 +141,10 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
                                 } yield newScale).commit
                  maxLogPdf <- currentBest.get.commit
                  _ <- iterationUpdateCallback(
-                        OptimisationTelemetryUpdate(maxLogPdf = maxLogPdf._1,
-                                                    currentScale = scaleResult,
-                                                    prefix = telemetryPrefix
+                        OptimisationTelemetryUpdate(
+                          maxLogPdf    = maxLogPdf._1,
+                          currentScale = scaleResult,
+                          prefix       = telemetryPrefix
                         )
                       ).start
                } yield (),
@@ -151,7 +153,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
            )
     } yield ()
 
-  protected val optimisationRecursion: F[Unit] =
+  private val optimisationRecursion: F[Unit] =
     runDimensionalIteration.flatMap { _ =>
       for {
         converged <- isConverged.get.commit
@@ -160,7 +162,7 @@ private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimi
     }
 
   override protected def calculateMaximumLogPdf(
-      startPt: ModelParameterCollection
+    startPt: ModelParameterCollection
   ): F[(Double, ModelParameterCollection)] =
     for {
       _ <- initialize(numberOfSamplesToSetScale)

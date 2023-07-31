@@ -20,13 +20,13 @@ package thylacine.model.distributions
 import thylacine.model.core.CanValidate
 import thylacine.model.core.values.VectorContainer
 
-import scala.collection.immutable.{Vector => ScalaVector}
+import scala.collection.immutable.{ Vector => ScalaVector }
 import scala.collection.parallel.CollectionConverters._
 
 private[thylacine] case class UniformDistribution(
-    upperBounds: VectorContainer,
-    lowerBounds: VectorContainer,
-    validated: Boolean = false
+  upperBounds: VectorContainer,
+  lowerBounds: VectorContainer,
+  validated: Boolean = false
 ) extends Distribution
     with CanValidate[UniformDistribution] {
 
@@ -67,7 +67,7 @@ private[thylacine] case class UniformDistribution(
     }
 
   private[thylacine] override def logPdfAt(
-      input: VectorContainer
+    input: VectorContainer
   ): Double =
     if (insideBounds(input)) {
       negLogVolume
@@ -76,7 +76,7 @@ private[thylacine] case class UniformDistribution(
     }
 
   private[thylacine] override def logPdfGradientAt(
-      input: VectorContainer
+    input: VectorContainer
   ): VectorContainer =
     zeroVector
 

@@ -22,8 +22,8 @@ import thylacine.model.core.values.VectorContainer
 import thylacine.util.MathOps
 
 private[thylacine] case class PointInCubeCollection(
-    pointsInCube: Vector[PointInCube],
-    validated: Boolean = false
+  pointsInCube: Vector[PointInCube],
+  validated: Boolean = false
 ) extends CanValidate[PointInCubeCollection] {
   if (!validated) {
     assert(pointsInCube.size > 1)
@@ -48,7 +48,7 @@ private[thylacine] case class PointInCubeCollection(
     } else {
       PointInCubeCollection(
         pointsInCube = pointsInCube.map(_.getValidated),
-        validated = true
+        validated    = true
       )
     }
 
@@ -71,10 +71,10 @@ private[thylacine] case class PointInCubeCollection(
             .values
             .getOrElse(k._1, 0d)
           PointInInterval(
-            point = k._2,
+            point      = k._2,
             lowerBound = k._2 - maxDiff,
             upperBound = k._2 + maxDiff,
-            validated = true
+            validated  = true
           )
         }
       PointInCube(piiList, validated = true)
@@ -96,14 +96,18 @@ private[thylacine] case class PointInCubeCollection(
     MathOps.cdfStaircase(pointsInCube.map(_.cubeVolume)).zip(pointsInCube)
 
   private[thylacine] def getSample(
-      scaleParameter: Double
+    scaleParameter: Double
   ): VectorContainer = {
     val randomIndex = BigDecimal(Math.random().toString)
 
-    sampleMapping.collect {
-      case ((stairCaseLower, stairCaseUpper), cube) if randomIndex >= stairCaseLower && randomIndex < stairCaseUpper =>
-        cube
-    }.head.getSample(scaleParameter)
+    sampleMapping
+      .collect {
+        case ((stairCaseLower, stairCaseUpper), cube)
+            if randomIndex >= stairCaseLower && randomIndex < stairCaseUpper =>
+          cube
+      }
+      .head
+      .getSample(scaleParameter)
   }
 }
 

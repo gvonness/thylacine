@@ -26,11 +26,11 @@ import thylacine.model.optimization.gradientdescent.ConjugateGradientEngine
 import cats.effect.kernel.Async
 
 case class ConjugateGradientOptimisedPosterior[F[_]: Async](
-    private[thylacine] val gradientDescentConfig: ConjugateGradientConfig,
-    protected override val newMaximumCallback: Double => F[Unit],
-    protected override val isConvergedCallback: Unit => F[Unit],
-    private[thylacine] override val priors: Set[Prior[F, _]],
-    private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
+  private[thylacine] val gradientDescentConfig: ConjugateGradientConfig,
+  protected override val newMaximumCallback: Double => F[Unit],
+  protected override val isConvergedCallback: Unit => F[Unit],
+  private[thylacine] override val priors: Set[Prior[F, _]],
+  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
 ) extends AsyncImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with ConjugateGradientEngine[F] {
@@ -51,16 +51,16 @@ case class ConjugateGradientOptimisedPosterior[F[_]: Async](
 object ConjugateGradientOptimisedPosterior {
 
   def from[F[_]: Async](
-                         conjugateGradientConfig: ConjugateGradientConfig,
-                         posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-                         newMaximumCallback: Double => F[Unit],
-                         isConvergedCallback: Unit => F[Unit]
+    conjugateGradientConfig: ConjugateGradientConfig,
+    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    newMaximumCallback: Double => F[Unit],
+    isConvergedCallback: Unit => F[Unit]
   ): ConjugateGradientOptimisedPosterior[F] =
     ConjugateGradientOptimisedPosterior(
       gradientDescentConfig = conjugateGradientConfig,
-      newMaximumCallback = newMaximumCallback,
-      isConvergedCallback = isConvergedCallback,
-      priors = posterior.priors,
-      likelihoods = posterior.likelihoods
+      newMaximumCallback    = newMaximumCallback,
+      isConvergedCallback   = isConvergedCallback,
+      priors                = posterior.priors,
+      likelihoods           = posterior.likelihoods
     )
 }

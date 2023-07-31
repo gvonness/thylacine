@@ -19,7 +19,7 @@ package thylacine.model.optimization.line
 
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.modelparameters.{ModelParameterContext, ModelParameterPdf}
+import thylacine.model.core.values.modelparameters.{ ModelParameterContext, ModelParameterPdf }
 
 import cats.effect.kernel.Async
 import cats.syntax.all._
@@ -30,9 +30,9 @@ private[thylacine] trait LineProbe[F[_]] {
   protected def lineProbeExpansionFactor: Double
 
   protected def probeLine(
-      pt1: LineEvaluationResult,
-      pt2: LineEvaluationResult,
-      ordered: Boolean = false
+    pt1: LineEvaluationResult,
+    pt2: LineEvaluationResult,
+    ordered: Boolean = false
   ): F[LineEvaluationTriple] = {
     val (lowerPoint, upperPoint) =
       if (ordered || pt1.result < pt2.result) {
@@ -53,9 +53,10 @@ private[thylacine] trait LineProbe[F[_]] {
     val probeEvaluationF: F[Double] = logPdfAt(probePointModelParameters)
 
     probeEvaluationF.flatMap { probeEvaluation =>
-      val evaluationResult = LineEvaluationResult(result = probeEvaluation,
-                                                  vectorArgument = probePointVector,
-                                                  modelParameterArgument = probePointModelParameters
+      val evaluationResult = LineEvaluationResult(
+        result                 = probeEvaluation,
+        vectorArgument         = probePointVector,
+        modelParameterArgument = probePointModelParameters
       )
 
       if (probeEvaluation >= upperPoint.result) {
@@ -63,8 +64,8 @@ private[thylacine] trait LineProbe[F[_]] {
       } else {
         Async[F].delay {
           LineEvaluationTriple(
-            firstEndPoint = lowerPoint,
-            middlePoint = upperPoint,
+            firstEndPoint  = lowerPoint,
+            middlePoint    = upperPoint,
             secondEndPoint = evaluationResult
           )
         }

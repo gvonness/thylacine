@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.likelihood
 
 import bengal.stm.STM
-import thylacine.model.components.ComponentFixture.fooLikeliHoodF
+import thylacine.model.components.ComponentFixture.fooLikelihoodF
 import thylacine.model.core.values.IndexedVectorCollection
 
 import cats.effect.IO
@@ -32,7 +32,7 @@ class GaussianLinearLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with M
     "generate the a zero gradient at the likelihood maximum" in {
       (for {
         implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        likelihood              <- fooLikeliHoodF
+        likelihood              <- fooLikelihoodF
         result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(1d, 2d))))
       } yield result.genericScalaRepresentation)
         .asserting(_ shouldBe Map("foo" -> Vector(0d, 0d)))
@@ -41,7 +41,7 @@ class GaussianLinearLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with M
     "generate the correct gradient of the logPdf for a given point" in {
       (for {
         implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        likelihood              <- fooLikeliHoodF
+        likelihood              <- fooLikelihoodF
         result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(3d, 2d))))
       } yield result.genericScalaRepresentation)
         .asserting(_ shouldBe Map("foo" -> Vector(-4e5, -88e4)))

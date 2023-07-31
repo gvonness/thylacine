@@ -22,13 +22,13 @@ import thylacine.util.MathOps
 
 import breeze.linalg._
 
-import scala.{Vector => ScalaVector}
+import scala.{ Vector => ScalaVector }
 
 private[thylacine] case class VectorContainer(
-    values: Map[Int, Double],
-    dimension: Int,
-    validated: Boolean = false,
-    parameterLabel: Option[String] = None
+  values: Map[Int, Double],
+  dimension: Int,
+  validated: Boolean             = false,
+  parameterLabel: Option[String] = None
 ) extends Container
     with CanValidate[VectorContainer] {
   if (!validated) {
@@ -55,11 +55,6 @@ private[thylacine] case class VectorContainer(
   private[thylacine] lazy val magnitude: Double =
     Math.sqrt(squaredMagnitude)
 
-  private[thylacine] lazy val normalised: VectorContainer =
-    if (magnitude != 1.0d) {
-      this.copy(values = values.map(v => v._1 -> v._2 / magnitude))
-    } else this
-
   private[thylacine] lazy val scalaVector: ScalaVector[Double] =
     rawVector.toScalaVector
 
@@ -68,7 +63,7 @@ private[thylacine] case class VectorContainer(
   // Low-level API
   // Disjoint concatenation of vectors
   private[thylacine] def rawConcatenateWith(
-      input: VectorContainer
+    input: VectorContainer
   ): VectorContainer =
     VectorContainer(
       values ++ input.getValidated.values.map(i => i._1 + dimension -> i._2),
@@ -88,7 +83,7 @@ private[thylacine] case class VectorContainer(
 
   private[thylacine] def rawScalarProductWith(input: Double): VectorContainer =
     VectorContainer(
-      values = values.view.mapValues(_ * input).toMap,
+      values    = values.view.mapValues(_ * input).toMap,
       dimension = dimension
     ).getValidated
 
@@ -96,7 +91,7 @@ private[thylacine] case class VectorContainer(
     rawSumWith(input.rawScalarProductWith(-1.0))
 
   private[thylacine] def rawProductWith(
-      input: VectorContainer
+    input: VectorContainer
   ): VectorContainer =
     VectorContainer(
       values = (values.keySet ++ input.values.keySet).map { k =>
@@ -117,7 +112,7 @@ private[thylacine] case class VectorContainer(
     this.copy(values = values + (index -> (values.getOrElse(index, 0d) + diff))).getValidated
 
   private[thylacine] def rawNudgeComponents(
-      diff: Double
+    diff: Double
   ): List[VectorContainer] =
     (1 to dimension).map(rawNudgeComponent(diff, _)).toList
 

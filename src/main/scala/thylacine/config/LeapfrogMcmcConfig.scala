@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.config
 
 case class LeapfrogMcmcConfig(
-    stepsBetweenSamples: Int,
-    warmupStepCount: Int,
-    samplePoolSize: Int
+  stepsBetweenSamples: Int,
+  warmupStepCount: Int,
+  samplePoolSize: Int
 )
