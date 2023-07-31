@@ -22,13 +22,13 @@ import thylacine.model.core.values._
 import scala.annotation.unused
 
 private[thylacine] case class FiniteDifferenceJacobian(
-    private val evalAt: IndexedVectorCollection => VectorContainer,
-    differential: Double
+  private val evalAt: IndexedVectorCollection => VectorContainer,
+  differential: Double
 ) {
 
   @unused
   private[thylacine] def finiteDifferenceJacobianAt(
-      input: IndexedVectorCollection
+    input: IndexedVectorCollection
   ): IndexedMatrixCollection = {
     val currentEvaluation = evalAt(input)
     val newMatrixCollectionMapping =

@@ -24,7 +24,7 @@ private[thylacine] sealed trait GenericIdentifier {
 private[thylacine] object GenericIdentifier {
 
   private[thylacine] case class ModelParameterIdentifier(value: String) extends GenericIdentifier
-  private[thylacine] case class TermIdentifier(value: String)           extends GenericIdentifier
+  private[thylacine] case class TermIdentifier(value: String) extends GenericIdentifier
 
   private[thylacine] implicit def orderByValue[T <: GenericIdentifier]: Ordering[T] =
     Ordering.fromLessThan((i, j) => (i.value compareTo j.value) < 0)

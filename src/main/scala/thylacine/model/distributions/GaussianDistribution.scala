@@ -17,17 +17,17 @@
 package ai.entrolution
 package thylacine.model.distributions
 
-import thylacine.model.core.values.{MatrixContainer, VectorContainer}
-import thylacine.model.core.{CanValidate, RecordedData}
+import thylacine.model.core.values.{ MatrixContainer, VectorContainer }
+import thylacine.model.core.{ CanValidate, RecordedData }
 
 import breeze.linalg._
 import breeze.stats.distributions._
 import org.apache.commons.math3.random.MersenneTwister
 
 private[thylacine] case class GaussianDistribution(
-    mean: VectorContainer,
-    covariance: MatrixContainer,
-    validated: Boolean = false
+  mean: VectorContainer,
+  covariance: MatrixContainer,
+  validated: Boolean = false
 ) extends Distribution
     with CanValidate[GaussianDistribution] {
   if (!validated) {
@@ -56,12 +56,12 @@ private[thylacine] case class GaussianDistribution(
     inv(covariance.rawMatrix)
 
   private[thylacine] override def logPdfAt(
-      input: VectorContainer
+    input: VectorContainer
   ): Double =
     rawDistribution.logPdf(input.rawVector)
 
   private[thylacine] override def logPdfGradientAt(
-      input: VectorContainer
+    input: VectorContainer
   ): VectorContainer =
     VectorContainer(
       rawInverseCovariance * (mean.rawVector - input.rawVector)

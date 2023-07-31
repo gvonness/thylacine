@@ -31,7 +31,7 @@ private[thylacine] sealed trait SamplingSimulation {
 
 private[thylacine] object SamplingSimulation {
 
-  private[thylacine] case object SamplingSimulationUnconstructed extends SamplingSimulation {
+  private[thylacine] case object SamplingSimulationDeconstructed extends SamplingSimulation {
     private[thylacine] override final val isConstructed: Boolean = false
 
     private[thylacine] override final def getSample: ModelParameterCollection =
@@ -39,8 +39,8 @@ private[thylacine] object SamplingSimulation {
   }
 
   private[thylacine] case class SamplingSimulationConstructed(
-      logPdfResults: Vector[(Double, ModelParameterCollection)],
-      abscissas: Vector[Vector[Double]]
+    logPdfResults: Vector[(Double, ModelParameterCollection)],
+    abscissas: Vector[Vector[Double]]
   ) extends SamplingSimulation {
     private val numberOfResults   = logPdfResults.size
     private val numberOfAbscissas = abscissas.size
@@ -58,8 +58,8 @@ private[thylacine] object SamplingSimulation {
         .map { ig =>
           ((0d, ig.head._2) +: ig.dropRight(1)).zip(ig).map { avs =>
             val ((x1, f1), (x2, f2)): (
-                (Double, BigDecimal),
-                (Double, BigDecimal)
+              (Double, BigDecimal),
+              (Double, BigDecimal)
             ) = avs
             BigDecimal("0.5") * (f2 + f1) * BigDecimal((x2 - x1).toString)
           }
@@ -86,17 +86,20 @@ private[thylacine] object SamplingSimulation {
     private[thylacine] override def getSample: ModelParameterCollection = {
       lazy val continuousRandom = BigDecimal(Math.random().toString)
 
-      indexedStaircase(random.nextInt(numberOfAbscissas) + 1).find {
-        case ((staircaseLower, staircaseUpper), _)
-            if staircaseLower <= continuousRandom && staircaseUpper > continuousRandom =>
-          true
-        case _ =>
-          false
-      }.map { case (_, index) =>
-        indexedModelParameters(index)
-      }.get
+      indexedStaircase(random.nextInt(numberOfAbscissas) + 1)
+        .find {
+          case ((staircaseLower, staircaseUpper), _)
+              if staircaseLower <= continuousRandom && staircaseUpper > continuousRandom =>
+            true
+          case _ =>
+            false
+        }
+        .map { case (_, index) =>
+          indexedModelParameters(index)
+        }
+        .get
     }
   }
 
-  private[thylacine] val empty: SamplingSimulation = SamplingSimulationUnconstructed
+  private[thylacine] val empty: SamplingSimulation = SamplingSimulationDeconstructed
 }

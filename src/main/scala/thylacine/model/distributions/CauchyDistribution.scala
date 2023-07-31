@@ -17,8 +17,8 @@
 package ai.entrolution
 package thylacine.model.distributions
 
-import thylacine.model.core.values.{MatrixContainer, VectorContainer}
-import thylacine.model.core.{CanValidate, RecordedData}
+import thylacine.model.core.values.{ MatrixContainer, VectorContainer }
+import thylacine.model.core.{ CanValidate, RecordedData }
 
 import breeze.linalg._
 import breeze.stats.distributions._
@@ -27,9 +27,9 @@ import org.apache.commons.math3.special.Gamma.gamma
 import org.apache.commons.math3.util.FastMath
 
 private[thylacine] case class CauchyDistribution(
-    mean: VectorContainer,
-    covariance: MatrixContainer,
-    validated: Boolean = false
+  mean: VectorContainer,
+  covariance: MatrixContainer,
+  validated: Boolean = false
 ) extends Distribution
     with CanValidate[CauchyDistribution] {
   if (!validated) {
@@ -60,17 +60,18 @@ private[thylacine] case class CauchyDistribution(
     inv(covariance.rawMatrix)
 
   private[thylacine] override def logPdfAt(
-      input: VectorContainer
+    input: VectorContainer
   ): Double = {
     val differentialFromMean = input.rawVector - mean.rawVector
 
-    multiplier * Math.pow(1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean,
-                          (1.0 + domainDimension) / 2.0
+    multiplier * Math.pow(
+      1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean,
+      (1.0 + domainDimension) / 2.0
     )
   }
 
   private[thylacine] override def logPdfGradientAt(
-      input: VectorContainer
+    input: VectorContainer
   ): VectorContainer = {
     val differentialFromMean = input.rawVector - mean.rawVector
     val multiplierResult =

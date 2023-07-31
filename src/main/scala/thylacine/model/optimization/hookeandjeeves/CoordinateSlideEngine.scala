@@ -26,7 +26,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 import scala.util.Random
-import scala.{Vector => ScalaVector}
+import scala.{ Vector => ScalaVector }
 
 // Modification of standard Hooke and Jeeves to leverage
 // line searches along each coordinate direction.
@@ -39,9 +39,9 @@ private[thylacine] trait CoordinateSlideEngine[F[_]] extends HookeAndJeevesEngin
   protected override val telemetryPrefix: String = "Coordinate Slide"
 
   protected override def dimensionScan(
-      nudgeAmount: Double,
-      startingPoint: ScalaVector[Double],
-      startingLogPdf: Double
+    nudgeAmount: Double,
+    startingPoint: ScalaVector[Double],
+    startingLogPdf: Double
   ): F[(Double, ScalaVector[Double])] =
     Random
       .shuffle(startingPoint.indices.toList)

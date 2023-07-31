@@ -24,8 +24,8 @@ private[thylacine] case class SimplexChain(chain: Seq[Simplex]) {
     SimplexChain(
       chain
         .foldLeft((0d, Vector[GraphPoint]())) { (i, j) =>
-          val nextInterp = j.getInterpolationPoints(i._1, ds)
-          (nextInterp._2, i._2 ++ nextInterp._1)
+          val nextInterpolation = j.getInterpolationPoints(i._1, ds)
+          (nextInterpolation._2, i._2 ++ nextInterpolation._1)
         }
         ._2
     )

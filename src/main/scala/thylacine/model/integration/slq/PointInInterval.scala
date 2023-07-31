@@ -20,10 +20,10 @@ package thylacine.model.integration.slq
 import thylacine.model.core._
 
 private[thylacine] case class PointInInterval(
-    point: Double,
-    lowerBound: Double,
-    upperBound: Double,
-    validated: Boolean = false
+  point: Double,
+  lowerBound: Double,
+  upperBound: Double,
+  validated: Boolean = false
 ) extends CanValidate[PointInInterval] {
   if (!validated) {
     assert(upperBound > lowerBound)
@@ -42,12 +42,12 @@ private[thylacine] case class PointInInterval(
     val length2 = point - lowerBound
 
     if (length1 > length2) {
-       this.copy(upperBound = point + length2)
-     } else if (length1 < length2) {
-       this.copy(lowerBound = point - length1)
-     } else {
-       this
-     }
+      this.copy(upperBound = point + length2)
+    } else if (length1 < length2) {
+      this.copy(lowerBound = point - length1)
+    } else {
+      this
+    }
   }
 
   private[thylacine] def isIntersectingWith(input: PointInInterval): Boolean =
@@ -71,15 +71,15 @@ private[thylacine] object PointInInterval {
   // interval (that's valid)
   private[thylacine] def apply(point: Double): PointInInterval =
     PointInInterval(
-      point = point,
+      point      = point,
       lowerBound = point - 1,
       upperBound = point + 1,
-      validated = true
+      validated  = true
     )
 
   private[thylacine] def findDisjointBoundary(
-      pii1: PointInInterval,
-      pii2: PointInInterval
+    pii1: PointInInterval,
+    pii2: PointInInterval
   ): (PointInInterval, PointInInterval) = {
 
     val isPii1Larger = pii1.point > pii2.point

@@ -31,22 +31,23 @@ import thylacine.model.sampling.leapfrog.LeapfrogMcmcEngine
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
+import scala.annotation.unused
 import scala.collection.immutable.Queue
 
 case class LeapfrogMcmcSampledPosterior[F[_]: STM: Async](
-    private[thylacine] val leapfrogMcmcConfig: LeapfrogMcmcConfig,
-    protected val distanceCalculation: (Vector[Double], Vector[Double]) => Double,
-    protected val sampleRequestSetCallback: Int => F[Unit],
-    protected val sampleRequestUpdateCallback: Int => F[Unit],
-    private[thylacine] val seed: Map[String, Vector[Double]],
-    private[thylacine] val priors: Set[Prior[F, _]],
-    private[thylacine] val likelihoods: Set[Likelihood[F, _, _]],
-    protected val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]],
-    protected val burnInComplete: TxnVar[F, Boolean],
-    protected val interSampleDistanceCalculationResults: TxnVar[F, Vector[Vector[Double]]],
-    protected val sampleLogPdfs: TxnVar[F, Vector[Double]],
-    protected val samplePool: TxnVar[F, Vector[Vector[Double]]],
-    protected val currentChainTallies: TxnVar[F, Vector[Int]]
+  private[thylacine] val leapfrogMcmcConfig: LeapfrogMcmcConfig,
+  protected val distanceCalculation: (Vector[Double], Vector[Double]) => Double,
+  protected val sampleRequestSetCallback: Int => F[Unit],
+  protected val sampleRequestUpdateCallback: Int => F[Unit],
+  private[thylacine] val seed: Map[String, Vector[Double]],
+  private[thylacine] val priors: Set[Prior[F, _]],
+  private[thylacine] val likelihoods: Set[Likelihood[F, _, _]],
+  protected val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]],
+  protected val burnInComplete: TxnVar[F, Boolean],
+  protected val interSampleDistanceCalculationResults: TxnVar[F, Vector[Vector[Double]]],
+  protected val sampleLogPdfs: TxnVar[F, Vector[Double]],
+  protected val samplePool: TxnVar[F, Vector[Vector[Double]]],
+  protected val currentChainTallies: TxnVar[F, Vector[Int]]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with LeapfrogMcmcEngine[F] {
@@ -64,15 +65,17 @@ case class LeapfrogMcmcSampledPosterior[F[_]: STM: Async](
     Async[F].delay(IndexedVectorCollection(seed))
 }
 
+@unused
 object LeapfrogMcmcSampledPosterior {
 
+  @unused
   def of[F[_]: STM: Async](
-      leapfrogMcmcConfig: LeapfrogMcmcConfig,
-      distanceCalculation: (Vector[Double], Vector[Double]) => Double,
-      posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-      sampleRequestSetCallback: Int => F[Unit],
-      sampleRequestUpdateCallback: Int => F[Unit],
-      seed: Map[String, Vector[Double]]
+    leapfrogMcmcConfig: LeapfrogMcmcConfig,
+    distanceCalculation: (Vector[Double], Vector[Double]) => Double,
+    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    sampleRequestSetCallback: Int => F[Unit],
+    sampleRequestUpdateCallback: Int => F[Unit],
+    seed: Map[String, Vector[Double]]
   ): F[LeapfrogMcmcSampledPosterior[F]] =
     for {
       sampleRequests                        <- TxnVar.of(Queue[SampleRequest[F]]())
@@ -83,19 +86,19 @@ object LeapfrogMcmcSampledPosterior {
       currentChainTallies                   <- TxnVar.of(Vector[Int]())
       posterior <- Async[F].delay {
                      LeapfrogMcmcSampledPosterior(
-                       leapfrogMcmcConfig = leapfrogMcmcConfig,
-                       distanceCalculation = distanceCalculation,
-                       sampleRequestSetCallback = sampleRequestSetCallback,
-                       sampleRequestUpdateCallback = sampleRequestUpdateCallback,
-                       seed = seed,
-                       priors = posterior.priors,
-                       likelihoods = posterior.likelihoods,
-                       sampleRequests = sampleRequests,
-                       burnInComplete = burnInComplete,
+                       leapfrogMcmcConfig                    = leapfrogMcmcConfig,
+                       distanceCalculation                   = distanceCalculation,
+                       sampleRequestSetCallback              = sampleRequestSetCallback,
+                       sampleRequestUpdateCallback           = sampleRequestUpdateCallback,
+                       seed                                  = seed,
+                       priors                                = posterior.priors,
+                       likelihoods                           = posterior.likelihoods,
+                       sampleRequests                        = sampleRequests,
+                       burnInComplete                        = burnInComplete,
                        interSampleDistanceCalculationResults = interSampleDistanceCalculationResults,
-                       sampleLogPdfs = sampleLogPdfs,
-                       samplePool = samplePool,
-                       currentChainTallies = currentChainTallies
+                       sampleLogPdfs                         = sampleLogPdfs,
+                       samplePool                            = samplePool,
+                       currentChainTallies                   = currentChainTallies
                      )
                    }
       _ <- posterior.launchInitialisation

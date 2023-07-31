@@ -23,6 +23,8 @@ import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 
 import breeze.linalg.DenseVector
 
+import scala.annotation.unused
+
 private[thylacine] trait ModelParameterContext {
   private[thylacine] def orderedParameterIdentifiersWithDimension: Vector[(ModelParameterIdentifier, Int)]
 
@@ -33,16 +35,17 @@ private[thylacine] trait ModelParameterContext {
         .toMap
     )
 
+  @unused
   final def zeroParameterMapping: Map[String, Vector[Double]] =
     zeroModelParameterCollection.genericScalaRepresentation
 
   private[thylacine] final def rawVectorToModelParameterCollection(
-      input: DenseVector[Double]
+    input: DenseVector[Double]
   ): ModelParameterCollection =
     vectorValuesToModelParameterCollection(input.toArray.toVector)
 
   private[thylacine] final def vectorValuesToModelParameterCollection(
-      input: Vector[Double]
+    input: Vector[Double]
   ): ModelParameterCollection =
     orderedParameterIdentifiersWithDimension
       .foldLeft(
@@ -50,16 +53,17 @@ private[thylacine] trait ModelParameterContext {
       ) { (i, j) =>
         val (vector, remainder) = i._1.splitAt(j._2)
 
-        (remainder,
-         i._2.rawMergeWith(
-           IndexedVectorCollection(j._1, VectorContainer(vector))
-         )
+        (
+          remainder,
+          i._2.rawMergeWith(
+            IndexedVectorCollection(j._1, VectorContainer(vector))
+          )
         )
       }
       ._2
 
   private[thylacine] final def modelParameterCollectionToVectorValues(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): Vector[Double] =
     orderedParameterIdentifiersWithDimension
       .foldLeft(Vector[Vector[Double]]()) { case (current, (identifier, _)) =>
@@ -69,7 +73,7 @@ private[thylacine] trait ModelParameterContext {
       .reduce(_ ++ _)
 
   private[thylacine] final def modelParameterCollectionToRawVector(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): DenseVector[Double] =
     DenseVector {
       modelParameterCollectionToVectorValues(input).toArray

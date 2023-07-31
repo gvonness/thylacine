@@ -24,8 +24,8 @@ private[thylacine] object MathOps {
   private val randomGenerator = Random
 
   private[thylacine] def trapezoidalQuadrature(
-      abscissa: Vector[Double],
-      values: Vector[Double]
+    abscissa: Vector[Double],
+    values: Vector[Double]
   ): Double =
     if (abscissa.size == values.size && abscissa.size > 1) {
       trapezoidalQuadrature(abscissa.zip(values))
@@ -34,7 +34,7 @@ private[thylacine] object MathOps {
     }
 
   private[thylacine] def trapezoidalQuadrature(
-      graphPoints: Vector[(Double, Double)]
+    graphPoints: Vector[(Double, Double)]
   ): Double =
     if (
       graphPoints.size > 1 && graphPoints
@@ -57,7 +57,7 @@ private[thylacine] object MathOps {
   // Creates a discretised CDF that facilitates sampling over a
   // discrete set of outcomes via uniform sampling on [0, 1)
   private[thylacine] def cdfStaircase(
-      values: Vector[BigDecimal]
+    values: Vector[BigDecimal]
   ): Vector[(BigDecimal, BigDecimal)] = {
     val cdfReversed = values
       .foldLeft(Vector[BigDecimal](BigDecimal(0))) { (i, j) =>
@@ -74,7 +74,7 @@ private[thylacine] object MathOps {
   }
 
   private[thylacine] def vectorCdfStaircase(
-      values: Vector[Double]
+    values: Vector[Double]
   ): Vector[(Double, Double)] = {
     val cdfReversed = values
       .foldLeft(Vector(0d)) { (i, j) =>
@@ -96,24 +96,19 @@ private[thylacine] object MathOps {
   private[thylacine] def scalarMultipleVector(input: Vector[Double], multiplier: Double): Vector[Double] =
     input.map(multiplier * _)
 
-  private[thylacine] def vectorMagnitude(input: Vector[Double]): Double =
-    Math.sqrt(vectorMagnitudeSquared(input))
-
   private[thylacine] def vectorMagnitudeSquared(input: Vector[Double]): Double =
     input.map(Math.pow(_, 2.0)).sum
 
   private[thylacine] def vectorDotProduct(input1: Vector[Double], input2: Vector[Double]): Double =
     input1
       .zip(input2)
-      .map { case (coord1, coord2) =>
-        coord1 * coord2
-      }
+      .map { case (e1, e2) => e1 * e2 }
       .sum
 
   private[thylacine] def vectorAddition(input1: Vector[Double], input2: Vector[Double]): Vector[Double] =
-    input1.zip(input2).map { case (coord1, coord2) =>
-      coord1 + coord2
-    }
+    input1
+      .zip(input2)
+      .map { case (e1, e2) => e1 + e2 }
 
   private[thylacine] def nextGaussian: Double =
     randomGenerator.nextGaussian()

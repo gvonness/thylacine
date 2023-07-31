@@ -21,8 +21,8 @@ import thylacine.model.core._
 import thylacine.model.core.values.VectorContainer
 
 private[thylacine] case class PointInCube(
-    pointInIntervals: Vector[PointInInterval],
-    validated: Boolean = false
+  pointInIntervals: Vector[PointInInterval],
+  validated: Boolean = false
 ) extends CanValidate[PointInCube] {
 
   private[thylacine] val dimension: Int = pointInIntervals.size
@@ -48,8 +48,8 @@ private[thylacine] case class PointInCube(
     dimensionIndex(index)
 
   private[thylacine] def replaceIndex(
-      index: Int,
-      newInput: PointInInterval
+    index: Int,
+    newInput: PointInInterval
   ): PointInCube =
     if (index > 0 && index <= dimension) {
       val (foreList, aftList) = pointInIntervals.splitAt(index - 1)
@@ -69,11 +69,12 @@ private[thylacine] case class PointInCube(
       .forall(i => i._1.isIntersectingWith(i._2))
 
   private[thylacine] def dimensionOfLargestSeparation(input: PointInCube): Int =
-    (1 to pointInIntervals.size).zip {
-      pointInIntervals
-        .zip(input.pointInIntervals)
-        .map(i => i._1.distanceSquaredFrom(i._2))
-    }
+    (1 to pointInIntervals.size)
+      .zip {
+        pointInIntervals
+          .zip(input.pointInIntervals)
+          .map(i => i._1.distanceSquaredFrom(i._2))
+      }
       .maxBy(_._2)
       ._1
 }
@@ -81,8 +82,8 @@ private[thylacine] case class PointInCube(
 private[thylacine] object PointInCube {
 
   private[thylacine] def makeDisjoint(
-      pic1: PointInCube,
-      pic2: PointInCube
+    pic1: PointInCube,
+    pic2: PointInCube
   ): (PointInCube, PointInCube) =
     if (pic1.isIntersectingWith(pic2)) {
       val dimensionOfLargestSeparation = pic1.dimensionOfLargestSeparation(pic2)
@@ -99,15 +100,15 @@ private[thylacine] object PointInCube {
     }
 
   private[thylacine] def makeDisjoint(
-      cubes: Vector[PointInCube]
+    cubes: Vector[PointInCube]
   ): Vector[PointInCube] = {
     def makeNewCubeDisjoint(
-        newCube: PointInCube,
-        disjointCubes: Vector[PointInCube]
+      newCube: PointInCube,
+      disjointCubes: Vector[PointInCube]
     ): Vector[PointInCube] =
       disjointCubes.foldLeft(Vector(newCube)) { case (cubeAccumulation, currentCube) =>
-        val (disjoingCube1, disjointCube2) = PointInCube.makeDisjoint(cubeAccumulation.head, currentCube)
-        Vector(disjoingCube1, disjointCube2) ++ cubeAccumulation.tail
+        val (disjointCube1, disjointCube2) = PointInCube.makeDisjoint(cubeAccumulation.head, currentCube)
+        Vector(disjointCube1, disjointCube2) ++ cubeAccumulation.tail
       }
 
     cubes.foldLeft(Vector[PointInCube]()) { case (pointInCubeAccumulation, currentCube) =>

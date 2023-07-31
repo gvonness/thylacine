@@ -19,7 +19,7 @@ package thylacine.model.components.prior
 
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.values.{MatrixContainer, VectorContainer}
+import thylacine.model.core.values.{ MatrixContainer, VectorContainer }
 import thylacine.model.distributions.GaussianDistribution
 
 import breeze.stats.distributions.MultivariateGaussian
@@ -28,9 +28,9 @@ import cats.effect.kernel.Async
 import scala.annotation.unused
 
 case class GaussianPrior[F[_]: Async](
-    private[thylacine] override val identifier: ModelParameterIdentifier,
-    private[thylacine] val priorData: RecordedData,
-    private[thylacine] override val validated: Boolean = false
+  private[thylacine] override val identifier: ModelParameterIdentifier,
+  private[thylacine] val priorData: RecordedData,
+  private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Prior[F, GaussianDistribution] {
 
@@ -54,21 +54,21 @@ case class GaussianPrior[F[_]: Async](
   private[thylacine] lazy val covariance: Vector[Double] =
     rawDistribution.covariance.toArray.toVector
 
-  lazy val entropy = rawDistribution.entropy
+  lazy val entropy: Double = rawDistribution.entropy
 }
 
 object GaussianPrior {
 
   def fromConfidenceIntervals[F[_]: Async](
-      label: String,
-      values: Vector[Double],
-      confidenceIntervals: Vector[Double]
+    label: String,
+    values: Vector[Double],
+    confidenceIntervals: Vector[Double]
   ): GaussianPrior[F] = {
     assert(values.size == confidenceIntervals.size)
     GaussianPrior(
       identifier = ModelParameterIdentifier(label),
       priorData = RecordedData(
-        values = VectorContainer(values),
+        values                       = VectorContainer(values),
         symmetricConfidenceIntervals = VectorContainer(confidenceIntervals)
       )
     )
@@ -76,9 +76,9 @@ object GaussianPrior {
 
   @unused
   def fromCovarianceMatrix[F[_]: Async](
-      label: String,
-      values: Vector[Double],
-      covarianceMatrix: Vector[Vector[Double]]
+    label: String,
+    values: Vector[Double],
+    covarianceMatrix: Vector[Vector[Double]]
   ): GaussianPrior[F] = {
     val covarianceContainer = MatrixContainer(covarianceMatrix)
     val valueContainer      = VectorContainer(values)
@@ -86,7 +86,7 @@ object GaussianPrior {
     GaussianPrior(
       identifier = ModelParameterIdentifier(label),
       priorData = RecordedData(
-        data = valueContainer,
+        data       = valueContainer,
         covariance = covarianceContainer
       )
     )

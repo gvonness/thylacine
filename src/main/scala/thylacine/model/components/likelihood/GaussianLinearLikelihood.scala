@@ -35,10 +35,10 @@ import scala.annotation.unused
 // Thus, it gets a dedicated case class that is leveraged to do an analytic check in the posterior
 // construction.
 case class GaussianLinearLikelihood[F[_]: Async](
-    private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] val observations: RecordedData,
-    private[thylacine] override val forwardModel: LinearForwardModel[F],
-    private[thylacine] override val validated: Boolean = false
+  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  private[thylacine] val observations: RecordedData,
+  private[thylacine] override val forwardModel: LinearForwardModel[F],
+  private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, LinearForwardModel[F], GaussianDistribution] {
   if (!validated) {
@@ -61,23 +61,23 @@ object GaussianLinearLikelihood {
 
   @unused
   def of[F[_]: STM: Async](
-      coefficients: Vector[Vector[Double]],
-      measurements: Vector[Double],
-      uncertainties: Vector[Double],
-      prior: Prior[F, _],
-      evalCacheDepth: Option[Int]
+    coefficients: Vector[Vector[Double]],
+    measurements: Vector[Double],
+    uncertainties: Vector[Double],
+    prior: Prior[F, _],
+    evalCacheDepth: Option[Int]
   ): F[GaussianLinearLikelihood[F]] =
     for {
       linearForwardModel <- LinearForwardModel
                               .of[F](
-                                identifier = prior.identifier,
-                                values = coefficients,
+                                identifier     = prior.identifier,
+                                values         = coefficients,
                                 evalCacheDepth = evalCacheDepth
                               )
     } yield GaussianLinearLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = RecordedData(
-        values = VectorContainer(measurements),
+        values                       = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
       forwardModel = linearForwardModel

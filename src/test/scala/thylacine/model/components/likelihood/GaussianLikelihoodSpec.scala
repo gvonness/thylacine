@@ -19,7 +19,7 @@ package thylacine.model.components.likelihood
 
 import bengal.stm.STM
 import thylacine.TestUtils.maxIndexVectorDiff
-import thylacine.model.components.ComponentFixture.fooNonAnalyticLikeliHoodF
+import thylacine.model.components.ComponentFixture.fooNonAnalyticLikelihoodF
 import thylacine.model.core.values.IndexedVectorCollection
 
 import cats.effect.IO
@@ -33,7 +33,7 @@ class GaussianLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with Matcher
     "generate the a zero gradient at the likelihood maximum" in {
       (for {
         implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        likelihood              <- fooNonAnalyticLikeliHoodF
+        likelihood              <- fooNonAnalyticLikelihoodF
         result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(1d, 2d))))
       } yield result.genericScalaRepresentation)
         .asserting(_ shouldBe Map("foo" -> Vector(0d, 0d)))
@@ -42,7 +42,7 @@ class GaussianLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with Matcher
     "generate the correct gradient of the logPdf for a given point" in {
       (for {
         implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        likelihood              <- fooNonAnalyticLikeliHoodF
+        likelihood              <- fooNonAnalyticLikelihoodF
         result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(3d, 2d))))
       } yield result.genericScalaRepresentation)
         .asserting(result => maxIndexVectorDiff(result, Map("foo" -> Vector(-4e5, -88e4))) shouldBe (0d +- 1e-4))

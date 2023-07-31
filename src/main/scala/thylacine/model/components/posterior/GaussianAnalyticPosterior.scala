@@ -23,7 +23,7 @@ import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{MatrixContainer, VectorContainer}
+import thylacine.model.core.values.{ MatrixContainer, VectorContainer }
 import thylacine.model.sampling.ModelParameterSampler
 
 import breeze.linalg._
@@ -33,12 +33,12 @@ import cats.syntax.all._
 import org.apache.commons.math3.random.MersenneTwister
 
 import scala.annotation.unused
-import scala.{Vector => ScalaVector}
+import scala.{ Vector => ScalaVector }
 
 case class GaussianAnalyticPosterior[F[_]: Async](
-    private[thylacine] override val priors: Set[GaussianPrior[F]],
-    private[thylacine] override val likelihoods: Set[GaussianLinearLikelihood[F]],
-    private[thylacine] override val validated: Boolean
+  private[thylacine] override val priors: Set[GaussianPrior[F]],
+  private[thylacine] override val likelihoods: Set[GaussianLinearLikelihood[F]],
+  private[thylacine] override val validated: Boolean
 ) extends AsyncImplicits[F]
     with Posterior[F, GaussianPrior[F], GaussianLinearLikelihood[F]]
     with ModelParameterSampler[F]
@@ -62,9 +62,9 @@ case class GaussianAnalyticPosterior[F[_]: Async](
       this
     } else {
       GaussianAnalyticPosterior(
-        priors = priors.map(_.getValidated),
+        priors      = priors.map(_.getValidated),
         likelihoods = likelihoods.map(_.getValidated),
-        validated = true
+        validated   = true
       )
     }
 
@@ -73,7 +73,8 @@ case class GaussianAnalyticPosterior[F[_]: Async](
 
   lazy val entropy: Double = rawDistribution.entropy
 
-  lazy val priorEntropies = priors.map(_.entropy)
+  @unused
+  lazy val priorEntropies: Set[Double] = priors.map(_.entropy)
 
   private lazy val rawDistribution: MultivariateGaussian = {
     val priorsAdded: AnalyticPosteriorAccumulation[F] =
@@ -99,7 +100,7 @@ case class GaussianAnalyticPosterior[F[_]: Async](
     rawDistribution.covariance.toArray.toVector
 
   private[thylacine] override def logPdfAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Double] =
     Async[F].delay(rawDistribution.logPdf(modelParameterCollectionToRawVector(input)))
 
@@ -116,8 +117,8 @@ case class GaussianAnalyticPosterior[F[_]: Async](
 object GaussianAnalyticPosterior {
 
   def apply[F[_]: Async](
-      priors: Set[GaussianPrior[F]],
-      likelihoods: Set[GaussianLinearLikelihood[F]]
+    priors: Set[GaussianPrior[F]],
+    likelihoods: Set[GaussianLinearLikelihood[F]]
   ): GaussianAnalyticPosterior[F] =
     GaussianAnalyticPosterior(priors = priors, likelihoods = likelihoods, validated = false)
 
@@ -126,12 +127,12 @@ object GaussianAnalyticPosterior {
   // Multivariate Gaussian distribution that represents the
   // Posterior distribution
   private[thylacine] case class AnalyticPosteriorAccumulation[F[_]: Async](
-      priorMean: Option[VectorContainer] = None,
-      priorCovariance: Option[MatrixContainer] = None,
-      data: Option[VectorContainer] = None,
-      likelihoodCovariance: Option[MatrixContainer] = None,
-      likelihoodTransformations: Option[MatrixContainer] = None,
-      orderedParameterIdentifiersWithDimension: ScalaVector[(ModelParameterIdentifier, Int)]
+    priorMean: Option[VectorContainer]                 = None,
+    priorCovariance: Option[MatrixContainer]           = None,
+    data: Option[VectorContainer]                      = None,
+    likelihoodCovariance: Option[MatrixContainer]      = None,
+    likelihoodTransformations: Option[MatrixContainer] = None,
+    orderedParameterIdentifiersWithDimension: ScalaVector[(ModelParameterIdentifier, Int)]
   ) {
 
     private[thylacine] lazy val gRawDistribution: MultivariateGaussian =
@@ -165,7 +166,7 @@ object GaussianAnalyticPosterior {
       )
 
     private[thylacine] def add(
-        prior: GaussianPrior[F]
+      prior: GaussianPrior[F]
     ): AnalyticPosteriorAccumulation[F] = {
       val incomingPriorMean       = prior.priorData.data
       val incomingPriorCovariance = prior.priorData.covariance
@@ -185,16 +186,18 @@ object GaussianAnalyticPosterior {
     }
 
     private[thylacine] def add(
-        likelihood: GaussianLinearLikelihood[F]
+      likelihood: GaussianLinearLikelihood[F]
     ): AnalyticPosteriorAccumulation[F] = {
       val incomingData           = likelihood.observations.data
       val incomingDataCovariance = likelihood.observations.covariance
-      val incomingTransformationMatrix = orderedParameterIdentifiersWithDimension.map { id =>
-        likelihood.forwardModel.getJacobian.index.getOrElse(
-          id._1,
-          MatrixContainer.zeros(likelihood.forwardModel.rangeDimension, id._2)
-        )
-      }.reduce(_ columnMergeWith _)
+      val incomingTransformationMatrix = orderedParameterIdentifiersWithDimension
+        .map { id =>
+          likelihood.forwardModel.getJacobian.index.getOrElse(
+            id._1,
+            MatrixContainer.zeros(likelihood.forwardModel.rangeDimension, id._2)
+          )
+        }
+        .reduce(_ columnMergeWith _)
 
       this.copy(
         data = Some(

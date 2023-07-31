@@ -23,42 +23,31 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior._
 import thylacine.model.core._
+import thylacine.model.core.telemetry.SlqTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.VectorContainer
 import thylacine.model.integration.ModelParameterIntegrator
 import thylacine.model.integration.slq.SamplingSimulation._
 import thylacine.model.sampling.ModelParameterSampler
 
-import ai.entrolution.thylacine.model.core.telemetry.SlqTelemetryUpdate
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-/** Implementation of the SLQ (pronounced like "slick") algorithm
-  * introduced in Appendix B of [3].
+/** Implementation of the SLQ (pronounced like "slick") algorithm introduced in Appendix B of [3].
   *
-  * While an evolution of Skilling's Nested Sampling technique
-  * (see chapter 9 in [1] for an introduction or the Appendix
-  * in [2] for a more mathematical analysis of the approach), this
-  * algorithm still generally suffers from excessively high rejection
-  * rates in high-dimensional inferences. Attempts to alleviate this issue
-  * result in posterior integrations and sample simulations that are
-  * typically far-too concentrated around the PDF maxima.
+  * While an evolution of Skilling's Nested Sampling technique (see chapter 9 in [1] for an introduction or the Appendix
+  * in [2] for a more mathematical analysis of the approach), this algorithm still generally suffers from excessively
+  * high rejection rates in high-dimensional inferences. Attempts to alleviate this issue result in posterior
+  * integrations and sample simulations that are typically far-too concentrated around the PDF maxima.
   *
-  * TL;DR - Expect this algorithm to take a very long time to build its
-  * quadratures for high-dimensional problems.
+  * TL;DR - Expect this algorithm to take a very long time to build its quadratures for high-dimensional problems.
   *
-  * [1] Sivia D and Skilling J
-  *     Data Analysis: A Bayesian Tutorial
-  *     Second Edition (2006) Oxford University Press
-  * [2] von Nessi G T, Hole M J and The MAST Team
-  *     A unified method for inference of tokamak equilibria and validation
-  *       of force-balance models based on Bayesian analysis
-  *     J. Phys. A.: Math. Theor. 46 (2013) 185501
-  * [3] von Nessi G T, Hole M J and The MAST Team
-  *     Recent developments in Bayesian inference of tokamak plasma
-  *       equilibria and high-dimensional stochastic quadratures
-  *     Plasma Phys. Control Fusion 56 (2014) 114011
+  * [1] Sivia D and Skilling J Data Analysis: A Bayesian Tutorial Second Edition (2006) Oxford University Press [2] von
+  * Nessi G T, Hole M J and The MAST Team A unified method for inference of tokamak equilibria and validation of
+  * force-balance models based on Bayesian analysis J. Phys. A.: Math. Theor. 46 (2013) 185501 [3] von Nessi G T, Hole M
+  * J and The MAST Team Recent developments in Bayesian inference of tokamak plasma equilibria and high-dimensional
+  * stochastic quadratures Plasma Phys. Control Fusion 56 (2014) 114011
   */
 private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] with ModelParameterSampler[F] {
   this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
@@ -124,13 +113,13 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
       .get(logPdf)
       .flatMap {
         case Some(_) => jitter(jitterResult)
-        case _       => STM[F].pure(logPdf)
+        case _ => STM[F].pure(logPdf)
       }
       .handleErrorWith(_ => STM[F].pure(logPdf))
   }
 
   private def recordMinimumLogPdf(
-      minLogPdf: Option[Double] = None
+    minLogPdf: Option[Double] = None
   ): Txn[Unit] =
     for {
       currentMinimum <- minLogPdf match {
@@ -185,15 +174,15 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
       samplePoolNonEmpty <- samplePool.get.map(_.nonEmpty)
       result <- if (samplePoolNonEmpty) {
                   recordMinimumLogPdf() >>
-                    STM[F].pure(true)
+                  STM[F].pure(true)
                 } else {
                   STM[F].pure(false)
                 }
     } yield result).commit.flatMap(continue => if (continue) drainSamplePool else Async[F].unit)
 
   private def updateStateWithSampleCalculation(
-      logPdf: Double,
-      modelParameters: ModelParameterCollection
+    logPdf: Double,
+    modelParameters: ModelParameterCollection
   ): Txn[Boolean] =
     for {
       currentMinimum <- samplePoolMinimumLogPdf.get
@@ -229,14 +218,14 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
             negEntStats <- Async[F].delay(telemetry._3.negativeEntropyStats)
             result <- slqTelemetryUpdateCallback(
                         SlqTelemetryUpdate(
-                          negEntropyAvg = negEntStats.sum.toDouble / negEntStats.size,
-                          logPdf = logPdf,
-                          samplePoolMinimumLogPdf = telemetry._1.keySet.min,
-                          domainVolumeScaling = telemetry._2.currentScaleFactor,
+                          negEntropyAvg                 = negEntStats.sum.toDouble / negEntStats.size,
+                          logPdf                        = logPdf,
+                          samplePoolMinimumLogPdf       = telemetry._1.keySet.min,
+                          domainVolumeScaling           = telemetry._2.currentScaleFactor,
                           acceptancesSinceDomainRebuild = telemetry._2.acceptancesSinceLastRebuild,
-                          samplePoolSize = telemetry._1.size,
-                          domainCubeCount = domain.pointsInCube.size,
-                          iterationCount = telemetry._3.logPdfs.size
+                          samplePoolSize                = telemetry._1.size,
+                          domainCubeCount               = domain.pointsInCube.size,
+                          iterationCount                = telemetry._3.logPdfs.size
                         )
                       )
           } yield result
@@ -260,14 +249,14 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
 
   private val setConverged: F[Unit] = {
     def testConverged(
-        iterationCount: Int,
-        numberSamplePoints: Int,
-        negativeEntropyStats: Vector[BigDecimal]
+      iterationCount: Int,
+      numberSamplePoints: Int,
+      negativeEntropyStats: Vector[BigDecimal]
     ): Boolean =
       if (negativeEntropyStats.nonEmpty) {
         (iterationCount > minIterationCount &&
-        iterationCount >= 10 * numberSamplePoints * negativeEntropyStats.max) ||
-          iterationCount >= maxIterationCount
+          iterationCount >= 10 * numberSamplePoints * negativeEntropyStats.max) ||
+        iterationCount >= maxIterationCount
       } else {
         false
       }
@@ -301,14 +290,14 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
         samplingRecursion
       } else {
         drainSamplePool >>
-          (for {
-            abscissasRaw <- abscissas.get.map(_.getAbscissas)
-            logPdfRes    <- logPdfResults.get
-            _ <-
-              samplingSimulation.set(
-                SamplingSimulationConstructed(logPdfRes, abscissasRaw)
-              )
-          } yield ()).commit
+        (for {
+          abscissasRaw <- abscissas.get.map(_.getAbscissas)
+          logPdfRes    <- logPdfResults.get
+          _ <-
+            samplingSimulation.set(
+              SamplingSimulationConstructed(logPdfRes, abscissasRaw)
+            )
+        } yield ()).commit
       }
     )
 
@@ -360,7 +349,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   private val domainRebuildRecursion: F[Unit] =
     rebuildDomain.flatMap {
       case continueProcessing if continueProcessing => domainRebuildRecursion
-      case _                                        => Async[F].unit
+      case _ => Async[F].unit
     }
 
   /*
@@ -373,13 +362,13 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
     (for {
       _ <- sampleDomainScalingState.set {
              QuadratureDomainTelemetry(
-               currentScaleFactor = 1.0,
-               acceptances = 0,
-               rejections = 0,
-               nominalAcceptance = slqNominalAcceptanceRatio,
-               minValue = slqScalingIncrement,
+               currentScaleFactor          = 1.0,
+               acceptances                 = 0,
+               rejections                  = 0,
+               nominalAcceptance           = slqNominalAcceptanceRatio,
+               minValue                    = slqScalingIncrement,
                acceptancesSinceLastRebuild = 0,
-               rejectionStreak = 0
+               rejectionStreak             = 0
              )
            }
       _ <- workTokenPool.set(slqSampleParallelism)
@@ -394,12 +383,14 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
     } yield ()).commit
 
   private val analyseSeeds: F[Map[Double, ModelParameterCollection]] =
-    seeds.toVector.traverse { s =>
-      logPdfAt(s).map(i => (i, s))
-    }.map(_.toMap)
+    seeds.toVector
+      .traverse { s =>
+        logPdfAt(s).map(i => (i, s))
+      }
+      .map(_.toMap)
 
   private def getInitialSample(
-      logPdfs: Set[Double]
+    logPdfs: Set[Double]
   ): F[(Double, ModelParameterCollection)] =
     (for {
       sample <- samplePriors
@@ -458,7 +449,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   // Run assuming the sample simulation has completed. It is possible to
   // put a `waitForSimulationConstruction` in this call but it adds unnecessary
   // overhead on the transaction runtime
-  protected val getSimulatedSample: F[ModelParameterCollection] =
+  private val getSimulatedSample: F[ModelParameterCollection] =
     for {
       sampleSimulationRaw <- samplingSimulation.get.commit
       result              <- Async[F].delay(sampleSimulationRaw.getSample)
@@ -468,7 +459,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   // We return the mean for the integrations, as SLQ produces inferences of these
   // integrations.
   override final def integrate(
-      integrand: BigDecimal => BigDecimal
+    integrand: BigDecimal => BigDecimal
   ): F[BigDecimal] =
     for {
       quadratureRaw <- quadratureIntegrations.get.commit
@@ -489,12 +480,12 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
 private[thylacine] object SlqEngine {
 
   private[thylacine] def getPointInCubeCollection(
-      inputs: Vector[ModelParameterCollection],
-      toVector: ModelParameterCollection => Vector[Double]
+    inputs: Vector[ModelParameterCollection],
+    toVector: ModelParameterCollection => Vector[Double]
   ): PointInCubeCollection = {
     def getPointInCube(
-        input: ModelParameterCollection,
-        toVector: ModelParameterCollection => Vector[Double]
+      input: ModelParameterCollection,
+      toVector: ModelParameterCollection => Vector[Double]
     ): PointInCube =
       PointInCube(
         toVector(input).map(PointInInterval(_)),

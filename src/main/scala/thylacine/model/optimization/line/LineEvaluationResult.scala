@@ -20,7 +20,7 @@ package thylacine.model.optimization.line
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
 private[thylacine] case class LineEvaluationResult(
-    private[thylacine] val result: Double,
-    private[thylacine] val vectorArgument: Vector[Double],
-    private[thylacine] val modelParameterArgument: ModelParameterCollection
+  private[thylacine] val result: Double,
+  private[thylacine] val vectorArgument: Vector[Double],
+  private[thylacine] val modelParameterArgument: ModelParameterCollection
 )

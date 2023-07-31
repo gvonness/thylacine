@@ -21,8 +21,8 @@ import thylacine.model.core.CanValidate
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 
 private[thylacine] case class IndexedMatrixCollection(
-    index: Map[ModelParameterIdentifier, MatrixContainer],
-    validated: Boolean = false
+  index: Map[ModelParameterIdentifier, MatrixContainer],
+  validated: Boolean = false
 ) extends IndexedCollection[MatrixContainer]
     with CanValidate[IndexedMatrixCollection] {
 
@@ -40,7 +40,7 @@ private[thylacine] case class IndexedMatrixCollection(
     index.map(i => i._1.value -> i._2.genericScalaRepresentation)
 
   private[thylacine] def rawMergeWith(
-      other: IndexedMatrixCollection
+    other: IndexedMatrixCollection
   ): IndexedMatrixCollection =
     IndexedMatrixCollection(index ++ other.index).getValidated
 }
@@ -48,23 +48,23 @@ private[thylacine] case class IndexedMatrixCollection(
 private[thylacine] object IndexedMatrixCollection {
 
   private[thylacine] def apply(
-      identifier: ModelParameterIdentifier,
-      values: Vector[Vector[Double]]
+    identifier: ModelParameterIdentifier,
+    values: Vector[Vector[Double]]
   ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer(values))
     )
 
   private[thylacine] def apply(
-      labelledValues: Map[String, Vector[Vector[Double]]]
+    labelledValues: Map[String, Vector[Vector[Double]]]
   ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = labelledValues.map(lvs => ModelParameterIdentifier(lvs._1) -> MatrixContainer(lvs._2))
     )
 
   private[thylacine] def squareIdentity(
-      identifier: ModelParameterIdentifier,
-      dimension: Int
+    identifier: ModelParameterIdentifier,
+    dimension: Int
   ): IndexedMatrixCollection =
     IndexedMatrixCollection(
       index = Map(identifier -> MatrixContainer.squareIdentity(dimension))

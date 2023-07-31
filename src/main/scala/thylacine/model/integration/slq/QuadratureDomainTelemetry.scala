@@ -25,14 +25,14 @@ package thylacine.model.integration.slq
 // problems. There may be ways to re-introduce the scaling, but it will probably
 // only be reasonable in very specific scenarios.
 private[thylacine] case class QuadratureDomainTelemetry(
-    currentScaleFactor: Double,
-    acceptances: Int,
-    rejections: Int,
-    nominalAcceptance: Double,
-    minValue: Double,
-    acceptancesSinceLastRebuild: Int,
-    rejectionStreak: Int,
-    rescalingEnabled: Boolean = false // Do not enable (see comment above)
+  currentScaleFactor: Double,
+  acceptances: Int,
+  rejections: Int,
+  nominalAcceptance: Double,
+  minValue: Double,
+  acceptancesSinceLastRebuild: Int,
+  rejectionStreak: Int,
+  rescalingEnabled: Boolean = false // Do not enable (see comment above)
 ) {
   assert(
     currentScaleFactor >= Double.MinPositiveValue && currentScaleFactor <= 1.0
@@ -57,30 +57,30 @@ private[thylacine] case class QuadratureDomainTelemetry(
         this.copy(
           currentScaleFactor = Math
             .min(currentScaleFactor + (1.0 - currentScaleFactor) / 2.0, 1.0),
-          acceptances = newAcceptance,
+          acceptances                 = newAcceptance,
           acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-          rejectionStreak = 0
+          rejectionStreak             = 0
         )
       } else {
         this.copy(
-          acceptances = newAcceptance,
+          acceptances                 = newAcceptance,
           acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-          rejectionStreak = 0
+          rejectionStreak             = 0
         )
       }
     } else if (newAcceptanceRatio < nominalAcceptance) {
       if (rescalingEnabled) {
         this.copy(
-          currentScaleFactor = Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
-          acceptances = newAcceptance,
+          currentScaleFactor          = Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
+          acceptances                 = newAcceptance,
           acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-          rejectionStreak = 0
+          rejectionStreak             = 0
         )
       } else {
         this.copy(
-          acceptances = newAcceptance,
+          acceptances                 = newAcceptance,
           acceptancesSinceLastRebuild = newAcceptanceSinceRebuild,
-          rejectionStreak = 0
+          rejectionStreak             = 0
         )
       }
     } else {
@@ -97,14 +97,14 @@ private[thylacine] case class QuadratureDomainTelemetry(
       this.copy(
         //        currentScaleFactor =
         //          Math.min(currentScaleFactor + (1.0 - currentScaleFactor) / 2.0, 1.0),
-        rejections = newRejection,
+        rejections      = newRejection,
         rejectionStreak = rejectionStreak + 1
       )
     } else if (newAcceptanceRatio < nominalAcceptance) {
       this.copy(
         //        currentScaleFactor =
         //          Math.max(currentScaleFactor / 2.0, Double.MinPositiveValue),
-        rejections = newRejection,
+        rejections      = newRejection,
         rejectionStreak = rejectionStreak + 1
       )
     } else {
@@ -118,12 +118,12 @@ private[thylacine] object QuadratureDomainTelemetry {
 
   private[thylacine] val init: QuadratureDomainTelemetry =
     QuadratureDomainTelemetry(
-      currentScaleFactor = 1.0,
-      acceptances = 0,
-      rejections = 0,
-      nominalAcceptance = 0,
-      minValue = 0.0001,
+      currentScaleFactor          = 1.0,
+      acceptances                 = 0,
+      rejections                  = 0,
+      nominalAcceptance           = 0,
+      minValue                    = 0.0001,
       acceptancesSinceLastRebuild = 0,
-      rejectionStreak = 0
+      rejectionStreak             = 0
     )
 }

@@ -20,7 +20,7 @@ package thylacine.model.components.forwardmodel
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.computation.CachedComputation
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{IndexedMatrixCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedMatrixCollection, VectorContainer }
 
 private[thylacine] trait InMemoryMemoizedForwardModel[F[_]] extends ForwardModel[F] {
   this: StmImplicits[F] =>
@@ -29,12 +29,12 @@ private[thylacine] trait InMemoryMemoizedForwardModel[F[_]] extends ForwardModel
   protected val jacobianCache: CachedComputation[F, IndexedMatrixCollection]
 
   private[thylacine] override final def evalAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[VectorContainer] =
     evalCache.performComputation(input)
 
   private[thylacine] override def jacobianAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[IndexedMatrixCollection] =
     jacobianCache.performComputation(input)
 }

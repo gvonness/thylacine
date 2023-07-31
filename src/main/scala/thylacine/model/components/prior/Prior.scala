@@ -20,9 +20,9 @@ package thylacine.model.components.prior
 import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
+import thylacine.model.core.values.modelparameters.{ ModelParameterGenerator, ModelParameterPdf }
 import thylacine.model.distributions.Distribution
 import thylacine.model.sampling.ModelParameterSampler
 
@@ -49,17 +49,18 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
   override final val generatorDimension: Int = priorDistribution.domainDimension
 
   override final def logPdfAt(
-      input: IndexedVectorCollection
+    input: IndexedVectorCollection
   ): F[Double] =
     Async[F].delay(priorDistribution.logPdfAt(input.retrieveIndex(identifier)))
 
   override final def logPdfGradientAt(
-      input: IndexedVectorCollection
+    input: IndexedVectorCollection
   ): F[ModelParameterCollection] =
     Async[F].delay {
-      IndexedVectorCollection(identifier,
-                              priorDistribution
-                                .logPdfGradientAt(input.retrieveIndex(identifier))
+      IndexedVectorCollection(
+        identifier,
+        priorDistribution
+          .logPdfGradientAt(input.retrieveIndex(identifier))
       )
     }
 

@@ -24,8 +24,8 @@ import thylacine.model.components.posterior._
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
-import thylacine.model.sampling.{ModelParameterSampler, SampleRequest}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
+import thylacine.model.sampling.{ ModelParameterSampler, SampleRequest }
 import thylacine.util.MathOps
 import thylacine.util.ScalaVectorOps.Implicits._
 
@@ -89,10 +89,10 @@ private[thylacine] trait LeapfrogMcmcEngine[F[_]] extends ModelParameterSampler[
     leapOver.scalarMultiplyWith(2.0).subtract(leapFrom)
 
   private def getDistanceCalculations(
-      samplePoints: Vector[Vector[Double]],
-      newPoint: Vector[Double],
-      replaceIndex: Int,
-      jumpIndex: Int
+    samplePoints: Vector[Vector[Double]],
+    newPoint: Vector[Double],
+    replaceIndex: Int,
+    jumpIndex: Int
   ): F[(Vector[Double], Double)] =
     for {
       newDistances <- Async[F].delay {
@@ -279,7 +279,7 @@ private[thylacine] trait LeapfrogMcmcEngine[F[_]] extends ModelParameterSampler[
       _               <- STM[F].waitFor(burnInCompleted)
     } yield ()).commit
 
-  protected val getLeapfromMcmcSample: F[ModelParameterCollection] =
+  private val getLeapfrogMcmcSample: F[ModelParameterCollection] =
     for {
       deferred <- Deferred[F, ModelParameterCollection]
       newRequestSize <- (for {
@@ -291,7 +291,7 @@ private[thylacine] trait LeapfrogMcmcEngine[F[_]] extends ModelParameterSampler[
     } yield result
 
   protected override val sampleModelParameters: F[ModelParameterCollection] =
-    getLeapfromMcmcSample
+    getLeapfrogMcmcSample
 
   protected override val rawSampleModelParameters: F[VectorContainer] =
     sampleModelParameters.map(s => VectorContainer(modelParameterCollectionToRawVector(s)))

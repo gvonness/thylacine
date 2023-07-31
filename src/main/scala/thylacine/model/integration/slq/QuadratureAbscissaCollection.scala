@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.integration.slq
 
 private[thylacine] case class QuadratureAbscissaCollection(
-    abscissas: Vector[QuadratureAbscissa]
+  abscissas: Vector[QuadratureAbscissa]
 ) {
   assert(abscissas.map(_.abscissa.size).toSet.size <= 1)
 
@@ -38,8 +38,8 @@ private[thylacine] case class QuadratureAbscissaCollection(
 private[thylacine] object QuadratureAbscissaCollection {
 
   private[thylacine] def apply(
-      numberOfAbscissas: Int,
-      numberOfSamplesPerAbscissa: Int
+    numberOfAbscissas: Int,
+    numberOfSamplesPerAbscissa: Int
   ): QuadratureAbscissaCollection = {
     val abscissas: Vector[QuadratureAbscissa] =
       (1 to numberOfAbscissas)

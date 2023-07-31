@@ -18,14 +18,14 @@ package ai.entrolution
 package thylacine.model.core.telemetry
 
 case class SlqTelemetryUpdate(
-    negEntropyAvg: Double,
-    logPdf: Double,
-    samplePoolMinimumLogPdf: Double,
-    domainVolumeScaling: Double,
-    acceptancesSinceDomainRebuild: Int,
-    samplePoolSize: Int,
-    domainCubeCount: Int,
-    iterationCount: Int
+  negEntropyAvg: Double,
+  logPdf: Double,
+  samplePoolMinimumLogPdf: Double,
+  domainVolumeScaling: Double,
+  acceptancesSinceDomainRebuild: Int,
+  samplePoolSize: Int,
+  domainCubeCount: Int,
+  iterationCount: Int
 ) extends TelemetryReport {
 
   override lazy val logMessage: String =

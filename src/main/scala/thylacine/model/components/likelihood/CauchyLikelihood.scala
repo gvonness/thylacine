@@ -26,12 +26,13 @@ import thylacine.model.distributions.CauchyDistribution
 import cats.effect.kernel.Async
 
 import java.util.UUID
+import scala.annotation.unused
 
 case class CauchyLikelihood[F[_]: Async](
-    private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
-    private[thylacine] val observations: RecordedData,
-    private[thylacine] override val forwardModel: ForwardModel[F],
-    private[thylacine] override val validated: Boolean = false
+  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  private[thylacine] val observations: RecordedData,
+  private[thylacine] override val forwardModel: ForwardModel[F],
+  private[thylacine] override val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, ForwardModel[F], CauchyDistribution] {
   if (!validated) {
@@ -50,17 +51,18 @@ case class CauchyLikelihood[F[_]: Async](
 
 }
 
+@unused
 object CauchyLikelihood {
 
   def apply[F[_]: Async](
-      forwardModel: ForwardModel[F],
-      measurements: Vector[Double],
-      uncertainties: Vector[Double]
+    forwardModel: ForwardModel[F],
+    measurements: Vector[Double],
+    uncertainties: Vector[Double]
   ): CauchyLikelihood[F] =
     CauchyLikelihood(
       posteriorTermIdentifier = TermIdentifier(UUID.randomUUID().toString),
       observations = RecordedData(
-        values = VectorContainer(measurements),
+        values                       = VectorContainer(measurements),
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
       forwardModel = forwardModel

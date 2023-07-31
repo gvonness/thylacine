@@ -22,7 +22,7 @@ import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.modelparameters.{ModelParameterPdf, ModelParameterContext}
+import thylacine.model.core.values.modelparameters.{ ModelParameterPdf, ModelParameterContext }
 
 import cats.syntax.all._
 
@@ -38,7 +38,7 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
     priors.toVector.map(_.domainDimension).sum
 
   private[thylacine] override final lazy val orderedParameterIdentifiersWithDimension
-      : Vector[(ModelParameterIdentifier, Int)] =
+    : Vector[(ModelParameterIdentifier, Int)] =
     priors.toVector
       .sortBy(_.posteriorTermIdentifier)
       .map(i =>
@@ -48,7 +48,7 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
       )
 
   private[thylacine] override final def logPdfGradientAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     for {
       priorSum <-
@@ -65,7 +65,7 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
     priors.toVector.traverse(_.sampleModelParameters).map(_.reduce(_ rawMergeWith _))
 
   private[thylacine] override def logPdfAt(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Double] =
     for {
       priorEvaluations      <- priors.toList.traverse(_.logPdfAt(input))

@@ -28,7 +28,7 @@ private[thylacine] trait ForwardModel[F[_]] extends GenericMapping with CanValid
   // Note that input validation should be done within
   // the surrounding likelihood
   private[thylacine] def evalAt(
-      input: IndexedVectorCollection
+    input: IndexedVectorCollection
   ): F[VectorContainer]
 
   private[thylacine] final def evalAt(input: Map[String, Vector[Double]]): F[Vector[Double]] =
@@ -37,7 +37,7 @@ private[thylacine] trait ForwardModel[F[_]] extends GenericMapping with CanValid
   // Note that input validation should be done within
   // the surrounding likelihood
   private[thylacine] def jacobianAt(
-      input: IndexedVectorCollection
+    input: IndexedVectorCollection
   ): F[IndexedMatrixCollection]
 
   private[thylacine] final def jacobianAt(input: Map[String, Vector[Double]]): F[Map[String, Vector[Vector[Double]]]] =

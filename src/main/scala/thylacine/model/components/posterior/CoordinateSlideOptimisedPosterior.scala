@@ -30,14 +30,14 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 case class CoordinateSlideOptimisedPosterior[F[_]: STM: Async](
-                                                                private[thylacine] val coordinateSlideConfig: CoordinateSlideConfig,
-                                                                protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
-                                                                protected override val isConvergedCallback: Unit => F[Unit],
-                                                                private[thylacine] override val priors: Set[Prior[F, _]],
-                                                                private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-                                                                protected override val currentBest: TxnVar[F, (Double, Vector[Double])],
-                                                                protected override val currentScale: TxnVar[F, Double],
-                                                                protected override val isConverged: TxnVar[F, Boolean]
+  private[thylacine] val coordinateSlideConfig: CoordinateSlideConfig,
+  protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
+  protected override val isConvergedCallback: Unit => F[Unit],
+  private[thylacine] override val priors: Set[Prior[F, _]],
+  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
+  protected override val currentBest: TxnVar[F, (Double, Vector[Double])],
+  protected override val currentScale: TxnVar[F, Double],
+  protected override val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with CoordinateSlideEngine[F] {
@@ -58,23 +58,23 @@ case class CoordinateSlideOptimisedPosterior[F[_]: STM: Async](
 object CoordinateSlideOptimisedPosterior {
 
   def of[F[_]: STM: Async](
-                            coordinateSlideConfig: CoordinateSlideConfig,
-                            posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-                            iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
-                            isConvergedCallback: Unit => F[Unit]
+    coordinateSlideConfig: CoordinateSlideConfig,
+    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
+    isConvergedCallback: Unit => F[Unit]
   ): F[CoordinateSlideOptimisedPosterior[F]] =
     for {
       currentBest  <- TxnVar.of((0d, Vector[Double]()))
       currentScale <- TxnVar.of(0d)
       isConverged  <- TxnVar.of(false)
     } yield CoordinateSlideOptimisedPosterior(
-      coordinateSlideConfig = coordinateSlideConfig,
+      coordinateSlideConfig   = coordinateSlideConfig,
       iterationUpdateCallback = iterationUpdateCallback,
-      isConvergedCallback = isConvergedCallback,
-      priors = posterior.priors,
-      likelihoods = posterior.likelihoods,
-      currentBest = currentBest,
-      currentScale = currentScale,
-      isConverged = isConverged
+      isConvergedCallback     = isConvergedCallback,
+      priors                  = posterior.priors,
+      likelihoods             = posterior.likelihoods,
+      currentBest             = currentBest,
+      currentScale            = currentScale,
+      isConverged             = isConverged
     )
 }

@@ -19,18 +19,18 @@ package thylacine.model.components.forwardmodel
 
 import bengal.stm.STM
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.computation.{CachedComputation, FiniteDifferenceJacobian}
-import thylacine.model.core.values.{IndexedMatrixCollection, IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.computation.{ CachedComputation, FiniteDifferenceJacobian }
+import thylacine.model.core.values.{ IndexedMatrixCollection, IndexedVectorCollection, VectorContainer }
 
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
 case class NonLinearForwardModel[F[_]: STM: Async](
-    protected override val evalCache: CachedComputation[F, VectorContainer],
-    protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
-    private val domainDimensions: Map[String, Int],
-    override val rangeDimension: Int,
-    private[thylacine] override val validated: Boolean = false
+  protected override val evalCache: CachedComputation[F, VectorContainer],
+  protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+  private val domainDimensions: Map[String, Int],
+  override val rangeDimension: Int,
+  private[thylacine] override val validated: Boolean = false
 ) extends StmImplicits[F]
     with InMemoryMemoizedForwardModel[F] {
 
@@ -42,12 +42,12 @@ case class NonLinearForwardModel[F[_]: STM: Async](
 object NonLinearForwardModel {
 
   def of[F[_]: STM: Async](
-      evaluation: Map[String, Vector[Double]] => Vector[Double],
-      differential: Double,
-      domainDimensions: Map[String, Int],
-      rangeDimension: Int,
-      evalCacheDepth: Option[Int],
-      jacobianCacheDepth: Option[Int]
+    evaluation: Map[String, Vector[Double]] => Vector[Double],
+    differential: Double,
+    domainDimensions: Map[String, Int],
+    rangeDimension: Int,
+    evalCacheDepth: Option[Int],
+    jacobianCacheDepth: Option[Int]
   ): F[NonLinearForwardModel[F]] = {
     def transformedEval(input: IndexedVectorCollection): VectorContainer =
       VectorContainer(evaluation(input.index.map(i => i._1.value -> i._2.scalaVector)))
@@ -62,14 +62,14 @@ object NonLinearForwardModel {
   }
 
   def of[F[_]: STM: Async](
-      evaluation: Map[String, Vector[Double]] => Vector[Double],
-      jacobian: Map[String, Vector[Double]] => Map[String, Vector[
-        Vector[Double]
-      ]],
-      domainDimensions: Map[String, Int],
-      rangeDimension: Int,
-      evalCacheDepth: Option[Int],
-      jacobianCacheDepth: Option[Int]
+    evaluation: Map[String, Vector[Double]] => Vector[Double],
+    jacobian: Map[String, Vector[Double]] => Map[String, Vector[
+      Vector[Double]
+    ]],
+    domainDimensions: Map[String, Int],
+    rangeDimension: Int,
+    evalCacheDepth: Option[Int],
+    jacobianCacheDepth: Option[Int]
   ): F[NonLinearForwardModel[F]] = {
 
     def transformedEval(input: IndexedVectorCollection): VectorContainer =

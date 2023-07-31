@@ -22,13 +22,13 @@ import thylacine.model.core.CanValidate
 import breeze.linalg._
 import cats.implicits._
 
-import scala.{Vector => ScalaVector}
+import scala.{ Vector => ScalaVector }
 
 private[thylacine] case class MatrixContainer(
-    values: Map[(Int, Int), Double],
-    rowTotalNumber: Int,
-    columnTotalNumber: Int,
-    validated: Boolean = false
+  values: Map[(Int, Int), Double],
+  rowTotalNumber: Int,
+  columnTotalNumber: Int,
+  validated: Boolean = false
 ) extends Container
     with CanValidate[MatrixContainer] {
   if (!validated) {
@@ -67,11 +67,11 @@ private[thylacine] case class MatrixContainer(
   // the number of columns, under the assumption that row numbers
   // are equal and have been checked outside of this
   private[thylacine] def columnMergeWith(
-      input: MatrixContainer
+    input: MatrixContainer
   ): MatrixContainer =
     MatrixContainer(
       values ++ input.getValidated.values.map(i => (i._1._1, i._1._2 + columnTotalNumber) -> i._2),
-      rowTotalNumber = rowTotalNumber,
+      rowTotalNumber    = rowTotalNumber,
       columnTotalNumber = columnTotalNumber + input.columnTotalNumber
     ).getValidated
 
@@ -79,18 +79,18 @@ private[thylacine] case class MatrixContainer(
   private[thylacine] def rowMergeWith(input: MatrixContainer): MatrixContainer =
     MatrixContainer(
       values ++ input.getValidated.values.map(i => (i._1._1 + rowTotalNumber, i._1._2) -> i._2),
-      rowTotalNumber = rowTotalNumber + input.rowTotalNumber,
+      rowTotalNumber    = rowTotalNumber + input.rowTotalNumber,
       columnTotalNumber = columnTotalNumber
     ).getValidated
 
   // Diagonally combines two matrices with zero'd upper-right
   // and lower-left submatrices
   private[thylacine] def diagonalMergeWith(
-      input: MatrixContainer
+    input: MatrixContainer
   ): MatrixContainer =
     MatrixContainer(
       values ++ input.getValidated.values.map(i => (i._1._1 + rowTotalNumber, i._1._2 + columnTotalNumber) -> i._2),
-      rowTotalNumber = rowTotalNumber + input.columnTotalNumber,
+      rowTotalNumber    = rowTotalNumber + input.columnTotalNumber,
       columnTotalNumber = columnTotalNumber + input.columnTotalNumber
     ).getValidated
 }
@@ -98,41 +98,42 @@ private[thylacine] case class MatrixContainer(
 private[thylacine] object MatrixContainer {
 
   private[thylacine] def zeros(
-      rowDimension: Int,
-      columnDimension: Int
+    rowDimension: Int,
+    columnDimension: Int
   ): MatrixContainer =
     MatrixContainer(
-      values = Map(),
-      rowTotalNumber = rowDimension,
+      values            = Map(),
+      rowTotalNumber    = rowDimension,
       columnTotalNumber = columnDimension,
-      validated = true
+      validated         = true
     )
 
   private[thylacine] def squareIdentity(
-      dimension: Int
+    dimension: Int
   ): MatrixContainer =
     MatrixContainer(
-      values = (1 to dimension).map(i => (i, i) -> 1d).toMap,
-      rowTotalNumber = dimension,
+      values            = (1 to dimension).map(i => (i, i) -> 1d).toMap,
+      rowTotalNumber    = dimension,
       columnTotalNumber = dimension,
-      validated = true
+      validated         = true
     )
 
   private[thylacine] def apply(
-      input: ScalaVector[ScalaVector[Double]]
+    input: ScalaVector[ScalaVector[Double]]
   ): MatrixContainer = {
     val valueMap = input
       .foldLeft((1, Map[(Int, Int), Double]())) { (i, j) =>
-        (i._1 + 1,
-         j.foldLeft((1, i._2)) { (k, l) =>
-           (k._1 + 1, k._2 + ((i._1, k._1) -> l))
-         }._2
+        (
+          i._1 + 1,
+          j.foldLeft((1, i._2)) { (k, l) =>
+            (k._1 + 1, k._2 + ((i._1, k._1) -> l))
+          }._2
         )
       }
       ._2
     MatrixContainer(
-      values = valueMap,
-      rowTotalNumber = valueMap.keySet.map(_._1).max,
+      values            = valueMap,
+      rowTotalNumber    = valueMap.keySet.map(_._1).max,
       columnTotalNumber = valueMap.keySet.map(_._2).max
     )
   }

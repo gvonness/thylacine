@@ -30,8 +30,8 @@ import cats.syntax.all._
 import scala.annotation.unused
 
 case class CachedComputation[F[_]: STM: Async, T](
-    computation: ModelParameterCollection => T,
-    cacheDepth: Option[Int] = None
+  computation: ModelParameterCollection => T,
+  cacheDepth: Option[Int] = None
 )(scalarClock: TxnVar[F, Int], computationCache: TxnVarMap[F, Int, ComputationResult[T]])
     extends ComputationWrapper[F, T] {
 
@@ -45,7 +45,7 @@ case class CachedComputation[F[_]: STM: Async, T](
     } yield innerResult).commit
 
   private def retrieveKeyFromComputationStore(
-      key: Int
+    key: Int
   ): F[Option[T]] =
     computationCache
       .get(key)
@@ -53,8 +53,8 @@ case class CachedComputation[F[_]: STM: Async, T](
       .commit
 
   private def updateAccessTimeForKeyInComputationStore(
-      key: Int,
-      time: Int
+    key: Int,
+    time: Int
   ): F[Unit] = {
     def updateAccessTime(input: ComputationResult[T]): ComputationResult[T] =
       if (time > input.lastAccessed) {
@@ -72,8 +72,8 @@ case class CachedComputation[F[_]: STM: Async, T](
   }
 
   private def upsertResultIntoComputationStore(
-      key: Int,
-      newResult: ComputationResult[T]
+    key: Int,
+    newResult: ComputationResult[T]
   ): F[Unit] = {
     def updateResult(input: ComputationResult[T]): ComputationResult[T] =
       if (newResult.lastAccessed > input.lastAccessed) {
@@ -91,19 +91,23 @@ case class CachedComputation[F[_]: STM: Async, T](
   }
 
   private val cleanComputationStore: F[Unit] =
-    computationCache.modify { ec =>
-      if (ec.size > cacheDepth.getOrElse(0)) {
-        ec.toSeq
-          .sortBy(_._2.lastAccessed)
-          .takeRight(cacheDepth.getOrElse(0))
-          .toMap
-      } else {
-        ec
+    computationCache
+      .modify { ec =>
+        if (ec.size > cacheDepth.getOrElse(0)) {
+          ec.toSeq
+            .sortBy(_._2.lastAccessed)
+            .takeRight(cacheDepth.getOrElse(0))
+            .toMap
+        } else {
+          ec
+        }
       }
-    }.commit.start.void
+      .commit
+      .start
+      .void
 
   private def retrieveComputationFromStoreFor(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[Option[T]] =
     for {
       time <- tickAndGet
@@ -129,7 +133,7 @@ case class CachedComputation[F[_]: STM: Async, T](
     } yield ()
 
   private[thylacine] override def performComputation(
-      input: ModelParameterCollection
+    input: ModelParameterCollection
   ): F[T] =
     if (cacheDepth.exists(_ > 0)) {
       for {
@@ -152,17 +156,17 @@ object CachedComputation {
 
   @unused
   def of[F[_]: STM: Async, T](
-      computation: ModelParameterCollection => T,
-      cacheDepth: Option[Int] = None
+    computation: ModelParameterCollection => T,
+    cacheDepth: Option[Int] = None
   ): F[CachedComputation[F, T]] =
     for {
       scalarClock      <- TxnVar.of(0)
       computationCache <- TxnVarMap.of(Map[Int, ComputationResult[T]]())
     } yield CachedComputation(
       computation = computation,
-      cacheDepth = cacheDepth
+      cacheDepth  = cacheDepth
     )(
-      scalarClock = scalarClock,
+      scalarClock      = scalarClock,
       computationCache = computationCache
     )
 

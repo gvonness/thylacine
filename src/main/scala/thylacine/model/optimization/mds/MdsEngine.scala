@@ -120,7 +120,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     }
 
   private def getStartingPoint(
-      numberOfPriorSamples: Int
+    numberOfPriorSamples: Int
   ): F[ModelParameterCollection] =
     for {
       samples <- (1 to numberOfPriorSamples).toList.parTraverse(_ => samplePriors)
@@ -141,7 +141,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     }
 
   override protected def calculateMaximumLogPdf(
-      startPt: ModelParameterCollection
+    startPt: ModelParameterCollection
   ): F[(Double, ModelParameterCollection)] = {
     // Do a parallel traversal here, as there is probably
     // not going to be much else going on at this stage

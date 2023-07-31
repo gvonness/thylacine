@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.config
 
 case class CoordinateSlideConfig(
-    convergenceThreshold: Double,
-    goldenSectionTolerance: Double,
-    lineProbeExpansionFactor: Double,
-    numberOfPriorSamplesToSetScale: Option[Int]
+  convergenceThreshold: Double,
+  goldenSectionTolerance: Double,
+  lineProbeExpansionFactor: Double,
+  numberOfPriorSamplesToSetScale: Option[Int]
 )

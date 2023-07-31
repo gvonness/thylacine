@@ -17,7 +17,8 @@
 package ai.entrolution
 package thylacine.model.core.telemetry
 
-case class OptimisationTelemetryUpdate(maxLogPdf: Double, currentScale: Double, prefix: String) extends TelemetryReport {
+case class OptimisationTelemetryUpdate(maxLogPdf: Double, currentScale: Double, prefix: String)
+    extends TelemetryReport {
 
   override lazy val logMessage =
     s"$prefix optimisation :: Max ln(pdf) - $maxLogPdf // Current scale - $currentScale"

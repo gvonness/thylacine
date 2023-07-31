@@ -18,6 +18,6 @@ package ai.entrolution
 package thylacine.config
 
 case class HookeAndJeevesConfig(
-    convergenceThreshold: Double,
-    numberOfPriorSamplesToSetScale: Option[Int]
+  convergenceThreshold: Double,
+  numberOfPriorSamplesToSetScale: Option[Int]
 )

@@ -17,12 +17,12 @@
 package ai.entrolution
 package thylacine.model.core
 
-import thylacine.model.core.values.{MatrixContainer, VectorContainer}
+import thylacine.model.core.values.{ MatrixContainer, VectorContainer }
 
 private[thylacine] case class RecordedData(
-    data: VectorContainer,
-    covariance: MatrixContainer,
-    validated: Boolean = false
+  data: VectorContainer,
+  covariance: MatrixContainer,
+  validated: Boolean = false
 ) extends CanValidate[RecordedData] {
   if (!validated) {
     assert(covariance.rowTotalNumber == covariance.columnTotalNumber)
@@ -46,8 +46,8 @@ private[thylacine] case class RecordedData(
 private[thylacine] object RecordedData {
 
   private[thylacine] def apply(
-      values: VectorContainer,
-      symmetricConfidenceIntervals: VectorContainer
+    values: VectorContainer,
+    symmetricConfidenceIntervals: VectorContainer
   ): RecordedData = {
     val validatedValues: VectorContainer = values.getValidated
     val validatedConfidenceIntervals: VectorContainer =
@@ -59,10 +59,10 @@ private[thylacine] object RecordedData {
     RecordedData(
       data = validatedValues,
       covariance = MatrixContainer(
-        values = validatedConfidenceIntervals.values.map(i => (i._1, i._1) -> Math.pow(i._2 / 2, 2)),
-        rowTotalNumber = values.dimension,
+        values            = validatedConfidenceIntervals.values.map(i => (i._1, i._1) -> Math.pow(i._2 / 2, 2)),
+        rowTotalNumber    = values.dimension,
         columnTotalNumber = values.dimension,
-        validated = true
+        validated         = true
       ),
       validated = true
     )

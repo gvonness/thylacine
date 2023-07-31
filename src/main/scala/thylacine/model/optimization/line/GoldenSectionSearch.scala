@@ -20,10 +20,10 @@ package thylacine.model.optimization.line
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.values.modelparameters.{ModelParameterContext, ModelParameterPdf}
 import thylacine.model.optimization.line.GoldenSectionSearch.{inversePhi, inversePhiSquared}
+import thylacine.util.ScalaVectorOps.Implicits._
 
 import cats.effect.kernel.Async
 import cats.syntax.all._
-import ai.entrolution.thylacine.util.ScalaVectorOps.Implicits._
 
 import scala.util.Random
 
@@ -33,9 +33,9 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
   protected def goldenSectionTolerance: Double
 
   private[thylacine] override final def searchColinearTriple(
-      startPointEvaluation: (Double, Vector[Double]),
-      midPointEvaluation: (Double, Vector[Double]),
-      endPointEvaluation: (Double, Vector[Double])
+    startPointEvaluation: (Double, Vector[Double]),
+    midPointEvaluation: (Double, Vector[Double]),
+    endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {
     val bestNew: (Double, Vector[Double]) = if (startPointEvaluation._1 == endPointEvaluation._1) {
       Random.shuffle(List(startPointEvaluation, endPointEvaluation)).maxBy(_._1)
@@ -51,10 +51,10 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
   }
 
   private def exploreLine(
-      startPointEvaluation: (Double, Vector[Double]),
-      direction: Vector[Double],
-      probeDifferential: Double,
-      directionNormalised: Boolean = false
+    startPointEvaluation: (Double, Vector[Double]),
+    direction: Vector[Double],
+    probeDifferential: Double,
+    directionNormalised: Boolean = false
   ): F[(Double, Vector[Double])] = {
     val normalisedDirection =
       if (directionNormalised) {
@@ -72,29 +72,30 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
     } yield (forwardPointResult, reversePointResult)).flatMap {
       case (forwardPointResult, reversePointResult)
           if forwardPointResult == reversePointResult && startPointEvaluation._1 == forwardPointResult =>
-        exploreLine(startPointEvaluation,
-                    normalisedDirection,
-                    probeDifferential * lineProbeExpansionFactor,
-                    directionNormalised = true
+        exploreLine(
+          startPointEvaluation,
+          normalisedDirection,
+          probeDifferential * lineProbeExpansionFactor,
+          directionNormalised = true
         )
       case (forwardPointResult, reversePointResult) =>
         searchColinearTriple(
           startPointEvaluation = (reversePointResult, reversePoint),
-          midPointEvaluation = startPointEvaluation,
-          endPointEvaluation = (forwardPointResult, forwardPoint)
+          midPointEvaluation   = startPointEvaluation,
+          endPointEvaluation   = (forwardPointResult, forwardPoint)
         )
     }
   }
 
   private[thylacine] override final def searchDirectionAlong(
-      startPointEvaluation: (Double, Vector[Double]),
-      direction: Vector[Double]
+    startPointEvaluation: (Double, Vector[Double]),
+    direction: Vector[Double]
   ): F[(Double, Vector[Double])] =
     exploreLine(startPointEvaluation, direction, goldenSectionTolerance / 10.0)
 
   private[thylacine] override final def searchAlongLineJoining(
-      startPointEvaluation: (Double, Vector[Double]),
-      endPointEvaluation: (Double, Vector[Double])
+    startPointEvaluation: (Double, Vector[Double]),
+    endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {
     val startEvaluation: LineEvaluationResult = LineEvaluationResult(
       startPointEvaluation._1,
@@ -115,8 +116,8 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
   }
 
   private[thylacine] override final def searchLineBetween(
-      startPointEvaluation: (Double, Vector[Double]),
-      endPointEvaluation: (Double, Vector[Double])
+    startPointEvaluation: (Double, Vector[Double]),
+    endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {
     val startEvaluation: LineEvaluationResult = LineEvaluationResult(
       startPointEvaluation._1,
@@ -136,11 +137,11 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
   }
 
   private def goldenSectionSearch(
-      firstPoint: LineEvaluationResult,
-      secondPoint: LineEvaluationResult,
-      inputH: Option[Vector[Double]] = None,
-      inputCEvaluation: Option[LineEvaluationResult] = None,
-      inputDEvaluation: Option[LineEvaluationResult] = None
+    firstPoint: LineEvaluationResult,
+    secondPoint: LineEvaluationResult,
+    inputH: Option[Vector[Double]]                 = None,
+    inputCEvaluation: Option[LineEvaluationResult] = None,
+    inputDEvaluation: Option[LineEvaluationResult] = None
   ): F[LineEvaluationResult] = {
 
     val vectorDifference: Vector[Double] = inputH.getOrElse {
@@ -170,9 +171,10 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
         val modelParameters = vectorValuesToModelParameterCollection(newFirstPointVectorArgument)
 
         logPdfAt(modelParameters).map { evaluationResult =>
-          LineEvaluationResult(result = evaluationResult,
-                               vectorArgument = newFirstPointVectorArgument,
-                               modelParameterArgument = modelParameters
+          LineEvaluationResult(
+            result                 = evaluationResult,
+            vectorArgument         = newFirstPointVectorArgument,
+            modelParameterArgument = modelParameters
           )
         }
       }
@@ -181,9 +183,10 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
         val modelParameters = vectorValuesToModelParameterCollection(newSecondPointVectorArgument)
 
         logPdfAt(modelParameters).map { evaluationResult =>
-          LineEvaluationResult(result = evaluationResult,
-                               vectorArgument = newSecondPointVectorArgument,
-                               modelParameterArgument = modelParameters
+          LineEvaluationResult(
+            result                 = evaluationResult,
+            vectorArgument         = newSecondPointVectorArgument,
+            modelParameterArgument = modelParameters
           )
         }
       }
@@ -194,17 +197,17 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
       } yield (newCEvaluation, newDEvaluation)).flatMap {
         case (newCEvaluation, newDEvaluation) if newCEvaluation.result > newDEvaluation.result =>
           goldenSectionSearch(
-            firstPoint = firstPoint,
-            secondPoint = newDEvaluation,
-            inputH = Some(newH),
+            firstPoint       = firstPoint,
+            secondPoint      = newDEvaluation,
+            inputH           = Some(newH),
             inputCEvaluation = None,
             inputDEvaluation = Some(newCEvaluation)
           )
         case (newCEvaluation, newDEvaluation) =>
           goldenSectionSearch(
-            firstPoint = newCEvaluation,
-            secondPoint = secondPoint,
-            inputH = Some(newH),
+            firstPoint       = newCEvaluation,
+            secondPoint      = secondPoint,
+            inputH           = Some(newH),
             inputCEvaluation = Some(newDEvaluation),
             inputDEvaluation = None
           )

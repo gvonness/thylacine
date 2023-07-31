@@ -25,8 +25,8 @@ class GaussianPriorSpec extends AnyFlatSpec with should.Matchers {
   "GaussianPrior" should "generate the correct mean and covariance for a 1D distribution" in {
     val fooPrior: GaussianPrior[IO] =
       GaussianPrior.fromConfidenceIntervals[IO](
-        label = "foo",
-        values = Vector(2),
+        label               = "foo",
+        values              = Vector(2),
         confidenceIntervals = Vector(3)
       )
 
@@ -37,8 +37,8 @@ class GaussianPriorSpec extends AnyFlatSpec with should.Matchers {
   it should "generate the correct mean and covariance for a multi-variate distribution" in {
     val fooPrior: GaussianPrior[IO] =
       GaussianPrior.fromConfidenceIntervals[IO](
-        label = "foo",
-        values = Vector(2, 3, 4),
+        label               = "foo",
+        values              = Vector(2, 3, 4),
         confidenceIntervals = Vector(4, 3, 2)
       )
 
@@ -49,8 +49,8 @@ class GaussianPriorSpec extends AnyFlatSpec with should.Matchers {
   it should "generate the correct gradient of the logPdf" in {
     val fooPrior: GaussianPrior[IO] =
       GaussianPrior.fromConfidenceIntervals[IO](
-        label = "foo",
-        values = Vector(2, 3, 4),
+        label               = "foo",
+        values              = Vector(2, 3, 4),
         confidenceIntervals = Vector(4, 3, 2)
       )
 

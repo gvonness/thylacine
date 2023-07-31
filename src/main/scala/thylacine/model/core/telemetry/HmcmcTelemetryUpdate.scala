@@ -18,9 +18,9 @@ package ai.entrolution
 package thylacine.model.core.telemetry
 
 case class HmcmcTelemetryUpdate(
-    samplesRemaining: Int,
-    jumpAttempts: Int,
-    jumpAcceptances: Int
+  samplesRemaining: Int,
+  jumpAttempts: Int,
+  jumpAcceptances: Int
 ) extends TelemetryReport {
 
   override lazy val logMessage: String =

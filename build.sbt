@@ -1,9 +1,9 @@
-ThisBuild / baseVersion := "0.5.0-SNAPSHOT"
+ThisBuild / baseVersion := "0.6.0"
 
-ThisBuild / organization := "ai.entrolution"
-ThisBuild / organizationName := "Greg von Nessi"
+ThisBuild / organization      := "ai.entrolution"
+ThisBuild / organizationName  := "Greg von Nessi"
 ThisBuild / publishGithubUser := "gvonness"
-ThisBuild / publishFullName := "Greg von Nessi"
+ThisBuild / publishFullName   := "Greg von Nessi"
 
 ThisBuild / homepage := Some(url("https://github.com/gvonness/thylacine"))
 ThisBuild / scmInfo := Some(
@@ -11,15 +11,15 @@ ThisBuild / scmInfo := Some(
 )
 
 ThisBuild / startYear := Some(2020)
-ThisBuild / endYear := Some(2022)
+ThisBuild / endYear   := Some(2022)
 
 ThisBuild / spiewakCiReleaseSnapshots := false
-ThisBuild / spiewakMainBranches := Seq("main")
+ThisBuild / spiewakMainBranches       := Seq("main")
 
 ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
-ThisBuild / sonatypeRepository := "https://s01.oss.sonatype.org/service/local"
+ThisBuild / sonatypeRepository     := "https://s01.oss.sonatype.org/service/local"
 
-scalaVersion := DependencyVersions.scala2p13Version
+scalaVersion                   := DependencyVersions.scala2p13Version
 ThisBuild / crossScalaVersions := Seq(DependencyVersions.scala2p13Version)
 
 Global / idePackagePrefix := Some("ai.entrolution")
