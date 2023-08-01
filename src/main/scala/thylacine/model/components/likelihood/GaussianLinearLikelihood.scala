@@ -64,13 +64,13 @@ object GaussianLinearLikelihood {
     coefficients: Vector[Vector[Double]],
     measurements: Vector[Double],
     uncertainties: Vector[Double],
-    prior: Prior[F, _],
+    priorLabel: String,
     evalCacheDepth: Option[Int]
   ): F[GaussianLinearLikelihood[F]] =
     for {
       linearForwardModel <- LinearForwardModel
                               .of[F](
-                                identifier     = prior.identifier,
+                                identifier     = ModelParameterIdentifier(priorLabel),
                                 values         = coefficients,
                                 evalCacheDepth = evalCacheDepth
                               )
