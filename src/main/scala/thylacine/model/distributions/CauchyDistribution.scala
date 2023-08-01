@@ -48,11 +48,9 @@ private[thylacine] case class CauchyDistribution(
       CauchyDistribution(mean.getValidated, covariance.getValidated, validated = true)
     }
 
-  private lazy val multiplier = gamma((1 + domainDimension) / 2.0) / (gamma(
-    0.5
-  ) * math.pow(FastMath.PI, domainDimension / 2.0) * math.sqrt(
-    det(rawInverseCovariance)
-  ))
+  private lazy val logMultiplier = Math.log(gamma((1 + domainDimension) / 2.0)) - Math.log(
+    gamma(0.5)
+  ) - domainDimension / 2.0 * Math.log(FastMath.PI) - Math.log(det(covariance.rawMatrix)) / 2.0
 
   override val domainDimension: Int = mean.dimension
 
@@ -64,9 +62,8 @@ private[thylacine] case class CauchyDistribution(
   ): Double = {
     val differentialFromMean = input.rawVector - mean.rawVector
 
-    multiplier * Math.pow(
-      1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean,
-      (1.0 + domainDimension) / 2.0
+    logMultiplier - (1.0 + domainDimension) / 2.0 * Math.log(
+      1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean
     )
   }
 
@@ -75,7 +72,7 @@ private[thylacine] case class CauchyDistribution(
   ): VectorContainer = {
     val differentialFromMean = input.rawVector - mean.rawVector
     val multiplierResult =
-      -(1 + domainDimension) * (1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean)
+      (1 + domainDimension) / (1 + differentialFromMean.t * rawInverseCovariance * differentialFromMean)
     val vectorResult = rawInverseCovariance * differentialFromMean
 
     VectorContainer(multiplierResult * vectorResult)
