@@ -26,7 +26,7 @@ case class HmcmcTelemetryUpdate(
 
   override lazy val logMessage: String = {
     val baseString =
-      s"HMCMC Sampling :: Samples remaining - $samplesRemaining // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
+      s"HMCMC Sampling :: Samples remaining - $samplesRemaining"
     val acceptanceString =
       if (jumpAttempts != 0) {
         s" // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
