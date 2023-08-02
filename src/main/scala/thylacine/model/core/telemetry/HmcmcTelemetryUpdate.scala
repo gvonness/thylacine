@@ -20,9 +20,22 @@ package thylacine.model.core.telemetry
 case class HmcmcTelemetryUpdate(
   samplesRemaining: Int,
   jumpAttempts: Int,
-  jumpAcceptances: Int
+  jumpAcceptances: Int,
+  hamiltonianDifferential: Option[Double]
 ) extends TelemetryReport {
 
-  override lazy val logMessage: String =
-    s"HMCMC Sampling :: Samples remaining - $samplesRemaining // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
+  override lazy val logMessage: String = {
+    val baseString =
+      s"HMCMC Sampling :: Samples remaining - $samplesRemaining // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
+    val acceptanceString =
+      if (jumpAttempts != 0) {
+        s" // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
+      } else {
+        ""
+      }
+    val hamiltonianDifferentialString =
+      hamiltonianDifferential.map(v => s" // exp(-dH) = ${Math.exp(-v)}").getOrElse("")
+
+    baseString + acceptanceString + hamiltonianDifferentialString
+  }
 }
