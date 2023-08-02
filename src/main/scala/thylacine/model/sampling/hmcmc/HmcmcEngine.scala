@@ -51,8 +51,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   protected def warmUpSimulationCount: Int
 
   protected def startingPoint: F[ModelParameterCollection]
-  protected def hamiltonianDifferentialUpdateCallback: Double => F[Unit]
-  protected def sampleProcessedCallback: HmcmcTelemetryUpdate => F[Unit]
+  protected def telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -148,7 +147,16 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         _ <- if (burnIn) {
                Async[F].unit
              } else {
-               hamiltonianDifferentialUpdateCallback(dH)
+               (for {
+                 remainingSamples <- numberOfSamplesRemaining.get
+                 jumps            <- jumpAcceptances.get
+                 attempts         <- jumpAttempts.get
+               } yield HmcmcTelemetryUpdate(
+                 samplesRemaining        = remainingSamples,
+                 jumpAttempts            = attempts,
+                 jumpAcceptances         = jumps,
+                 hamiltonianDifferential = Option(dH)
+               )).commit.flatMap(telemetryUpdateCallback)
              }
         result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
                     for {
@@ -242,8 +250,9 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                             jumps    <- jumpAcceptances.get
                             attempts <- jumpAttempts.get
                           } yield (jumps, attempts)).commit
-      telemetryResult <- Async[F].delay(HmcmcTelemetryUpdate(numberOfSamples, jumpsAndAttempts._2, jumpsAndAttempts._1))
-      _               <- sampleProcessedCallback(telemetryResult)
+      telemetryResult <-
+        Async[F].delay(HmcmcTelemetryUpdate(numberOfSamples, jumpsAndAttempts._2, jumpsAndAttempts._1, None))
+      _ <- telemetryUpdateCallback(telemetryResult)
     } yield ()
 
   private val getHmcmcSample: F[ModelParameterCollection] =
