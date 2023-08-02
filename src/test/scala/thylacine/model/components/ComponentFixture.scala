@@ -28,16 +28,19 @@ import cats.effect.IO
 
 object ComponentFixture {
 
+  val fooPriorLabel: String        = "foo"
+  val fooUniformPriorLabel: String = "fooniform"
+
   val fooPrior: GaussianPrior[IO] =
     GaussianPrior.fromConfidenceIntervals[IO](
-      label               = "foo",
+      label               = fooPriorLabel,
       values              = Vector(1, 2),
       confidenceIntervals = Vector(3, 5)
     )
 
   val fooUniformPrior: UniformPrior[IO] =
     UniformPrior.fromBounds[IO](
-      label     = "fooniform",
+      label     = fooUniformPriorLabel,
       maxBounds = Vector(5, 5),
       minBounds = Vector(-5, -5)
     )
@@ -46,7 +49,7 @@ object ComponentFixture {
     coefficients   = Vector(Vector(1, 3), Vector(2, 4)),
     measurements   = Vector(7, 10),
     uncertainties  = Vector(0.01, 0.01),
-    prior          = fooPrior,
+    priorLabel     = fooPriorLabel,
     evalCacheDepth = None
   )
 
@@ -59,7 +62,7 @@ object ComponentFixture {
     NonLinearForwardModel.of[IO](
       evaluation         = linearMapping,
       differential       = .0001,
-      domainDimensions   = Map("foo" -> 2),
+      domainDimensions   = Map(fooPriorLabel -> 2),
       rangeDimension     = 2,
       evalCacheDepth     = None,
       jacobianCacheDepth = None
@@ -78,20 +81,23 @@ object ComponentFixture {
     coefficients   = Vector(Vector(1, 3), Vector(2, 4)),
     measurements   = Vector(7, 10),
     uncertainties  = Vector(0.01, 0.01),
-    prior          = fooUniformPrior,
+    priorLabel     = fooUniformPriorLabel,
     evalCacheDepth = None
   )
 
+  val barPriorLabel: String        = "bar"
+  val barUniformPriorLabel: String = "barniform"
+
   val barPrior: GaussianPrior[IO] =
     GaussianPrior.fromConfidenceIntervals[IO](
-      label               = "bar",
+      label               = barPriorLabel,
       values              = Vector(5),
       confidenceIntervals = Vector(.1)
     )
 
   val barUniformPrior: UniformPrior[IO] =
     UniformPrior.fromBounds[IO](
-      label     = "barniform",
+      label     = barUniformPriorLabel,
       maxBounds = Vector(10),
       minBounds = Vector(-10)
     )
@@ -100,7 +106,7 @@ object ComponentFixture {
     coefficients   = Vector(Vector(3), Vector(4)),
     measurements   = Vector(15, 20),
     uncertainties  = Vector(0.00001, 0.00001),
-    prior          = barPrior,
+    priorLabel     = barPriorLabel,
     evalCacheDepth = None
   )
 
@@ -108,7 +114,7 @@ object ComponentFixture {
     coefficients   = Vector(Vector(3), Vector(4)),
     measurements   = Vector(15, 20),
     uncertainties  = Vector(0.00001, 0.00001),
-    prior          = barUniformPrior,
+    priorLabel     = barUniformPriorLabel,
     evalCacheDepth = None
   )
 

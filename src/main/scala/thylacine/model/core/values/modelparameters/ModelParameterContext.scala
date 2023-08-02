@@ -19,7 +19,7 @@ package thylacine.model.core.values.modelparameters
 
 import thylacine.model.core.GenericIdentifier.ModelParameterIdentifier
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 
 import breeze.linalg.DenseVector
 
