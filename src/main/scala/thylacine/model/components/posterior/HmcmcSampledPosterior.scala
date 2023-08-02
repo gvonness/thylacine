@@ -80,7 +80,6 @@ object HmcmcSampledPosterior {
   def of[F[_]: STM: Async](
     hmcmcConfig: HmcmcConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-    hamiltonianDifferentialUpdateCallback: Double => F[Unit],
     telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit],
     seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
