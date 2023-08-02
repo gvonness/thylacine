@@ -19,7 +19,6 @@ package thylacine.model.components.likelihood
 
 import bengal.stm.STM
 import thylacine.model.components.forwardmodel._
-import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 import thylacine.model.core.values.VectorContainer
