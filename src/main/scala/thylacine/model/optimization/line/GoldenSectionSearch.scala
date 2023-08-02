@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.model.optimization.line
 
 import thylacine.model.core.AsyncImplicits
-import thylacine.model.core.values.modelparameters.{ModelParameterContext, ModelParameterPdf}
-import thylacine.model.optimization.line.GoldenSectionSearch.{inversePhi, inversePhiSquared}
+import thylacine.model.core.values.modelparameters.{ ModelParameterContext, ModelParameterPdf }
+import thylacine.model.optimization.line.GoldenSectionSearch.{ inversePhi, inversePhiSquared }
 import thylacine.util.ScalaVectorOps.Implicits._
 
 import cats.effect.kernel.Async

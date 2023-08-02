@@ -83,7 +83,7 @@ private[thylacine] case class MatrixContainer(
       columnTotalNumber = columnTotalNumber
     ).getValidated
 
-  // Diagonally combines two matrices with zero'd upper-right
+  // Diagonally combines two matrices with zeroed upper-right
   // and lower-left submatrices
   private[thylacine] def diagonalMergeWith(
     input: MatrixContainer

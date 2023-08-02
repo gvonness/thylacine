@@ -19,7 +19,6 @@ package thylacine.model.components.likelihood
 
 import bengal.stm.STM
 import thylacine.model.components.forwardmodel._
-import thylacine.model.components.prior._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 import thylacine.model.core.values.VectorContainer
@@ -64,13 +63,13 @@ object GaussianLinearLikelihood {
     coefficients: Vector[Vector[Double]],
     measurements: Vector[Double],
     uncertainties: Vector[Double],
-    prior: Prior[F, _],
+    priorLabel: String,
     evalCacheDepth: Option[Int]
   ): F[GaussianLinearLikelihood[F]] =
     for {
       linearForwardModel <- LinearForwardModel
                               .of[F](
-                                identifier     = prior.identifier,
+                                identifier     = ModelParameterIdentifier(priorLabel),
                                 values         = coefficients,
                                 evalCacheDepth = evalCacheDepth
                               )

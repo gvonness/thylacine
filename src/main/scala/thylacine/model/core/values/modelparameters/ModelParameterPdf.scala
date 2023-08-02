@@ -19,7 +19,7 @@ package thylacine.model.core.values.modelparameters
 
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values._
-import thylacine.model.core.{AsyncImplicits, GenericScalarValuedMapping}
+import thylacine.model.core.{ AsyncImplicits, GenericScalarValuedMapping }
 
 import cats.effect.Async
 import cats.effect.implicits._
