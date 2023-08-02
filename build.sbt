@@ -1,4 +1,4 @@
-ThisBuild / baseVersion := "0.6.0-SNAPSHOT"
+ThisBuild / baseVersion := "0.6.1"
 
 ThisBuild / organization      := "ai.entrolution"
 ThisBuild / organizationName  := "Greg von Nessi"
