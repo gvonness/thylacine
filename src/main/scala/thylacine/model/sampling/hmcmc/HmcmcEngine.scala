@@ -32,8 +32,6 @@ import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-import scala.collection.immutable.Queue
-
 /** Implementation of the Hamiltonian MCMC sampling algorithm
   */
 private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
@@ -44,12 +42,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * Configuration
    * - - -- --- ----- -------- -------------
    */
-  protected def sampleParallelism: Int
   protected def simulationsBetweenSamples: Int
   protected def stepsInSimulation: Int
   protected def simulationEpsilon: Double
   protected def warmUpSimulationCount: Int
-
   protected def startingPoint: F[ModelParameterCollection]
   protected def telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit]
 
@@ -58,10 +54,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * State variables
    * - - -- --- ----- -------- -------------
    */
-
-  protected val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]]
-
-  protected val workTokenPool: TxnVar[F, Int]
+  protected val currentResult: TxnVar[F, Option[ModelParameterCollection]]
 
   protected val numberOfSamplesRemaining: TxnVar[F, Int]
 
@@ -76,13 +69,6 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * HMCMC
    * - - -- --- ----- -------- -------------
    */
-
-  private val secureWorkRight: Txn[Unit] =
-    for {
-      numberOfTokens <- workTokenPool.get
-      _              <- STM[F].waitFor(numberOfTokens > 0)
-      _              <- workTokenPool.modify(_ - 1)
-    } yield ()
 
   private def runLeapfrogAt(
     input: ModelParameterCollection,
@@ -191,7 +177,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   ): F[ModelParameterCollection] =
     runDynamicSimulationFrom(position, simulationsBetweenSamples).flatMap {
       case result if result != position =>
-        currentMcmcPositions.modify(_.enqueue(result)).commit >> Async[F].pure(result)
+        Async[F].pure(result)
       case _ =>
         setAndAcquireNewSample(position)
     }
@@ -202,7 +188,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private lazy val burnIn: F[List[ModelParameterCollection]] =
+  private lazy val burnIn: F[ModelParameterCollection] =
     for {
       possibleStartingPoint <- startingPoint
       priorSample <-
@@ -211,9 +197,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         } else {
           Async[F].pure(possibleStartingPoint)
         }
-      results <- List.fill(sampleParallelism)(priorSample).parTraverse { startPt =>
-                   runDynamicSimulationFrom(startPt, warmUpSimulationCount, burnIn = true)
-                 }
+      results <- runDynamicSimulationFrom(priorSample, warmUpSimulationCount, burnIn = true)
     } yield results
 
   /*
@@ -228,8 +212,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       burninResult <- burnIn
       _            <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
       _ <- (for {
-             _ <- workTokenPool.set(sampleParallelism)
-             _ <- currentMcmcPositions.set(Queue.from(burninResult))
+             _ <- currentResult.set(Option(burninResult))
              _ <- burnInComplete.set(true)
              _ <- numberOfSamplesRemaining.set(0)
              _ <- jumpAttempts.set(0)
@@ -259,12 +242,12 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     for {
       _ <- sampleUpdateReport(1).start
       position <- (for {
-                    _      <- secureWorkRight
-                    result <- currentMcmcPositions.get.map(_.dequeue)
-                    _      <- currentMcmcPositions.set(result._2)
-                  } yield result._1).commit
+                    currentResultOption <- currentResult.get
+                    _                   <- STM[F].waitFor(currentResultOption.isDefined)
+                    _                   <- currentResult.set(None)
+                  } yield currentResultOption.get).commit
       newSample <- setAndAcquireNewSample(position)
-      _         <- workTokenPool.modify(_ + 1).commit
+      _         <- currentResult.set(Option(newSample)).commit
       _         <- sampleUpdateReport(-1).start
     } yield newSample
 

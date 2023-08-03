@@ -32,7 +32,6 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 import scala.annotation.unused
-import scala.collection.immutable.Queue
 
 case class HmcmcSampledPosterior[F[_]: STM: Async](
   private[thylacine] val hmcmcConfig: HmcmcConfig,
@@ -40,22 +39,14 @@ case class HmcmcSampledPosterior[F[_]: STM: Async](
   private[thylacine] val seed: Map[String, Vector[Double]],
   private[thylacine] override val priors: Set[Prior[F, _]],
   private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-  protected override val currentMcmcPositions: TxnVar[F, Queue[ModelParameterCollection]],
+  protected override val currentResult: TxnVar[F, Option[ModelParameterCollection]],
   protected override val burnInComplete: TxnVar[F, Boolean],
-  protected override val workTokenPool: TxnVar[F, Int],
   protected override val numberOfSamplesRemaining: TxnVar[F, Int],
   protected override val jumpAcceptances: TxnVar[F, Int],
   protected override val jumpAttempts: TxnVar[F, Int]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HmcmcEngine[F] {
-
-  override protected final val sampleParallelism: Int =
-    hmcmcConfig.sampleParallelism.getOrElse(
-      Math
-        .max(Math.ceil(Runtime.getRuntime.availableProcessors() / 2.0), 1)
-        .toInt
-    )
 
   override protected final val simulationsBetweenSamples: Int =
     hmcmcConfig.stepsBetweenSamples
@@ -84,10 +75,9 @@ object HmcmcSampledPosterior {
     seed: Map[String, Vector[Double]]
   ): F[HmcmcSampledPosterior[F]] =
     for {
-      currentMcmcPositions     <- TxnVar.of(Queue[ModelParameterCollection]())
+      currentResult            <- TxnVar.of(None.asInstanceOf[Option[ModelParameterCollection]])
       burnInComplete           <- TxnVar.of(false)
       numberOfSamplesRemaining <- TxnVar.of(0)
-      workTokenPool            <- TxnVar.of(0)
       jumpAcceptances          <- TxnVar.of(0)
       jumpAttempts             <- TxnVar.of(0)
       posterior <- Async[F].delay {
@@ -97,9 +87,8 @@ object HmcmcSampledPosterior {
                        seed                     = seed,
                        priors                   = posterior.priors,
                        likelihoods              = posterior.likelihoods,
-                       currentMcmcPositions     = currentMcmcPositions,
+                       currentResult            = currentResult,
                        burnInComplete           = burnInComplete,
-                       workTokenPool            = workTokenPool,
                        jumpAcceptances          = jumpAcceptances,
                        jumpAttempts             = jumpAttempts,
                        numberOfSamplesRemaining = numberOfSamplesRemaining
