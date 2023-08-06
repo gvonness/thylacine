@@ -19,7 +19,7 @@ package thylacine.model.optimization.hookeandjeeves
 
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.StmImplicits
+import thylacine.model.core.AsyncImplicits
 import thylacine.model.optimization.line.GoldenSectionSearch
 
 import cats.effect.kernel.Async
@@ -34,7 +34,7 @@ import scala.{ Vector => ScalaVector }
 // initial triad between the endpoints or explores in the direction
 // of greatest increase
 private[thylacine] trait CoordinateSlideEngine[F[_]] extends HookeAndJeevesEngine[F] with GoldenSectionSearch[F] {
-  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
   protected override val telemetryPrefix: String = "Coordinate Slide"
 

@@ -107,11 +107,13 @@ case class GaussianAnalyticPosterior[F[_]: Async](
   override protected def rawSampleModelParameters: F[VectorContainer] =
     Async[F].delay(VectorContainer(rawDistribution.sample()))
 
-  override protected def sampleModelParameters: F[ModelParameterCollection] =
+  private def sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(s => rawVectorToModelParameterCollection(s.rawVector))
+  protected override def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+    (1 to numberOfSamples).toList.traverse(_ => sampleModelParameters).map(_.toSet)
 
   def init: F[Unit] =
-    sample.void
+    sample(1).void
 }
 
 object GaussianAnalyticPosterior {

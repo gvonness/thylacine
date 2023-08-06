@@ -20,33 +20,31 @@ package thylacine.model.optimization.gradientdescent
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
-import thylacine.model.optimization.line.{ GoldenSectionSearch, LineEvaluationResult }
+import thylacine.model.optimization.line.{GoldenSectionSearch, LineEvaluationResult}
 import thylacine.util.ScalaVectorOps.Implicits._
 
 import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-import scala.collection.immutable.Queue
-
 trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with GoldenSectionSearch[F] {
   this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
+  protected val telemetryPrefix: String = "Conjugate Gradient"
+
   protected def convergenceThreshold: Double
 
-  protected def numberOfResultsToRetain: Int
-
-  protected def newMaximumCallback: Double => F[Unit]
+  protected def iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit]
 
   protected def isConvergedCallback: Unit => F[Unit]
 
   private def calculateNextLogPdf(
     startingEvaluation: LineEvaluationResult,
     previousGradient: Vector[Double],
-    previousSearchDirection: Vector[Double],
-    previousResults: Queue[Double]
+    previousSearchDirection: Vector[Double]
   ): F[(Double, ModelParameterCollection)] =
     (for {
       gradientLogPdf                   <- logPdfGradientAt(startingEvaluation.modelParameterArgument)
@@ -77,36 +75,27 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
                                 )
                               }
     } yield (lineSearchEvaluation, gradientLogPdfVector, newDirection)).flatMap {
-      case (lineSearchEvaluation, gradientLogPdfVector, newDirection)
-          if previousResults.size < numberOfResultsToRetain =>
-        (if (previousResults.isEmpty || lineSearchEvaluation.result > previousResults.dequeue._1) {
-           newMaximumCallback(lineSearchEvaluation.result)
-         } else {
-           Async[F].unit
-         }) >> calculateNextLogPdf(
-          lineSearchEvaluation,
-          gradientLogPdfVector,
-          newDirection,
-          previousResults.enqueue(lineSearchEvaluation.result)
-        )
-      case (lineSearchEvaluation, gradientLogPdfVector, newDirection)
-          if Math.abs(
-            previousResults.dequeue._1 - lineSearchEvaluation.result
-          ) > convergenceThreshold =>
-        (if (lineSearchEvaluation.result > previousResults.dequeue._1) {
-           newMaximumCallback(lineSearchEvaluation.result)
-         } else {
-           Async[F].unit
-         }) >> calculateNextLogPdf(
-          lineSearchEvaluation,
-          gradientLogPdfVector,
-          newDirection,
-          previousResults.enqueue(lineSearchEvaluation.result).dequeue._2
-        )
-      case (lineSearchEvaluation, _, _) =>
-        isConvergedCallback(()).start >> Async[F].pure {
-          (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
-        }
+      case (lineSearchEvaluation, gradientLogPdfVector, newDirection) =>
+        for {
+          newDiff <- Async[F].delay(lineSearchEvaluation.result - startingEvaluation.result)
+          _ <- iterationUpdateCallback(
+                 OptimisationTelemetryUpdate(
+                   maxLogPdf    = lineSearchEvaluation.result,
+                   currentScale = newDiff,
+                   prefix       = telemetryPrefix
+                 )
+               ).start
+          result <- Async[F].ifM(Async[F].delay(newDiff > convergenceThreshold))(
+                      calculateNextLogPdf(
+                        lineSearchEvaluation,
+                        gradientLogPdfVector,
+                        newDirection
+                      ),
+                      isConvergedCallback(()).start >> Async[F].pure {
+                        (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
+                      }
+                    )
+        } yield result
     }
 
   protected def calculateMaximumLogPdf(
@@ -119,8 +108,7 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
       result <- calculateNextLogPdf(
                   LineEvaluationResult(logPdf, startingPointVector, startingPt),
                   gradientLogPdfVector,
-                  gradientLogPdfVector,
-                  Queue[Double]()
+                  gradientLogPdfVector
                 )
     } yield result
 

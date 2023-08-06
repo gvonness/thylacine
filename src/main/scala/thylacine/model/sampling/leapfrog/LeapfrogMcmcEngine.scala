@@ -290,10 +290,10 @@ private[thylacine] trait LeapfrogMcmcEngine[F[_]] extends ModelParameterSampler[
       result <- deferred.get
     } yield result
 
-  protected override val sampleModelParameters: F[ModelParameterCollection] =
-    getLeapfrogMcmcSample
+  protected override def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+    (1 to numberOfSamples).toList.traverse(_ => getLeapfrogMcmcSample).map(_.toSet)
 
   protected override val rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters.map(s => VectorContainer(modelParameterCollectionToRawVector(s)))
+    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 
 }

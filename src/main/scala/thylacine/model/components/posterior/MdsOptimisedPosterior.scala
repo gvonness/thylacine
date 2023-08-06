@@ -17,30 +17,24 @@
 package ai.entrolution
 package thylacine.model.components.posterior
 
-import bengal.stm.STM
-import bengal.stm.model.TxnVar
 import thylacine.config.MdsConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.StmImplicits
+import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
-import thylacine.model.optimization.mds.{ MdsEngine, ModelParameterSimplex }
+import thylacine.model.optimization.mds.MdsEngine
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
 
 import scala.annotation.unused
 
-case class MdsOptimisedPosterior[F[_]: STM: Async](
+case class MdsOptimisedPosterior[F[_]: Async](
   private[thylacine] val mdsConfig: MdsConfig,
   protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
   protected override val isConvergedCallback: Unit => F[Unit],
   private[thylacine] override val priors: Set[Prior[F, _]],
-  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-  protected override val currentBest: TxnVar[F, (Int, Double)],
-  protected override val currentSimplex: TxnVar[F, ModelParameterSimplex],
-  protected override val isConverged: TxnVar[F, Boolean]
-) extends StmImplicits[F]
+  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
+) extends AsyncImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with MdsEngine[F] {
 
@@ -60,27 +54,17 @@ case class MdsOptimisedPosterior[F[_]: STM: Async](
 object MdsOptimisedPosterior {
 
   @unused
-  def of[F[_]: STM: Async](
+  def from[F[_]: Async](
     mdsConfig: MdsConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
     isConvergedCallback: Unit => F[Unit]
-  ): F[MdsOptimisedPosterior[F]] =
-    for {
-      currentBest <- TxnVar.of((0, Double.NegativeInfinity))
-      currentSimplex <-
-        TxnVar.of(
-          ModelParameterSimplex.unitRegularCenteredOnZero(posterior)
-        )
-      isConverged <- TxnVar.of(false)
-    } yield MdsOptimisedPosterior(
+  ): MdsOptimisedPosterior[F] =
+    MdsOptimisedPosterior(
       mdsConfig               = mdsConfig,
       iterationUpdateCallback = iterationUpdateCallback,
       isConvergedCallback     = isConvergedCallback,
       priors                  = posterior.priors,
-      likelihoods             = posterior.likelihoods,
-      currentBest             = currentBest,
-      currentSimplex          = currentSimplex,
-      isConverged             = isConverged
+      likelihoods             = posterior.likelihoods
     )
 }

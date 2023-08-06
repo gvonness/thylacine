@@ -17,12 +17,9 @@
 package ai.entrolution
 package thylacine.model.sampling.hmcmc
 
-import bengal.stm._
-import bengal.stm.model._
-import bengal.stm.syntax.all._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.StmImplicits
+import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
@@ -35,7 +32,7 @@ import cats.syntax.all._
 /** Implementation of the Hamiltonian MCMC sampling algorithm
   */
 private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
-  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
   /*
    * - - -- --- ----- -------- -------------
@@ -48,21 +45,6 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
   protected def warmUpSimulationCount: Int
   protected def startingPoint: F[ModelParameterCollection]
   protected def telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit]
-
-  /*
-   * - - -- --- ----- -------- -------------
-   * State variables
-   * - - -- --- ----- -------- -------------
-   */
-  protected val currentResult: TxnVar[F, Option[ModelParameterCollection]]
-
-  protected val numberOfSamplesRemaining: TxnVar[F, Int]
-
-  protected val burnInComplete: TxnVar[F, Boolean]
-
-  protected val jumpAcceptances: TxnVar[F, Int]
-
-  protected val jumpAttempts: TxnVar[F, Int]
 
   /*
    * - - -- --- ----- -------- -------------
@@ -106,81 +88,88 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     logPdfOpt: Option[Double]                       = None,
     gradLogPdfOpt: Option[ModelParameterCollection] = None,
     burnIn: Boolean                                 = false,
-    iterationCount: Int                             = 1
-  ): F[ModelParameterCollection] =
-    if (iterationCount <= maxIterations) {
-      (for {
-        _ <- if (burnIn) {
-               Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount"))
-             } else {
-               Async[F].unit
-             }
-        negLogPdf <- logPdfOpt match {
-                       case Some(res) => Async[F].pure(res)
-                       case _ => logPdfAt(input).map(_ * -1)
-                     }
-        gradNegLogPdf <- gradLogPdfOpt match {
-                           case Some(res) => Async[F].pure(res)
-                           case _ => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
-                         }
-        p           <- Async[F].delay(VectorContainer.random(domainDimension))
-        hamiltonian <- Async[F].delay(getHamiltonianValue(p, negLogPdf))
-        xAndPNew    <- runLeapfrogAt(input, p, gradNegLogPdf)
-        (xNew, pNew) = xAndPNew
-        eNew <- logPdfAt(xNew).map(_ * -1)
-        hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
-        dH   <- Async[F].delay(hNew - hamiltonian)
-        _ <- if (burnIn) {
-               Async[F].unit
-             } else {
-               (for {
-                 remainingSamples <- numberOfSamplesRemaining.get
-                 jumps            <- jumpAcceptances.get
-                 attempts         <- jumpAttempts.get
-               } yield HmcmcTelemetryUpdate(
-                 samplesRemaining        = remainingSamples,
-                 jumpAttempts            = attempts,
-                 jumpAcceptances         = jumps,
+    iterationCount: Int,
+    numberOfRequestedSamples: Int,
+    jumpAcceptances: Int                   = 0,
+    jumpAttempts: Int                      = 0,
+    samples: Set[ModelParameterCollection] = Set()
+  ): F[Set[ModelParameterCollection]] = {
+    val simulationSpec: F[Set[ModelParameterCollection]] = (for {
+      _ <- Async[F].ifM(Async[F].pure(burnIn))(
+             Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount")),
+             Async[F].unit
+           )
+      negLogPdf <- logPdfOpt match {
+                     case Some(res) => Async[F].pure(res)
+                     case _ => logPdfAt(input).map(_ * -1)
+                   }
+      gradNegLogPdf <- gradLogPdfOpt match {
+                         case Some(res) => Async[F].pure(res)
+                         case _ => logPdfGradientAt(input).map(_.rawScalarMultiplyWith(-1))
+                       }
+      p           <- Async[F].delay(VectorContainer.random(domainDimension))
+      hamiltonian <- Async[F].delay(getHamiltonianValue(p, negLogPdf))
+      xAndPNew    <- runLeapfrogAt(input, p, gradNegLogPdf)
+      (xNew, pNew) = xAndPNew
+      eNew <- logPdfAt(xNew).map(_ * -1)
+      hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
+      dH   <- Async[F].delay(hNew - hamiltonian)
+      _ <- Async[F].ifM(Async[F].pure(burnIn || jumpAttempts <= 0))(
+             Async[F].unit,
+             telemetryUpdateCallback(
+               HmcmcTelemetryUpdate(
+                 samplesRemaining        = numberOfRequestedSamples - samples.size,
+                 jumpAttempts            = jumpAttempts,
+                 jumpAcceptances         = jumpAcceptances,
                  hamiltonianDifferential = Option(dH)
-               )).commit.flatMap(telemetryUpdateCallback)
-             }
-        result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
-                    for {
-                      _ <- Async[F].ifM(Async[F].pure(burnIn))(
-                             Async[F].unit,
-                             (jumpAcceptances.modify(_ + 1) >> jumpAttempts.modify(_ + 1)).commit
-                           )
-                      newGradNegLogPdf <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
-                    } yield (xNew, eNew, newGradNegLogPdf),
-                    for {
-                      _ <- Async[F].ifM(Async[F].pure(burnIn))(
-                             Async[F].unit,
-                             jumpAttempts.modify(_ + 1).commit
-                           )
-                    } yield (input, negLogPdf, gradNegLogPdf)
-                  )
-      } yield result).flatMap { case (xNew, eNew, gNew) =>
-        runDynamicSimulationFrom(xNew, maxIterations, Some(eNew), Some(gNew), burnIn, iterationCount + 1)
+               )
+             ).start.void
+           )
+      result <- Async[F].ifM(Async[F].delay(dH < 0 || Math.random() < Math.exp(-dH)))(
+                  for {
+                    newGradNegLogPdf <- logPdfGradientAt(xNew).map(_.rawScalarMultiplyWith(-1))
+                  } yield (xNew, eNew, newGradNegLogPdf, jumpAcceptances + 1, jumpAttempts + 1),
+                  Async[F].delay((input, negLogPdf, gradNegLogPdf, jumpAcceptances, jumpAttempts + 1))
+                )
+    } yield result).flatMap { case (xNew, eNew, gNew, acceptances, attempts) =>
+      runDynamicSimulationFrom(
+        input                    = xNew,
+        maxIterations            = maxIterations,
+        logPdfOpt                = Option(eNew),
+        gradLogPdfOpt            = Option(gNew),
+        burnIn                   = burnIn,
+        iterationCount           = iterationCount + 1,
+        numberOfRequestedSamples = numberOfRequestedSamples,
+        jumpAcceptances          = acceptances,
+        jumpAttempts             = attempts,
+        samples                  = samples
+      )
+    }
+
+    val sampleAppendSpec: F[Set[ModelParameterCollection]] =
+      Async[F].delay(samples + input).flatMap { newSamples =>
+        Async[F].ifM(Async[F].pure(newSamples.size >= numberOfRequestedSamples || burnIn))(
+          Async[F].pure(newSamples),
+          runDynamicSimulationFrom(
+            input                    = input,
+            maxIterations            = maxIterations,
+            logPdfOpt                = logPdfOpt,
+            gradLogPdfOpt            = gradLogPdfOpt,
+            burnIn                   = burnIn,
+            iterationCount           = 0,
+            numberOfRequestedSamples = numberOfRequestedSamples,
+            jumpAcceptances          = jumpAcceptances,
+            jumpAttempts             = jumpAttempts,
+            samples                  = newSamples
+          )
+        )
       }
-    } else {
-      Async[F].pure(input)
-    }
 
-  /*
-   * - - -- --- ----- -------- -------------
-   * Sampling calculation
-   * - - -- --- ----- -------- -------------
-   */
-
-  private def setAndAcquireNewSample(
-    position: ModelParameterCollection
-  ): F[ModelParameterCollection] =
-    runDynamicSimulationFrom(position, simulationsBetweenSamples).flatMap {
-      case result if result != position =>
-        Async[F].pure(result)
-      case _ =>
-        setAndAcquireNewSample(position)
-    }
+    Async[F].ifM(Async[F].delay(iterationCount <= maxIterations))(
+      simulationSpec,
+      sampleAppendSpec
+    )
+  }
 
   /*
    * - - -- --- ----- -------- -------------
@@ -197,8 +186,15 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         } else {
           Async[F].pure(possibleStartingPoint)
         }
-      results <- runDynamicSimulationFrom(priorSample, warmUpSimulationCount, burnIn = true)
-    } yield results
+      results <- runDynamicSimulationFrom(
+                   input                    = priorSample,
+                   maxIterations            = warmUpSimulationCount,
+                   burnIn                   = true,
+                   numberOfRequestedSamples = 1,
+                   iterationCount           = 0
+                 )
+      _ <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
+    } yield results.head
 
   /*
    * - - -- --- ----- -------- -------------
@@ -206,55 +202,18 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  private[thylacine] lazy val launchInitialisation: F[Unit] =
+  protected override def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
     for {
-      _            <- burnInComplete.set(false).commit
-      burninResult <- burnIn
-      _            <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
-      _ <- (for {
-             _ <- currentResult.set(Option(burninResult))
-             _ <- burnInComplete.set(true)
-             _ <- numberOfSamplesRemaining.set(0)
-             _ <- jumpAttempts.set(0)
-             _ <- jumpAcceptances.set(0)
-           } yield ()).commit
-    } yield ()
-
-  private[thylacine] val waitForInitialisationCompletion: F[Unit] =
-    (for {
-      burnInCompleted <- burnInComplete.get
-      _               <- STM[F].waitFor(burnInCompleted)
-    } yield ()).commit
-
-  private[thylacine] def sampleUpdateReport(incrementAmount: Int): F[Unit] =
-    for {
-      numberOfSamples <- (numberOfSamplesRemaining.modify(_ + incrementAmount) >> numberOfSamplesRemaining.get).commit
-      jumpsAndAttempts <- (for {
-                            jumps    <- jumpAcceptances.get
-                            attempts <- jumpAttempts.get
-                          } yield (jumps, attempts)).commit
-      telemetryResult <-
-        Async[F].delay(HmcmcTelemetryUpdate(numberOfSamples, jumpsAndAttempts._2, jumpsAndAttempts._1, None))
-      _ <- telemetryUpdateCallback(telemetryResult)
-    } yield ()
-
-  private val getHmcmcSample: F[ModelParameterCollection] =
-    for {
-      _ <- sampleUpdateReport(1).start
-      position <- (for {
-                    currentResultOption <- currentResult.get
-                    _                   <- STM[F].waitFor(currentResultOption.isDefined)
-                    _                   <- currentResult.set(None)
-                  } yield currentResultOption.get).commit
-      newSample <- setAndAcquireNewSample(position)
-      _         <- currentResult.set(Option(newSample)).commit
-      _         <- sampleUpdateReport(-1).start
-    } yield newSample
-
-  protected override val sampleModelParameters: F[ModelParameterCollection] =
-    getHmcmcSample
+      startPt <- burnIn
+      results <- runDynamicSimulationFrom(
+                   input                    = startPt,
+                   maxIterations            = simulationsBetweenSamples,
+                   numberOfRequestedSamples = numberOfSamples,
+                   iterationCount           = 0
+                 )
+    } yield results
 
   protected override val rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters.map(s => VectorContainer(modelParameterCollectionToRawVector(s)))
+    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 
 }

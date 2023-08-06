@@ -23,11 +23,12 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.optimization.gradientdescent.ConjugateGradientEngine
 
+import ai.entrolution.thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import cats.effect.kernel.Async
 
 case class ConjugateGradientOptimisedPosterior[F[_]: Async](
   private[thylacine] val gradientDescentConfig: ConjugateGradientConfig,
-  protected override val newMaximumCallback: Double => F[Unit],
+  protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
   protected override val isConvergedCallback: Unit => F[Unit],
   private[thylacine] override val priors: Set[Prior[F, _]],
   private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
@@ -37,9 +38,6 @@ case class ConjugateGradientOptimisedPosterior[F[_]: Async](
 
   override protected val convergenceThreshold: Double =
     gradientDescentConfig.convergenceThreshold
-
-  override protected val numberOfResultsToRetain: Int =
-    gradientDescentConfig.numberOfResultsToRetain
 
   override protected val goldenSectionTolerance: Double =
     gradientDescentConfig.goldenSectionTolerance
@@ -53,12 +51,12 @@ object ConjugateGradientOptimisedPosterior {
   def from[F[_]: Async](
     conjugateGradientConfig: ConjugateGradientConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-    newMaximumCallback: Double => F[Unit],
+    iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
     isConvergedCallback: Unit => F[Unit]
   ): ConjugateGradientOptimisedPosterior[F] =
     ConjugateGradientOptimisedPosterior(
       gradientDescentConfig = conjugateGradientConfig,
-      newMaximumCallback    = newMaximumCallback,
+      iterationUpdateCallback = iterationUpdateCallback,
       isConvergedCallback   = isConvergedCallback,
       priors                = posterior.priors,
       likelihoods           = posterior.likelihoods

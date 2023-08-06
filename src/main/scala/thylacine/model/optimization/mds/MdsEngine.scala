@@ -17,12 +17,9 @@
 package ai.entrolution
 package thylacine.model.optimization.mds
 
-import bengal.stm._
-import bengal.stm.model._
-import bengal.stm.syntax.all._
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
-import thylacine.model.core.StmImplicits
+import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
@@ -32,7 +29,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
-  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
   protected def expansionMultiplier: Double
 
@@ -46,78 +43,60 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
 
   protected def isConvergedCallback: Unit => F[Unit]
 
-  protected val currentBest: TxnVar[F, (Int, Double)]
-
-  protected val currentSimplex: TxnVar[F, ModelParameterSimplex]
-
-  protected val isConverged: TxnVar[F, Boolean]
-
   private def runEvaluation(indexAndPosition: (Int, ModelParameterCollection)): F[(Int, Double)] =
     for {
       result <- logPdfAt(indexAndPosition._2)
     } yield (indexAndPosition._1, result)
 
-  private def recordBest(bestResult: (Int, Double)): Txn[Unit] =
-    for {
-      best <- currentBest.get
-      _ <- if (bestResult._2 > best._2) {
-             currentBest.set(bestResult)
-           } else {
-             STM[F].unit
-           }
-    } yield ()
-
-  private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[Unit] =
+  private def processSimplexVertices(simplex: ModelParameterSimplex, indexToExclude: Int): F[(Int, Double)] =
     for {
       vertices   <- Async[F].delay((simplex.verticesAsModelParameters(this) - indexToExclude).toList)
       results    <- vertices.parTraverse(runEvaluation).map(_.toMap)
       bestResult <- Async[F].delay(results.maxBy(_._2))
-      _          <- recordBest(bestResult).commit
-    } yield ()
+    } yield bestResult
 
-  private val evaluateSimplex: F[Double] = {
-    for {
-      simplex          <- currentSimplex.get.commit
-      best             <- currentBest.get.commit
+  private def evaluateSimplex(
+    simplex: ModelParameterSimplex,
+    best: (Int, Double)
+  ): F[((Int, Double), ModelParameterSimplex)] = {
+    (for {
       reflectedSimplex <- Async[F].delay(simplex.reflectAbout(best._1))
-      _                <- currentSimplex.set(reflectedSimplex).commit
-      _                <- processSimplexVertices(reflectedSimplex, best._1)
-      newBest          <- currentBest.get.commit
-      _ <- if (newBest._2 > best._2) {
-             for {
-               expandedSimplex <- Async[F].delay(reflectedSimplex.expandAbout(best._1, expansionMultiplier))
-               _               <- processSimplexVertices(expandedSimplex, best._1)
-               expandedBest    <- currentBest.get.commit
-               _ <- if (expandedBest._2 > newBest._2) {
-                      currentSimplex.set(expandedSimplex).commit
-                    } else {
-                      Async[F].unit
-                    }
-             } yield ()
-           } else {
-             for {
-               contractedSimplex <- Async[F].delay(reflectedSimplex.contractAbout(best._1, contractionMultiplier))
-               _                 <- processSimplexVertices(contractedSimplex, best._1)
-               _                 <- currentSimplex.set(contractedSimplex).commit
-             } yield ()
-           }
-      finalSimplex       <- currentSimplex.get.commit
-      finalBest          <- currentBest.get.commit
-      convergenceMeasure <- Async[F].delay(finalSimplex.maxAdjacentEdgeLength(finalBest._1))
+      newBest          <- processSimplexVertices(reflectedSimplex, best._1)
+      bestAndSimplex <- Async[F].ifM(Async[F].delay(newBest._2 > best._2))(
+                          for {
+                            expandedSimplex <-
+                              Async[F].delay(reflectedSimplex.expandAbout(best._1, expansionMultiplier))
+                            expandedBest <- processSimplexVertices(expandedSimplex, best._1)
+                            innerResult <- Async[F].ifM(Async[F].delay(expandedBest._2 > newBest._2))(
+                                             Async[F].pure((expandedBest, expandedSimplex)),
+                                             Async[F].pure((newBest, reflectedSimplex))
+                                           )
+                          } yield innerResult,
+                          for {
+                            contractedSimplex <-
+                              Async[F].delay(reflectedSimplex.contractAbout(best._1, contractionMultiplier))
+                            contractedBest <- processSimplexVertices(contractedSimplex, best._1)
+                            innerResult <- Async[F].ifM(Async[F].delay(contractedBest._2 > best._2))(
+                                             Async[F].pure((contractedBest, contractedSimplex)),
+                                             Async[F].pure((best, contractedSimplex))
+                                           )
+                          } yield innerResult
+                        )
+      convergenceMeasure <- Async[F].delay(bestAndSimplex._2.maxAdjacentEdgeLength(bestAndSimplex._1._1))
       _ <- iterationUpdateCallback(
-             OptimisationTelemetryUpdate(maxLogPdf = finalBest._2, currentScale = convergenceMeasure, prefix = "MDS")
+             OptimisationTelemetryUpdate(
+               maxLogPdf    = bestAndSimplex._1._2,
+               currentScale = convergenceMeasure,
+               prefix       = "MDS"
+             )
            ).start
-    } yield convergenceMeasure
-  }
-
-  private val simplexRecursion: F[Unit] =
-    evaluateSimplex.flatMap { convergenceMeasure =>
-      if (convergenceMeasure <= convergenceThreshold) {
-        isConverged.set(true).commit >> isConvergedCallback(()).start.void
-      } else {
-        simplexRecursion
-      }
+    } yield (bestAndSimplex._2, bestAndSimplex._1, convergenceMeasure)).flatMap {
+      case (simplex, best, convergenceMeasure) if convergenceMeasure <= convergenceThreshold =>
+        isConvergedCallback(()).start.void >> Async[F].pure((best, simplex))
+      case (simplex, best, _) =>
+        evaluateSimplex(simplex, best)
     }
+  }
 
   private def getStartingPoint(
     numberOfPriorSamples: Int
@@ -160,18 +139,7 @@ trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
     for {
       processedStartingPoint <- processStartingPoint(startPt)
       simplexAndStartingBest <- startingBestF(processedStartingPoint)
-      _ <- (for {
-             _ <- isConverged.set(false)
-             _ <- currentBest.set(simplexAndStartingBest._2)
-             _ <- currentSimplex.set(simplexAndStartingBest._1)
-           } yield ()).commit
-      _ <- simplexRecursion.start.void
-      _ <- (for {
-             converged <- isConverged.get
-             _         <- STM[F].waitFor(converged)
-           } yield ()).commit
-      currentBest    <- currentBest.get.commit
-      currentSimplex <- currentSimplex.get.commit
-    } yield (currentBest._2, currentSimplex.verticesAsModelParameters(this)(currentBest._1))
+      bestAndSimplex         <- evaluateSimplex(simplexAndStartingBest._1, simplexAndStartingBest._2)
+    } yield (bestAndSimplex._1._2, bestAndSimplex._2.verticesAsModelParameters(this)(bestAndSimplex._1._1))
   }
 }

@@ -25,11 +25,12 @@ import cats.syntax.all._
 
 private[thylacine] trait ModelParameterSampler[F[_]] {
   this: AsyncImplicits[F] =>
-  protected def sampleModelParameters: F[ModelParameterCollection]
+
+  protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]]
 
   // Low-level API - For sampling priors
   protected def rawSampleModelParameters: F[VectorContainer]
 
-  final def sample: F[Map[String, Vector[Double]]] =
-    sampleModelParameters.map(_.genericScalaRepresentation)
+  final def sample(numberOfSamples: Int): F[Set[Map[String, Vector[Double]]]] =
+    sampleModelParameters(numberOfSamples).map(_.map(_.genericScalaRepresentation))
 }

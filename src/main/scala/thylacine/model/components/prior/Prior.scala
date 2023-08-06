@@ -64,8 +64,11 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
       )
     }
 
-  override final def sampleModelParameters: F[ModelParameterCollection] =
+  private val sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))
+
+  override final def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+    (1 to numberOfSamples).toList.traverse(_ => sampleModelParameters).map(_.toSet)
 
   // testing
   private[thylacine] def rawLogPdfGradientAt(input: Vector[Double]): Vector[Double] =
