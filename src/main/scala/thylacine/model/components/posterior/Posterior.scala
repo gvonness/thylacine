@@ -37,7 +37,7 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
   final override val domainDimension =
     priors.toVector.map(_.domainDimension).sum
 
-  final override private[thylacine] lazy val orderedParameterIdentifiersWithDimension
+  final override private[thylacine] val orderedParameterIdentifiersWithDimension
     : Vector[(ModelParameterIdentifier, Int)] =
     priors.toVector
       .sortBy(_.posteriorTermIdentifier)

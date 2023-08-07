@@ -18,13 +18,13 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import bengal.stm.model.{ TxnVar, TxnVarMap }
+import bengal.stm.model.{TxnVar, TxnVarMap}
 import thylacine.config.SlqConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.telemetry.SlqTelemetryUpdate
-import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
+import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.integration.slq._
 
@@ -71,9 +71,6 @@ case class SlqIntegratedPosterior[F[_]: STM: Async](
   final override protected val maxIterationCount: Int = slqConfig.maxIterationCount
 
   final override protected val minIterationCount: Int = slqConfig.minIterationCount
-
-  final override protected def rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 
   @unused
   def rebuildSampleSimulation: F[Unit] =

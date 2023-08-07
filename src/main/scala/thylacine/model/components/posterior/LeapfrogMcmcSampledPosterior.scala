@@ -23,7 +23,7 @@ import thylacine.config.LeapfrogMcmcConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
-import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
+import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.sampling.SampleRequest
 import thylacine.model.sampling.leapfrog.LeapfrogMcmcEngine
@@ -63,9 +63,6 @@ case class LeapfrogMcmcSampledPosterior[F[_]: STM: Async](
 
   final override protected val startingPoint: F[ModelParameterCollection] =
     Async[F].delay(IndexedVectorCollection(seed))
-
-  final override protected def rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 }
 
 @unused

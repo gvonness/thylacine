@@ -21,8 +21,8 @@ import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.modelparameters.{ ModelParameterContext, ModelParameterGenerator, ModelParameterPdf }
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.distributions.Distribution
 import thylacine.model.sampling.ModelParameterSampler
 
@@ -32,6 +32,7 @@ import cats.syntax.all._
 private[thylacine] trait Prior[F[_], +D <: Distribution]
     extends ModelParameterPdf[F]
     with PosteriorTerm
+    with ModelParameterContext
     with ModelParameterSampler[F]
     with ModelParameterGenerator
     with CanValidate[Prior[F, _]] {
@@ -63,6 +64,14 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
           .logPdfGradientAt(input.retrieveIndex(identifier))
       )
     }
+
+  final override private[thylacine] lazy val orderedParameterIdentifiersWithDimension
+    : Vector[(ModelParameterIdentifier, Int)] =
+    Vector(
+      ModelParameterIdentifier(
+        posteriorTermIdentifier.value
+      ) -> generatorDimension
+    )
 
   private val sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))

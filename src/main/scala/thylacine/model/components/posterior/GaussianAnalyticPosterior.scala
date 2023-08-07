@@ -109,6 +109,7 @@ case class GaussianAnalyticPosterior[F[_]: Async](
 
   private def sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(s => rawVectorToModelParameterCollection(s.rawVector))
+
   final override protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
     (1 to numberOfSamples).toList.traverse(_ => sampleModelParameters).map(_.toSet)
 

@@ -22,12 +22,11 @@ import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
+import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.sampling.hmcmc.HmcmcEngine
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
 
 import scala.annotation.unused
 
@@ -55,9 +54,6 @@ case class HmcmcSampledPosterior[F[_]: Async](
 
   final override protected val startingPoint: F[ModelParameterCollection] =
     Async[F].delay(IndexedVectorCollection(seed))
-
-  final override protected def rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 }
 
 @unused
