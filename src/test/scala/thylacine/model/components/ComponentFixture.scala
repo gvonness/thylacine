@@ -179,7 +179,7 @@ object ComponentFixture {
     convergenceThreshold      = 1e-20,
     goldenSectionTolerance    = 1e-10,
     lineProbeExpansionFactor  = 2.0,
-    minimumNumberOfIterations = 10000
+    minimumNumberOfIterations = 1000
   )
 
   def conjugateGradientOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
