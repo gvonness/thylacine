@@ -28,24 +28,24 @@ import cats.effect.kernel.Async
 import java.util.UUID
 
 case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
-  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  override private[thylacine] val posteriorTermIdentifier: TermIdentifier,
   private[thylacine] val observations: RecordedData,
-  private[thylacine] override val forwardModel: T,
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val forwardModel: T,
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, T, GaussianDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: GaussianLikelihood[F, T] =
+  override private[thylacine] lazy val getValidated: GaussianLikelihood[F, T] =
     if (validated) {
       this
     } else {
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationDistribution: GaussianDistribution =
+  override private[thylacine] lazy val observationDistribution: GaussianDistribution =
     GaussianDistribution(observations)
 
 }

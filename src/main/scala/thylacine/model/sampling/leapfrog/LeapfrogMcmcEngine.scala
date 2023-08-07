@@ -23,9 +23,9 @@ import bengal.stm.syntax.all._
 import thylacine.model.components.posterior._
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
+import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
-import thylacine.model.sampling.{ ModelParameterSampler, SampleRequest }
+import thylacine.model.sampling.{ModelParameterSampler, SampleRequest}
 import thylacine.util.MathOps
 import thylacine.util.ScalaVectorOps.Implicits._
 
@@ -290,10 +290,7 @@ private[thylacine] trait LeapfrogMcmcEngine[F[_]] extends ModelParameterSampler[
       result <- deferred.get
     } yield result
 
-  protected override val sampleModelParameters: F[ModelParameterCollection] =
-    getLeapfrogMcmcSample
-
-  protected override val rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters.map(s => VectorContainer(modelParameterCollectionToRawVector(s)))
+  override protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+    (1 to numberOfSamples).toList.traverse(_ => getLeapfrogMcmcSample).map(_.toSet)
 
 }

@@ -38,7 +38,7 @@ private[thylacine] case class PointInCube(
   private[thylacine] lazy val point: VectorContainer =
     VectorContainer(pointInIntervals.map(_.point))
 
-  private[thylacine] override lazy val getValidated: PointInCube =
+  override private[thylacine] lazy val getValidated: PointInCube =
     PointInCube(pointInIntervals.map(_.getValidated), validated = true)
 
   private lazy val dimensionIndex: Map[Int, PointInInterval] =

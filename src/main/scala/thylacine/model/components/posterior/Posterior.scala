@@ -34,10 +34,10 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
   private[thylacine] def priors: Set[P]
   private[thylacine] def likelihoods: Set[L]
 
-  override final val domainDimension =
+  final override val domainDimension =
     priors.toVector.map(_.domainDimension).sum
 
-  private[thylacine] override final lazy val orderedParameterIdentifiersWithDimension
+  final override private[thylacine] val orderedParameterIdentifiersWithDimension
     : Vector[(ModelParameterIdentifier, Int)] =
     priors.toVector
       .sortBy(_.posteriorTermIdentifier)
@@ -47,7 +47,7 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
         ) -> i.generatorDimension
       )
 
-  private[thylacine] override final def logPdfGradientAt(
+  final override private[thylacine] def logPdfGradientAt(
     input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     for {
@@ -62,9 +62,9 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
     } yield priorSum rawSumWith likelihoodSum
 
   private[thylacine] def samplePriors: F[ModelParameterCollection] =
-    priors.toVector.traverse(_.sampleModelParameters).map(_.reduce(_ rawMergeWith _))
+    priors.toVector.traverse(_.sampleModelParameters(1).map(_.head)).map(_.reduce(_ rawMergeWith _))
 
-  private[thylacine] override def logPdfAt(
+  override private[thylacine] def logPdfAt(
     input: ModelParameterCollection
   ): F[Double] =
     for {

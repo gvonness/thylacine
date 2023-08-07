@@ -27,23 +27,23 @@ import thylacine.model.distributions.UniformDistribution
 import cats.effect.kernel.Async
 
 case class UniformPrior[F[_]: Async](
-  private[thylacine] override val identifier: ModelParameterIdentifier,
+  override private[thylacine] val identifier: ModelParameterIdentifier,
   private[thylacine] val maxBounds: Vector[Double],
   private[thylacine] val minBounds: Vector[Double],
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Prior[F, UniformDistribution] {
 
-  protected override lazy val priorDistribution: UniformDistribution =
+  override protected lazy val priorDistribution: UniformDistribution =
     distributions
       .UniformDistribution(upperBounds = VectorContainer(maxBounds), lowerBounds = VectorContainer(minBounds))
       .getValidated
 
-  private[thylacine] override lazy val getValidated: UniformPrior[F] =
+  override private[thylacine] lazy val getValidated: UniformPrior[F] =
     if (validated) this
     else this.copy(validated = true)
 
-  private[thylacine] final override def pdfAt(
+  final override private[thylacine] def pdfAt(
     input: ModelParameterCollection
   ): F[Double] =
     Async[F].delay {
@@ -54,12 +54,12 @@ case class UniformPrior[F[_]: Async](
       }
     }
 
-  private[thylacine] final override def pdfGradientAt(
+  final override private[thylacine] def pdfGradientAt(
     input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     Async[F].delay(IndexedVectorCollection(identifier, priorDistribution.zeroVector))
 
-  protected override def rawSampleModelParameters: F[VectorContainer] =
+  override protected def rawSampleModelParameters: F[VectorContainer] =
     Async[F].delay(priorDistribution.getRawSample)
 }
 

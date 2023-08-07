@@ -30,18 +30,18 @@ import java.util.UUID
 import scala.annotation.unused
 
 case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
-  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  override private[thylacine] val posteriorTermIdentifier: TermIdentifier,
   private[thylacine] val upperBounds: VectorContainer,
   private[thylacine] val lowerBounds: VectorContainer,
-  private[thylacine] override val forwardModel: T,
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val forwardModel: T,
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, T, UniformDistribution] {
   if (!validated) {
     assert(lowerBounds.dimension == upperBounds.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: UniformLikelihood[F, T] =
+  override private[thylacine] lazy val getValidated: UniformLikelihood[F, T] =
     if (validated) {
       this
     } else {
@@ -52,7 +52,7 @@ case class UniformLikelihood[F[_]: Async, T <: ForwardModel[F]](
       )
     }
 
-  private[thylacine] override lazy val observationDistribution: UniformDistribution =
+  override private[thylacine] lazy val observationDistribution: UniformDistribution =
     distributions.UniformDistribution(upperBounds = upperBounds, lowerBounds = lowerBounds)
 
 }

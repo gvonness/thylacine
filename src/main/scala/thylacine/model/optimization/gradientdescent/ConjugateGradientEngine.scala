@@ -20,6 +20,7 @@ package thylacine.model.optimization.gradientdescent
 import thylacine.model.components.posterior.Posterior
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
 import thylacine.model.optimization.line.{ GoldenSectionSearch, LineEvaluationResult }
@@ -29,16 +30,16 @@ import cats.effect.implicits._
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-import scala.collection.immutable.Queue
-
 trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with GoldenSectionSearch[F] {
   this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
+  protected val telemetryPrefix: String = "Conjugate Gradient"
+
   protected def convergenceThreshold: Double
 
-  protected def numberOfResultsToRetain: Int
+  protected def minimumNumberOfIterations: Int
 
-  protected def newMaximumCallback: Double => F[Unit]
+  protected def iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit]
 
   protected def isConvergedCallback: Unit => F[Unit]
 
@@ -46,27 +47,23 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
     startingEvaluation: LineEvaluationResult,
     previousGradient: Vector[Double],
     previousSearchDirection: Vector[Double],
-    previousResults: Queue[Double]
+    iteration: Int
   ): F[(Double, ModelParameterCollection)] =
     (for {
-      gradientLogPdf                   <- logPdfGradientAt(startingEvaluation.modelParameterArgument)
-      gradientLogPdfVector             <- Async[F].delay(modelParameterCollectionToVectorValues(gradientLogPdf))
-      previousGradientMagnitudeSquared <- Async[F].delay(gradientLogPdfVector.magnitudeSquared)
+      negativeGradientLogPdf <-
+        logPdfGradientAt(startingEvaluation.modelParameterArgument).map(_.rawScalarMultiplyWith(-1))
+      negativeGradientLogPdfVector     <- Async[F].delay(modelParameterCollectionToVectorValues(negativeGradientLogPdf))
+      previousGradientMagnitudeSquared <- Async[F].delay(negativeGradientLogPdfVector.magnitudeSquared)
       newBeta <- Async[F].delay {
                    Math.max(
-                     gradientLogPdfVector
+                     negativeGradientLogPdfVector
                        .subtract(previousGradient)
-                       .dotProductWith(gradientLogPdfVector) / previousGradientMagnitudeSquared,
+                       .dotProductWith(negativeGradientLogPdfVector) / previousGradientMagnitudeSquared,
                      0
                    )
                  }
-      newDirection <- Async[F].delay {
-                        if (newBeta == 0) {
-                          gradientLogPdfVector
-                        } else {
-                          gradientLogPdfVector.add(previousSearchDirection.scalarMultiplyWith(newBeta))
-                        }
-                      }
+      newDirection <-
+        Async[F].delay(negativeGradientLogPdfVector.add(previousSearchDirection.scalarMultiplyWith(newBeta)))
       lineSearchResults <-
         searchDirectionAlong((startingEvaluation.result, startingEvaluation.vectorArgument), newDirection)
       lineSearchEvaluation <- Async[F].delay {
@@ -76,51 +73,46 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
                                   vectorValuesToModelParameterCollection(lineSearchResults._2)
                                 )
                               }
-    } yield (lineSearchEvaluation, gradientLogPdfVector, newDirection)).flatMap {
-      case (lineSearchEvaluation, gradientLogPdfVector, newDirection)
-          if previousResults.size < numberOfResultsToRetain =>
-        (if (previousResults.isEmpty || lineSearchEvaluation.result > previousResults.dequeue._1) {
-           newMaximumCallback(lineSearchEvaluation.result)
-         } else {
-           Async[F].unit
-         }) >> calculateNextLogPdf(
-          lineSearchEvaluation,
-          gradientLogPdfVector,
-          newDirection,
-          previousResults.enqueue(lineSearchEvaluation.result)
-        )
-      case (lineSearchEvaluation, gradientLogPdfVector, newDirection)
-          if Math.abs(
-            previousResults.dequeue._1 - lineSearchEvaluation.result
-          ) > convergenceThreshold =>
-        (if (lineSearchEvaluation.result > previousResults.dequeue._1) {
-           newMaximumCallback(lineSearchEvaluation.result)
-         } else {
-           Async[F].unit
-         }) >> calculateNextLogPdf(
-          lineSearchEvaluation,
-          gradientLogPdfVector,
-          newDirection,
-          previousResults.enqueue(lineSearchEvaluation.result).dequeue._2
-        )
-      case (lineSearchEvaluation, _, _) =>
-        isConvergedCallback(()).start >> Async[F].pure {
-          (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
-        }
+    } yield (lineSearchEvaluation, negativeGradientLogPdfVector, newDirection)).flatMap {
+      case (lineSearchEvaluation, negativeGradientLogPdfVector, newDirection) =>
+        for {
+          newDiff <- Async[F].delay(lineSearchEvaluation.result - startingEvaluation.result)
+          _ <- iterationUpdateCallback(
+                 OptimisationTelemetryUpdate(
+                   maxLogPdf    = lineSearchEvaluation.result,
+                   currentScale = newDiff,
+                   prefix       = telemetryPrefix
+                 )
+               ).start
+          result <-
+            Async[F].ifM(Async[F].delay(newDiff > convergenceThreshold || iteration < minimumNumberOfIterations))(
+              calculateNextLogPdf(
+                lineSearchEvaluation,
+                negativeGradientLogPdfVector,
+                newDirection,
+                iteration + 1
+              ),
+              isConvergedCallback(()).start >> Async[F].pure {
+                (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
+              }
+            )
+        } yield result
     }
 
   protected def calculateMaximumLogPdf(
     startingPt: ModelParameterCollection
   ): F[(Double, ModelParameterCollection)] =
     for {
-      logPdf               <- logPdfAt(startingPt)
-      gradientLogPdfVector <- logPdfGradientAt(startingPt).map(modelParameterCollectionToVectorValues)
-      startingPointVector  <- Async[F].delay(modelParameterCollectionToVectorValues(startingPt))
+      logPdf <- logPdfAt(startingPt)
+      gradientLogPdfVector <- logPdfGradientAt(startingPt).map(nlpdfg =>
+                                modelParameterCollectionToVectorValues(nlpdfg.rawScalarMultiplyWith(-1))
+                              )
+      startingPointVector <- Async[F].delay(modelParameterCollectionToVectorValues(startingPt))
       result <- calculateNextLogPdf(
                   LineEvaluationResult(logPdf, startingPointVector, startingPt),
                   gradientLogPdfVector,
                   gradientLogPdfVector,
-                  Queue[Double]()
+                  1
                 )
     } yield result
 

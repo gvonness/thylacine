@@ -41,7 +41,7 @@ private[thylacine] case class CauchyDistribution(
     new ThreadLocalRandomGenerator(new MersenneTwister(this.hashCode()))
   )
 
-  private[thylacine] override lazy val getValidated: CauchyDistribution =
+  override private[thylacine] lazy val getValidated: CauchyDistribution =
     if (validated) {
       this
     } else {
@@ -57,7 +57,7 @@ private[thylacine] case class CauchyDistribution(
   private lazy val rawInverseCovariance: DenseMatrix[Double] =
     inv(covariance.rawMatrix)
 
-  private[thylacine] override def logPdfAt(
+  override private[thylacine] def logPdfAt(
     input: VectorContainer
   ): Double = {
     val differentialFromMean = input.rawVector - mean.rawVector
@@ -67,7 +67,7 @@ private[thylacine] case class CauchyDistribution(
     )
   }
 
-  private[thylacine] override def logPdfGradientAt(
+  override private[thylacine] def logPdfGradientAt(
     input: VectorContainer
   ): VectorContainer = {
     val differentialFromMean = input.rawVector - mean.rawVector

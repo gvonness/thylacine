@@ -25,7 +25,6 @@ import thylacine.model.components.prior._
 import thylacine.model.core._
 import thylacine.model.core.telemetry.SlqTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.VectorContainer
 import thylacine.model.integration.ModelParameterIntegrator
 import thylacine.model.integration.slq.SamplingSimulation._
 import thylacine.model.sampling.ModelParameterSampler
@@ -137,11 +136,11 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                       }
                  _       <- samplePool.remove(currentMinimum)
                  samples <- samplePool.get
-                 newMinimum <- if (samples.nonEmpty) {
-                                 STM[F].delay(samples.keys.min)
+                 newMinimum <- STM[F].delay(if (samples.nonEmpty) {
+                                 samples.keys.min
                                } else {
-                                 STM[F].pure(Double.MinValue)
-                               }
+                                 Double.MinValue
+                               })
                  _ <- samplePoolMinimumLogPdf.set(newMinimum)
                } yield ()
              case _ =>
@@ -458,7 +457,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   // Assumes the quadratures have been fully constructed (see above comment).
   // We return the mean for the integrations, as SLQ produces inferences of these
   // integrations.
-  override final def integrate(
+  final override def integrate(
     integrand: BigDecimal => BigDecimal
   ): F[BigDecimal] =
     for {
@@ -466,14 +465,8 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
       result        <- Async[F].delay(quadratureRaw.getIntegrationStats(integrand))
     } yield result.sum / result.size
 
-  override protected val sampleModelParameters: F[ModelParameterCollection] =
-    getSimulatedSample
-
-  override protected val rawSampleModelParameters: F[VectorContainer] =
-    for {
-      sample <- sampleModelParameters
-      result <- Async[F].delay(modelParameterCollectionToRawVector(sample))
-    } yield VectorContainer(result)
+  override protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+    (1 to numberOfSamples).toList.traverse(_ => getSimulatedSample).map(_.toSet)
 
 }
 

@@ -52,16 +52,16 @@ case class LeapfrogMcmcSampledPosterior[F[_]: STM: Async](
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with LeapfrogMcmcEngine[F] {
 
-  override protected final val stepsBetweenSamples: Int =
+  final override protected val stepsBetweenSamples: Int =
     leapfrogMcmcConfig.stepsBetweenSamples
 
-  override protected final val warmUpSimulationCount: Int =
+  final override protected val warmUpSimulationCount: Int =
     leapfrogMcmcConfig.warmupStepCount
 
-  override protected final val samplePoolSize: Int =
+  final override protected val samplePoolSize: Int =
     leapfrogMcmcConfig.samplePoolSize
 
-  override protected final val startingPoint: F[ModelParameterCollection] =
+  final override protected val startingPoint: F[ModelParameterCollection] =
     Async[F].delay(IndexedVectorCollection(seed))
 }
 

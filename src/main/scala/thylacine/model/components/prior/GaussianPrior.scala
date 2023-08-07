@@ -28,23 +28,23 @@ import cats.effect.kernel.Async
 import scala.annotation.unused
 
 case class GaussianPrior[F[_]: Async](
-  private[thylacine] override val identifier: ModelParameterIdentifier,
+  override private[thylacine] val identifier: ModelParameterIdentifier,
   private[thylacine] val priorData: RecordedData,
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Prior[F, GaussianDistribution] {
 
-  protected override lazy val priorDistribution: GaussianDistribution =
+  override protected lazy val priorDistribution: GaussianDistribution =
     GaussianDistribution(priorData)
 
   private lazy val rawDistribution: MultivariateGaussian =
     priorDistribution.rawDistribution
 
-  private[thylacine] override lazy val getValidated: GaussianPrior[F] =
+  override private[thylacine] lazy val getValidated: GaussianPrior[F] =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters: F[VectorContainer] =
+  override protected def rawSampleModelParameters: F[VectorContainer] =
     Async[F].delay(VectorContainer(rawDistribution.sample()))
 
   // Testing

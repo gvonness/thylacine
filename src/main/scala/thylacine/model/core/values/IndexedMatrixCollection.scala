@@ -26,7 +26,7 @@ private[thylacine] case class IndexedMatrixCollection(
 ) extends IndexedCollection[MatrixContainer]
     with CanValidate[IndexedMatrixCollection] {
 
-  private[thylacine] override lazy val getValidated: IndexedMatrixCollection =
+  override private[thylacine] lazy val getValidated: IndexedMatrixCollection =
     if (validated) {
       this
     } else {

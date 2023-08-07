@@ -21,5 +21,5 @@ case class ConjugateGradientConfig(
   convergenceThreshold: Double,
   goldenSectionTolerance: Double,
   lineProbeExpansionFactor: Double,
-  numberOfResultsToRetain: Int
+  minimumNumberOfIterations: Int
 )

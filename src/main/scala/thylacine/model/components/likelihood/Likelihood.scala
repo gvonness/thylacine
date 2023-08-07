@@ -37,10 +37,10 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
   private[thylacine] def observationDistribution: D
   private[thylacine] def forwardModel: FM
 
-  override final val domainDimension: Int =
+  final override val domainDimension: Int =
     forwardModel.domainDimension
 
-  private[thylacine] override final def logPdfAt(
+  final override private[thylacine] def logPdfAt(
     input: ModelParameterCollection
   ): F[Double] =
     for {
@@ -48,7 +48,7 @@ private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribu
       res       <- Async[F].delay(observationDistribution.logPdfAt(mappedVec))
     } yield res
 
-  private[thylacine] override final def logPdfGradientAt(
+  final override private[thylacine] def logPdfGradientAt(
     input: ModelParameterCollection
   ): F[ModelParameterCollection] =
     for {

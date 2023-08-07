@@ -21,16 +21,17 @@ import thylacine.config.ConjugateGradientConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
+import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.optimization.gradientdescent.ConjugateGradientEngine
 
 import cats.effect.kernel.Async
 
 case class ConjugateGradientOptimisedPosterior[F[_]: Async](
   private[thylacine] val gradientDescentConfig: ConjugateGradientConfig,
-  protected override val newMaximumCallback: Double => F[Unit],
-  protected override val isConvergedCallback: Unit => F[Unit],
-  private[thylacine] override val priors: Set[Prior[F, _]],
-  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
+  override protected val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
+  override protected val isConvergedCallback: Unit => F[Unit],
+  override private[thylacine] val priors: Set[Prior[F, _]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]]
 ) extends AsyncImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with ConjugateGradientEngine[F] {
@@ -38,14 +39,14 @@ case class ConjugateGradientOptimisedPosterior[F[_]: Async](
   override protected val convergenceThreshold: Double =
     gradientDescentConfig.convergenceThreshold
 
-  override protected val numberOfResultsToRetain: Int =
-    gradientDescentConfig.numberOfResultsToRetain
-
   override protected val goldenSectionTolerance: Double =
     gradientDescentConfig.goldenSectionTolerance
 
   override protected val lineProbeExpansionFactor: Double =
     gradientDescentConfig.lineProbeExpansionFactor
+
+  override protected def minimumNumberOfIterations: Int =
+    gradientDescentConfig.minimumNumberOfIterations
 }
 
 object ConjugateGradientOptimisedPosterior {
@@ -53,14 +54,14 @@ object ConjugateGradientOptimisedPosterior {
   def from[F[_]: Async](
     conjugateGradientConfig: ConjugateGradientConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
-    newMaximumCallback: Double => F[Unit],
+    iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
     isConvergedCallback: Unit => F[Unit]
   ): ConjugateGradientOptimisedPosterior[F] =
     ConjugateGradientOptimisedPosterior(
-      gradientDescentConfig = conjugateGradientConfig,
-      newMaximumCallback    = newMaximumCallback,
-      isConvergedCallback   = isConvergedCallback,
-      priors                = posterior.priors,
-      likelihoods           = posterior.likelihoods
+      gradientDescentConfig   = conjugateGradientConfig,
+      iterationUpdateCallback = iterationUpdateCallback,
+      isConvergedCallback     = isConvergedCallback,
+      priors                  = posterior.priors,
+      likelihoods             = posterior.likelihoods
     )
 }

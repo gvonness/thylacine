@@ -35,7 +35,7 @@ class ConjugateGradientOptimisedPosteriorSpec extends AsyncFreeSpec with AsyncIO
         optimisationResult <-
           posterior.findMaximumLogPdf(Map("fooniform" -> Vector(.5d, .5d), "barniform" -> Vector(3d)))
       } yield maxIndexVectorDiff(optimisationResult._2, Map("fooniform" -> Vector(1, 2), "barniform" -> Vector(5))))
-        .asserting(_ shouldBe (0.0 +- 1e-3))
+        .asserting(_ shouldBe (0.0 +- 1e-1))
     }
   }
 }

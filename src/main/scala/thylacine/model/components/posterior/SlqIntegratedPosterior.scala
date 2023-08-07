@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import bengal.stm.model.{ TxnVar, TxnVarMap }
+import bengal.stm.model.{TxnVar, TxnVarMap}
 import thylacine.config.SlqConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
@@ -35,42 +35,42 @@ import scala.annotation.unused
 
 case class SlqIntegratedPosterior[F[_]: STM: Async](
   private[thylacine] val slqConfig: SlqConfig,
-  protected override val slqTelemetryUpdateCallback: SlqTelemetryUpdate => F[Unit],
-  protected override val domainRebuildStartCallback: Unit => F[Unit],
-  protected override val domainRebuildFinishCallback: Unit => F[Unit],
-  protected override val seeds: Set[ModelParameterCollection],
-  private[thylacine] override val priors: Set[Prior[F, _]],
-  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-  protected override val sampleDomain: TxnVar[F, PointInCubeCollection],
-  protected override val samplePool: TxnVarMap[F, Double, ModelParameterCollection],
-  protected override val samplePoolMinimumLogPdf: TxnVar[F, Double],
-  protected override val logPdfResults: TxnVar[F, Vector[(Double, ModelParameterCollection)]],
-  protected override val sampleDomainScalingState: TxnVar[F, QuadratureDomainTelemetry],
-  protected override val workTokenPool: TxnVar[F, Int],
-  protected override val abscissas: TxnVar[F, QuadratureAbscissaCollection],
-  protected override val quadratureIntegrations: TxnVar[F, QuadratureIntegrator],
-  protected override val samplingSimulation: TxnVar[F, SamplingSimulation],
-  protected override val isConverged: TxnVar[F, Boolean]
+  override protected val slqTelemetryUpdateCallback: SlqTelemetryUpdate => F[Unit],
+  override protected val domainRebuildStartCallback: Unit => F[Unit],
+  override protected val domainRebuildFinishCallback: Unit => F[Unit],
+  override protected val seeds: Set[ModelParameterCollection],
+  override private[thylacine] val priors: Set[Prior[F, _]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]],
+  override protected val sampleDomain: TxnVar[F, PointInCubeCollection],
+  override protected val samplePool: TxnVarMap[F, Double, ModelParameterCollection],
+  override protected val samplePoolMinimumLogPdf: TxnVar[F, Double],
+  override protected val logPdfResults: TxnVar[F, Vector[(Double, ModelParameterCollection)]],
+  override protected val sampleDomainScalingState: TxnVar[F, QuadratureDomainTelemetry],
+  override protected val workTokenPool: TxnVar[F, Int],
+  override protected val abscissas: TxnVar[F, QuadratureAbscissaCollection],
+  override protected val quadratureIntegrations: TxnVar[F, QuadratureIntegrator],
+  override protected val samplingSimulation: TxnVar[F, SamplingSimulation],
+  override protected val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with SlqEngine[F] {
-  override protected final val slqSamplePoolSize: Int = slqConfig.poolSize
+  final override protected val slqSamplePoolSize: Int = slqConfig.poolSize
 
-  override protected final val slqNumberOfAbscissa: Int =
+  final override protected val slqNumberOfAbscissa: Int =
     slqConfig.abscissaNumber
 
-  override protected final val slqScalingIncrement: Double =
+  final override protected val slqScalingIncrement: Double =
     slqConfig.domainScalingIncrement
 
-  override protected final val slqNominalAcceptanceRatio: Double =
+  final override protected val slqNominalAcceptanceRatio: Double =
     slqConfig.targetAcceptanceProbability
 
-  override protected final val slqSampleParallelism: Int =
+  final override protected val slqSampleParallelism: Int =
     slqConfig.sampleParallelism
 
-  override protected final val maxIterationCount: Int = slqConfig.maxIterationCount
+  final override protected val maxIterationCount: Int = slqConfig.maxIterationCount
 
-  override protected final val minIterationCount: Int = slqConfig.minIterationCount
+  final override protected val minIterationCount: Int = slqConfig.minIterationCount
 
   @unused
   def rebuildSampleSimulation: F[Unit] =

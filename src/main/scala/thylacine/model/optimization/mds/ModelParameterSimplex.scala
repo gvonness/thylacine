@@ -54,7 +54,7 @@ private[thylacine] case class ModelParameterSimplex(
     assert(!(isRegular ^ distancesAllEqual))
   }
 
-  private[thylacine] override lazy val getValidated: ModelParameterSimplex =
+  override private[thylacine] lazy val getValidated: ModelParameterSimplex =
     this.copy(validated = true)
 
   private[thylacine] def verticesAsModelParameters(
@@ -119,13 +119,5 @@ private[thylacine] object ModelParameterSimplex {
       isRegular = true
     ).getValidated
   }
-
-  private[thylacine] def unitRegularCenteredOnZero(
-    rawMappings: ModelParameterContext
-  ): ModelParameterSimplex =
-    unitRegularCenteredOn(
-      rawMappings.zeroModelParameterCollection,
-      rawMappings
-    )
 
 }

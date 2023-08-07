@@ -36,9 +36,9 @@ import scala.annotation.unused
 import scala.{ Vector => ScalaVector }
 
 case class GaussianAnalyticPosterior[F[_]: Async](
-  private[thylacine] override val priors: Set[GaussianPrior[F]],
-  private[thylacine] override val likelihoods: Set[GaussianLinearLikelihood[F]],
-  private[thylacine] override val validated: Boolean
+  override private[thylacine] val priors: Set[GaussianPrior[F]],
+  override private[thylacine] val likelihoods: Set[GaussianLinearLikelihood[F]],
+  override private[thylacine] val validated: Boolean
 ) extends AsyncImplicits[F]
     with Posterior[F, GaussianPrior[F], GaussianLinearLikelihood[F]]
     with ModelParameterSampler[F]
@@ -57,7 +57,7 @@ case class GaussianAnalyticPosterior[F[_]: Async](
     )
   }
 
-  private[thylacine] override lazy val getValidated: GaussianAnalyticPosterior[F] =
+  override private[thylacine] lazy val getValidated: GaussianAnalyticPosterior[F] =
     if (validated) {
       this
     } else {
@@ -99,19 +99,22 @@ case class GaussianAnalyticPosterior[F[_]: Async](
   lazy val covarianceStridedVector: ScalaVector[Double] =
     rawDistribution.covariance.toArray.toVector
 
-  private[thylacine] override def logPdfAt(
+  override private[thylacine] def logPdfAt(
     input: ModelParameterCollection
   ): F[Double] =
     Async[F].delay(rawDistribution.logPdf(modelParameterCollectionToRawVector(input)))
 
-  override protected def rawSampleModelParameters: F[VectorContainer] =
+  final override protected def rawSampleModelParameters: F[VectorContainer] =
     Async[F].delay(VectorContainer(rawDistribution.sample()))
 
-  override protected def sampleModelParameters: F[ModelParameterCollection] =
+  private def sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(s => rawVectorToModelParameterCollection(s.rawVector))
 
+  final override protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+    (1 to numberOfSamples).toList.traverse(_ => sampleModelParameters).map(_.toSet)
+
   def init: F[Unit] =
-    sample.void
+    sample(1).void
 }
 
 object GaussianAnalyticPosterior {

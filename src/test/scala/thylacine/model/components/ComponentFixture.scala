@@ -151,13 +151,12 @@ object ComponentFixture {
   def hookeAndJeevesOptimisedPosteriorF(implicit stm: STM[IO]): IO[HookeAndJeevesOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-      posterior <- HookeAndJeevesOptimisedPosterior.of[IO](
-                     hookeAndJeevesConfig    = hookeAndJeevesConfig,
-                     posterior               = unnormalisedPosterior,
-                     iterationUpdateCallback = _ => IO.unit,
-                     isConvergedCallback     = _ => IO.unit
-                   )
-    } yield posterior
+    } yield HookeAndJeevesOptimisedPosterior.from[IO](
+      hookeAndJeevesConfig    = hookeAndJeevesConfig,
+      posterior               = unnormalisedPosterior,
+      iterationUpdateCallback = _ => IO.unit,
+      isConvergedCallback     = _ => IO.unit
+    )
 
   val coordinateSlideConfig: CoordinateSlideConfig = CoordinateSlideConfig(
     convergenceThreshold           = 1e-7,
@@ -169,19 +168,18 @@ object ComponentFixture {
   def coordinateSlideOptimisedPosteriorF(implicit stm: STM[IO]): IO[CoordinateSlideOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-      posterior <- CoordinateSlideOptimisedPosterior.of[IO](
-                     coordinateSlideConfig   = coordinateSlideConfig,
-                     posterior               = unnormalisedPosterior,
-                     iterationUpdateCallback = _ => IO.unit,
-                     isConvergedCallback     = _ => IO.unit
-                   )
-    } yield posterior
+    } yield CoordinateSlideOptimisedPosterior.from[IO](
+      coordinateSlideConfig   = coordinateSlideConfig,
+      posterior               = unnormalisedPosterior,
+      iterationUpdateCallback = _ => IO.unit,
+      isConvergedCallback     = _ => IO.unit
+    )
 
   val conjugateGradientConfig: ConjugateGradientConfig = ConjugateGradientConfig(
-    convergenceThreshold     = 1e-20,
-    goldenSectionTolerance   = 1e-10,
-    lineProbeExpansionFactor = 2.0,
-    numberOfResultsToRetain  = 100
+    convergenceThreshold      = 1e-20,
+    goldenSectionTolerance    = 1e-10,
+    lineProbeExpansionFactor  = 2.0,
+    minimumNumberOfIterations = 1000
   )
 
   def conjugateGradientOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
@@ -190,7 +188,7 @@ object ComponentFixture {
     } yield ConjugateGradientOptimisedPosterior.from[IO](
       conjugateGradientConfig = conjugateGradientConfig,
       posterior               = unnormalisedPosterior,
-      newMaximumCallback      = _ => IO.unit,
+      iterationUpdateCallback = _ => IO.unit,
       isConvergedCallback     = _ => IO.unit
     )
 
@@ -204,11 +202,10 @@ object ComponentFixture {
   def mdsOptimisedPosteriorF(implicit stm: STM[IO]): IO[MdsOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-      posterior <- MdsOptimisedPosterior.of[IO](
-                     mdsConfig               = mdsConfig,
-                     posterior               = unnormalisedPosterior,
-                     iterationUpdateCallback = _ => IO.unit,
-                     isConvergedCallback     = _ => IO.unit
-                   )
-    } yield posterior
+    } yield MdsOptimisedPosterior.from[IO](
+      mdsConfig               = mdsConfig,
+      posterior               = unnormalisedPosterior,
+      iterationUpdateCallback = _ => IO.unit,
+      isConvergedCallback     = _ => IO.unit
+    )
 }

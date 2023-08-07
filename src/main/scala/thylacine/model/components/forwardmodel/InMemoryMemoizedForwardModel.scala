@@ -28,12 +28,12 @@ private[thylacine] trait InMemoryMemoizedForwardModel[F[_]] extends ForwardModel
   protected val evalCache: CachedComputation[F, VectorContainer]
   protected val jacobianCache: CachedComputation[F, IndexedMatrixCollection]
 
-  private[thylacine] override final def evalAt(
+  final override private[thylacine] def evalAt(
     input: ModelParameterCollection
   ): F[VectorContainer] =
     evalCache.performComputation(input)
 
-  private[thylacine] override def jacobianAt(
+  override private[thylacine] def jacobianAt(
     input: ModelParameterCollection
   ): F[IndexedMatrixCollection] =
     jacobianCache.performComputation(input)

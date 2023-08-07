@@ -28,7 +28,7 @@ import scala.annotation.unused
 private[thylacine] trait ModelParameterContext {
   private[thylacine] def orderedParameterIdentifiersWithDimension: Vector[(ModelParameterIdentifier, Int)]
 
-  private[thylacine] final def zeroModelParameterCollection: ModelParameterCollection =
+  final private[thylacine] def zeroModelParameterCollection: ModelParameterCollection =
     IndexedVectorCollection(
       orderedParameterIdentifiersWithDimension.toMap.view
         .mapValues(VectorContainer.zeros)
@@ -39,12 +39,12 @@ private[thylacine] trait ModelParameterContext {
   final def zeroParameterMapping: Map[String, Vector[Double]] =
     zeroModelParameterCollection.genericScalaRepresentation
 
-  private[thylacine] final def rawVectorToModelParameterCollection(
+  final private[thylacine] def rawVectorToModelParameterCollection(
     input: DenseVector[Double]
   ): ModelParameterCollection =
     vectorValuesToModelParameterCollection(input.toArray.toVector)
 
-  private[thylacine] final def vectorValuesToModelParameterCollection(
+  final private[thylacine] def vectorValuesToModelParameterCollection(
     input: Vector[Double]
   ): ModelParameterCollection =
     orderedParameterIdentifiersWithDimension
@@ -62,7 +62,7 @@ private[thylacine] trait ModelParameterContext {
       }
       ._2
 
-  private[thylacine] final def modelParameterCollectionToVectorValues(
+  final private[thylacine] def modelParameterCollectionToVectorValues(
     input: ModelParameterCollection
   ): Vector[Double] =
     orderedParameterIdentifiersWithDimension
@@ -72,7 +72,7 @@ private[thylacine] trait ModelParameterContext {
       .reverse
       .reduce(_ ++ _)
 
-  private[thylacine] final def modelParameterCollectionToRawVector(
+  final private[thylacine] def modelParameterCollectionToRawVector(
     input: ModelParameterCollection
   ): DenseVector[Double] =
     DenseVector {

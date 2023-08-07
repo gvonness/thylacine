@@ -24,3 +24,14 @@ private[thylacine] case class LineEvaluationResult(
   private[thylacine] val vectorArgument: Vector[Double],
   private[thylacine] val modelParameterArgument: ModelParameterCollection
 )
+
+private[thylacine] object LineEvaluationResult {
+  private[thylacine] def apply(
+    input: (Double, Vector[Double])
+  )(vectorValuesToModelParameterCollection: Vector[Double] => ModelParameterCollection): LineEvaluationResult =
+    LineEvaluationResult(
+      input._1,
+      input._2,
+      vectorValuesToModelParameterCollection(input._2)
+    )
+}
