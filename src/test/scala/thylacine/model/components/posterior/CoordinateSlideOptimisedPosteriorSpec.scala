@@ -34,7 +34,7 @@ class CoordinateSlideOptimisedPosteriorSpec extends AsyncFreeSpec with AsyncIOSp
         posterior               <- coordinateSlideOptimisedPosteriorF
         optimisationResult      <- posterior.findMaximumLogPdf(Map())
       } yield maxIndexVectorDiff(optimisationResult._2, Map("fooniform" -> Vector(1, 2), "barniform" -> Vector(5))))
-        .asserting(_ shouldBe (0.0 +- 1e-1))
+        .asserting(_ shouldBe (0.0 +- 1e-5))
     }
   }
 }
