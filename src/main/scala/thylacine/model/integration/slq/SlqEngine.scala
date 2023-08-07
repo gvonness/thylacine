@@ -136,11 +136,11 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
                       }
                  _       <- samplePool.remove(currentMinimum)
                  samples <- samplePool.get
-                 newMinimum <- if (samples.nonEmpty) {
-                                 STM[F].delay(samples.keys.min)
+                 newMinimum <- STM[F].delay(if (samples.nonEmpty) {
+                                 samples.keys.min
                                } else {
-                                 STM[F].pure(Double.MinValue)
-                               }
+                                 Double.MinValue
+                               })
                  _ <- samplePoolMinimumLogPdf.set(newMinimum)
                } yield ()
              case _ =>
@@ -457,7 +457,7 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
   // Assumes the quadratures have been fully constructed (see above comment).
   // We return the mean for the integrations, as SLQ produces inferences of these
   // integrations.
-  override final def integrate(
+  final override def integrate(
     integrand: BigDecimal => BigDecimal
   ): F[BigDecimal] =
     for {

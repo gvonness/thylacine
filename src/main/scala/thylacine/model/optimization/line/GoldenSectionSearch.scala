@@ -97,17 +97,11 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
     startPointEvaluation: (Double, Vector[Double]),
     endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {
-    val startEvaluation: LineEvaluationResult = LineEvaluationResult(
-      startPointEvaluation._1,
-      startPointEvaluation._2,
-      vectorValuesToModelParameterCollection(startPointEvaluation._2)
-    )
+    val startEvaluation: LineEvaluationResult =
+      LineEvaluationResult(startPointEvaluation)(vectorValuesToModelParameterCollection)
 
-    val endEvaluation: LineEvaluationResult = LineEvaluationResult(
-      endPointEvaluation._1,
-      endPointEvaluation._2,
-      vectorValuesToModelParameterCollection(endPointEvaluation._2)
-    )
+    val endEvaluation: LineEvaluationResult =
+      LineEvaluationResult(endPointEvaluation)(vectorValuesToModelParameterCollection)
 
     for {
       probeResult         <- probeLine(startEvaluation, endEvaluation)
@@ -119,17 +113,11 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
     startPointEvaluation: (Double, Vector[Double]),
     endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {
-    val startEvaluation: LineEvaluationResult = LineEvaluationResult(
-      startPointEvaluation._1,
-      startPointEvaluation._2,
-      vectorValuesToModelParameterCollection(startPointEvaluation._2)
-    )
+    val startEvaluation: LineEvaluationResult =
+      LineEvaluationResult(startPointEvaluation)(vectorValuesToModelParameterCollection)
 
-    val endEvaluation: LineEvaluationResult = LineEvaluationResult(
-      endPointEvaluation._1,
-      endPointEvaluation._2,
-      vectorValuesToModelParameterCollection(endPointEvaluation._2)
-    )
+    val endEvaluation: LineEvaluationResult =
+      LineEvaluationResult(endPointEvaluation)(vectorValuesToModelParameterCollection)
 
     goldenSectionSearch(startEvaluation, endEvaluation).map { goldenSectionResult =>
       (goldenSectionResult.result, goldenSectionResult.vectorArgument)

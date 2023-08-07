@@ -120,12 +120,4 @@ private[thylacine] object ModelParameterSimplex {
     ).getValidated
   }
 
-  private[thylacine] def unitRegularCenteredOnZero(
-    rawMappings: ModelParameterContext
-  ): ModelParameterSimplex =
-    unitRegularCenteredOn(
-      rawMappings.zeroModelParameterCollection,
-      rawMappings
-    )
-
 }
