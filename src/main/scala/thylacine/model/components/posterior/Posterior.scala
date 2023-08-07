@@ -64,7 +64,7 @@ private[thylacine] trait Posterior[F[_], P <: Prior[F, _], L <: Likelihood[F, _,
   private[thylacine] def samplePriors: F[ModelParameterCollection] =
     priors.toVector.traverse(_.sampleModelParameters(1).map(_.head)).map(_.reduce(_ rawMergeWith _))
 
-  final override private[thylacine] def logPdfAt(
+  override private[thylacine] def logPdfAt(
     input: ModelParameterCollection
   ): F[Double] =
     for {
