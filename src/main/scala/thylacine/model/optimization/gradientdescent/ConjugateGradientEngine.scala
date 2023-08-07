@@ -23,7 +23,7 @@ import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
-import thylacine.model.optimization.line.{GoldenSectionSearch, LineEvaluationResult}
+import thylacine.model.optimization.line.{ GoldenSectionSearch, LineEvaluationResult }
 import thylacine.util.ScalaVectorOps.Implicits._
 
 import cats.effect.implicits._
@@ -37,6 +37,8 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
 
   protected def convergenceThreshold: Double
 
+  protected def minimumNumberOfIterations: Int
+
   protected def iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit]
 
   protected def isConvergedCallback: Unit => F[Unit]
@@ -44,27 +46,24 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
   private def calculateNextLogPdf(
     startingEvaluation: LineEvaluationResult,
     previousGradient: Vector[Double],
-    previousSearchDirection: Vector[Double]
+    previousSearchDirection: Vector[Double],
+    iteration: Int
   ): F[(Double, ModelParameterCollection)] =
     (for {
-      gradientLogPdf                   <- logPdfGradientAt(startingEvaluation.modelParameterArgument)
-      gradientLogPdfVector             <- Async[F].delay(modelParameterCollectionToVectorValues(gradientLogPdf))
-      previousGradientMagnitudeSquared <- Async[F].delay(gradientLogPdfVector.magnitudeSquared)
+      negativeGradientLogPdf <-
+        logPdfGradientAt(startingEvaluation.modelParameterArgument).map(_.rawScalarMultiplyWith(-1))
+      negativeGradientLogPdfVector     <- Async[F].delay(modelParameterCollectionToVectorValues(negativeGradientLogPdf))
+      previousGradientMagnitudeSquared <- Async[F].delay(negativeGradientLogPdfVector.magnitudeSquared)
       newBeta <- Async[F].delay {
                    Math.max(
-                     gradientLogPdfVector
+                     negativeGradientLogPdfVector
                        .subtract(previousGradient)
-                       .dotProductWith(gradientLogPdfVector) / previousGradientMagnitudeSquared,
+                       .dotProductWith(negativeGradientLogPdfVector) / previousGradientMagnitudeSquared,
                      0
                    )
                  }
-      newDirection <- Async[F].delay {
-                        if (newBeta == 0) {
-                          gradientLogPdfVector
-                        } else {
-                          gradientLogPdfVector.add(previousSearchDirection.scalarMultiplyWith(newBeta))
-                        }
-                      }
+      newDirection <-
+        Async[F].delay(negativeGradientLogPdfVector.add(previousSearchDirection.scalarMultiplyWith(newBeta)))
       lineSearchResults <-
         searchDirectionAlong((startingEvaluation.result, startingEvaluation.vectorArgument), newDirection)
       lineSearchEvaluation <- Async[F].delay {
@@ -74,8 +73,8 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
                                   vectorValuesToModelParameterCollection(lineSearchResults._2)
                                 )
                               }
-    } yield (lineSearchEvaluation, gradientLogPdfVector, newDirection)).flatMap {
-      case (lineSearchEvaluation, gradientLogPdfVector, newDirection) =>
+    } yield (lineSearchEvaluation, negativeGradientLogPdfVector, newDirection)).flatMap {
+      case (lineSearchEvaluation, negativeGradientLogPdfVector, newDirection) =>
         for {
           newDiff <- Async[F].delay(lineSearchEvaluation.result - startingEvaluation.result)
           _ <- iterationUpdateCallback(
@@ -85,16 +84,18 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
                    prefix       = telemetryPrefix
                  )
                ).start
-          result <- Async[F].ifM(Async[F].delay(newDiff > convergenceThreshold))(
-                      calculateNextLogPdf(
-                        lineSearchEvaluation,
-                        gradientLogPdfVector,
-                        newDirection
-                      ),
-                      isConvergedCallback(()).start >> Async[F].pure {
-                        (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
-                      }
-                    )
+          result <-
+            Async[F].ifM(Async[F].delay(newDiff > convergenceThreshold || iteration < minimumNumberOfIterations))(
+              calculateNextLogPdf(
+                lineSearchEvaluation,
+                negativeGradientLogPdfVector,
+                newDirection,
+                iteration + 1
+              ),
+              isConvergedCallback(()).start >> Async[F].pure {
+                (lineSearchEvaluation.result, lineSearchEvaluation.modelParameterArgument)
+              }
+            )
         } yield result
     }
 
@@ -102,13 +103,16 @@ trait ConjugateGradientEngine[F[_]] extends ModelParameterOptimizer[F] with Gold
     startingPt: ModelParameterCollection
   ): F[(Double, ModelParameterCollection)] =
     for {
-      logPdf               <- logPdfAt(startingPt)
-      gradientLogPdfVector <- logPdfGradientAt(startingPt).map(modelParameterCollectionToVectorValues)
-      startingPointVector  <- Async[F].delay(modelParameterCollectionToVectorValues(startingPt))
+      logPdf <- logPdfAt(startingPt)
+      gradientLogPdfVector <- logPdfGradientAt(startingPt).map(nlpdfg =>
+                                modelParameterCollectionToVectorValues(nlpdfg.rawScalarMultiplyWith(-1))
+                              )
+      startingPointVector <- Async[F].delay(modelParameterCollectionToVectorValues(startingPt))
       result <- calculateNextLogPdf(
                   LineEvaluationResult(logPdf, startingPointVector, startingPt),
                   gradientLogPdfVector,
-                  gradientLogPdfVector
+                  gradientLogPdfVector,
+                  1
                 )
     } yield result
 

@@ -31,7 +31,7 @@ private[thylacine] case class RecordedData(
 
   private[thylacine] val dimension: Int = data.dimension
 
-  private[thylacine] override lazy val getValidated: RecordedData =
+  override private[thylacine] lazy val getValidated: RecordedData =
     if (validated) {
       this
     } else {

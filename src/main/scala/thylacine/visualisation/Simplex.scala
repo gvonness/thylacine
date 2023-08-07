@@ -35,7 +35,7 @@ private[thylacine] case class Simplex(start: GraphPoint, end: GraphPoint) {
     }
 
   @tailrec
-  private[thylacine] final def getInterpolationPoints(
+  final private[thylacine] def getInterpolationPoints(
     start: Double,
     ds: Double,
     prev: List[GraphPoint] = List()

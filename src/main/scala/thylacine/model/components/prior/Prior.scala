@@ -20,9 +20,9 @@ package thylacine.model.components.prior
 import thylacine.model.components.posterior.PosteriorTerm
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
-import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.modelparameters.{ ModelParameterGenerator, ModelParameterPdf }
+import thylacine.model.core.values.modelparameters.{ModelParameterGenerator, ModelParameterPdf}
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 import thylacine.model.distributions.Distribution
 import thylacine.model.sampling.ModelParameterSampler
 
@@ -41,19 +41,19 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
 
   final val label: String = identifier.value
 
-  override final val posteriorTermIdentifier: TermIdentifier = TermIdentifier(
+  final override val posteriorTermIdentifier: TermIdentifier = TermIdentifier(
     identifier.value
   )
 
-  override final val domainDimension: Int    = priorDistribution.domainDimension
-  override final val generatorDimension: Int = priorDistribution.domainDimension
+  final override val domainDimension: Int    = priorDistribution.domainDimension
+  final override val generatorDimension: Int = priorDistribution.domainDimension
 
-  override final def logPdfAt(
+  final override def logPdfAt(
     input: IndexedVectorCollection
   ): F[Double] =
     Async[F].delay(priorDistribution.logPdfAt(input.retrieveIndex(identifier)))
 
-  override final def logPdfGradientAt(
+  final override def logPdfGradientAt(
     input: IndexedVectorCollection
   ): F[ModelParameterCollection] =
     Async[F].delay {
@@ -67,7 +67,7 @@ private[thylacine] trait Prior[F[_], +D <: Distribution]
   private val sampleModelParameters: F[ModelParameterCollection] =
     rawSampleModelParameters.map(IndexedVectorCollection(identifier, _))
 
-  override final def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+  final override def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
     (1 to numberOfSamples).toList.traverse(_ => sampleModelParameters).map(_.toSet)
 
   // testing

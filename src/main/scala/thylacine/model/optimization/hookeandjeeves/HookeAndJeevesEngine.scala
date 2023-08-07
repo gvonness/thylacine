@@ -30,7 +30,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 
 import scala.util.Random
-import scala.{Vector => ScalaVector}
+import scala.{ Vector => ScalaVector }
 
 private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimizer[F] {
   this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>

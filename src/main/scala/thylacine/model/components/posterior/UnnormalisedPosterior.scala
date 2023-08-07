@@ -26,9 +26,9 @@ import thylacine.model.distributions.Distribution
 import cats.effect.kernel.Async
 
 case class UnnormalisedPosterior[F[_]: Async](
-  private[thylacine] override val priors: Set[Prior[F, _]],
-  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]],
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val priors: Set[Prior[F, _]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]],
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with CanValidate[UnnormalisedPosterior[F]] {
@@ -46,7 +46,7 @@ case class UnnormalisedPosterior[F[_]: Async](
     )
   }
 
-  private[thylacine] override lazy val getValidated: UnnormalisedPosterior[F] =
+  override private[thylacine] lazy val getValidated: UnnormalisedPosterior[F] =
     if (validated) {
       this
     } else {

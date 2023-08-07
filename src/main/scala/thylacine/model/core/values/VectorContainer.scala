@@ -36,7 +36,7 @@ private[thylacine] case class VectorContainer(
     assert(values.isEmpty || values.keys.min >= 1)
   }
 
-  private[thylacine] override val getValidated: VectorContainer =
+  override private[thylacine] val getValidated: VectorContainer =
     if (validated) this else this.copy(values = values.filter(_._2 != 0d), validated = true)
 
   // Low-level API

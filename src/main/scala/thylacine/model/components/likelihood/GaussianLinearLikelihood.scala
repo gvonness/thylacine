@@ -34,24 +34,24 @@ import scala.annotation.unused
 // Thus, it gets a dedicated case class that is leveraged to do an analytic check in the posterior
 // construction.
 case class GaussianLinearLikelihood[F[_]: Async](
-  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  override private[thylacine] val posteriorTermIdentifier: TermIdentifier,
   private[thylacine] val observations: RecordedData,
-  private[thylacine] override val forwardModel: LinearForwardModel[F],
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val forwardModel: LinearForwardModel[F],
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, LinearForwardModel[F], GaussianDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: GaussianLinearLikelihood[F] =
+  override private[thylacine] lazy val getValidated: GaussianLinearLikelihood[F] =
     if (validated) {
       this
     } else {
       this.copy(observations = observations.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationDistribution: GaussianDistribution =
+  override private[thylacine] lazy val observationDistribution: GaussianDistribution =
     GaussianDistribution(observations)
 
 }

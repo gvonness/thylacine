@@ -38,7 +38,7 @@ private[thylacine] case class MatrixContainer(
     assert(values.keys.map(_._2).min >= 1)
   }
 
-  private[thylacine] override lazy val getValidated: MatrixContainer =
+  override private[thylacine] lazy val getValidated: MatrixContainer =
     if (validated) this
     else this.copy(values = values.filter(_._2 != 0d), validated = true)
 

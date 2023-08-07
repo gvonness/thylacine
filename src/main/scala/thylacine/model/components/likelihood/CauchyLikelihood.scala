@@ -29,24 +29,24 @@ import java.util.UUID
 import scala.annotation.unused
 
 case class CauchyLikelihood[F[_]: Async](
-  private[thylacine] override val posteriorTermIdentifier: TermIdentifier,
+  override private[thylacine] val posteriorTermIdentifier: TermIdentifier,
   private[thylacine] val observations: RecordedData,
-  private[thylacine] override val forwardModel: ForwardModel[F],
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val forwardModel: ForwardModel[F],
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Likelihood[F, ForwardModel[F], CauchyDistribution] {
   if (!validated) {
     assert(forwardModel.rangeDimension == observations.data.dimension)
   }
 
-  private[thylacine] override lazy val getValidated: CauchyLikelihood[F] =
+  override private[thylacine] lazy val getValidated: CauchyLikelihood[F] =
     if (validated) {
       this
     } else {
       this.copy(observations = observations.getValidated, forwardModel = forwardModel.getValidated, validated = true)
     }
 
-  private[thylacine] override lazy val observationDistribution: CauchyDistribution =
+  override private[thylacine] lazy val observationDistribution: CauchyDistribution =
     CauchyDistribution(observations)
 
 }

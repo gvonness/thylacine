@@ -33,13 +33,13 @@ import scala.annotation.unused
 // A linear forward model may work across more than
 // one model parameter generator
 case class LinearForwardModel[F[_]: STM: Async](
-  protected override val evalCache: CachedComputation[F, VectorContainer],
-  protected override val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
+  override protected val evalCache: CachedComputation[F, VectorContainer],
+  override protected val jacobianCache: CachedComputation[F, IndexedMatrixCollection],
   private[thylacine] val transform: IndexedMatrixCollection,
   private[thylacine] val vectorOffset: Option[VectorContainer],
   override val domainDimension: Int,
   override val rangeDimension: Int,
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val validated: Boolean = false
 ) extends StmImplicits[F]
     with InMemoryMemoizedForwardModel[F] {
   if (!validated) {
@@ -49,7 +49,7 @@ case class LinearForwardModel[F[_]: STM: Async](
     )
   }
 
-  private[thylacine] override lazy val getValidated: LinearForwardModel[F] =
+  override private[thylacine] lazy val getValidated: LinearForwardModel[F] =
     if (validated) {
       this
     } else {
@@ -65,7 +65,7 @@ case class LinearForwardModel[F[_]: STM: Async](
   private[thylacine] val getJacobian: IndexedMatrixCollection =
     transform
 
-  private[thylacine] override def jacobianAt(
+  override private[thylacine] def jacobianAt(
     input: IndexedVectorCollection
   ): F[IndexedMatrixCollection] =
     Async[F].pure(getJacobian)

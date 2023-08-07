@@ -54,7 +54,7 @@ private[thylacine] case class ModelParameterSimplex(
     assert(!(isRegular ^ distancesAllEqual))
   }
 
-  private[thylacine] override lazy val getValidated: ModelParameterSimplex =
+  override private[thylacine] lazy val getValidated: ModelParameterSimplex =
     this.copy(validated = true)
 
   private[thylacine] def verticesAsModelParameters(

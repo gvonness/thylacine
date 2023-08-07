@@ -32,7 +32,7 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
 
   protected def goldenSectionTolerance: Double
 
-  private[thylacine] override final def searchColinearTriple(
+  final override private[thylacine] def searchColinearTriple(
     startPointEvaluation: (Double, Vector[Double]),
     midPointEvaluation: (Double, Vector[Double]),
     endPointEvaluation: (Double, Vector[Double])
@@ -87,13 +87,13 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
     }
   }
 
-  private[thylacine] override final def searchDirectionAlong(
+  final override private[thylacine] def searchDirectionAlong(
     startPointEvaluation: (Double, Vector[Double]),
     direction: Vector[Double]
   ): F[(Double, Vector[Double])] =
     exploreLine(startPointEvaluation, direction, goldenSectionTolerance / 10.0)
 
-  private[thylacine] override final def searchAlongLineJoining(
+  final override private[thylacine] def searchAlongLineJoining(
     startPointEvaluation: (Double, Vector[Double]),
     endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {
@@ -115,7 +115,7 @@ private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with Lin
     } yield (goldenSectionResult.result, goldenSectionResult.vectorArgument)
   }
 
-  private[thylacine] override final def searchLineBetween(
+  final override private[thylacine] def searchLineBetween(
     startPointEvaluation: (Double, Vector[Double]),
     endPointEvaluation: (Double, Vector[Double])
   ): F[(Double, Vector[Double])] = {

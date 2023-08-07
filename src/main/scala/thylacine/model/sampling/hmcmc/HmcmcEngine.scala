@@ -202,7 +202,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    * - - -- --- ----- -------- -------------
    */
 
-  protected override def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
+  override protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
     for {
       startPt <- burnIn
       results <- runDynamicSimulationFrom(
@@ -212,8 +212,5 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                    iterationCount           = 0
                  )
     } yield results
-
-  protected override val rawSampleModelParameters: F[VectorContainer] =
-    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 
 }

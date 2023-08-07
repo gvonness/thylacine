@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.core
 
-private[thylacine] sealed trait GenericIdentifier {
+sealed private[thylacine] trait GenericIdentifier {
   private[thylacine] def value: String
 }
 
@@ -26,6 +26,6 @@ private[thylacine] object GenericIdentifier {
   private[thylacine] case class ModelParameterIdentifier(value: String) extends GenericIdentifier
   private[thylacine] case class TermIdentifier(value: String) extends GenericIdentifier
 
-  private[thylacine] implicit def orderByValue[T <: GenericIdentifier]: Ordering[T] =
+  implicit private[thylacine] def orderByValue[T <: GenericIdentifier]: Ordering[T] =
     Ordering.fromLessThan((i, j) => (i.value compareTo j.value) < 0)
 }

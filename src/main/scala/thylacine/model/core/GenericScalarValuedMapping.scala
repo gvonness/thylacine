@@ -18,5 +18,5 @@ package ai.entrolution
 package thylacine.model.core
 
 private[thylacine] trait GenericScalarValuedMapping extends GenericMapping {
-  override final val rangeDimension: Int = 1
+  final override val rangeDimension: Int = 1
 }

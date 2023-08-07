@@ -20,5 +20,6 @@ package thylacine.config
 case class ConjugateGradientConfig(
   convergenceThreshold: Double,
   goldenSectionTolerance: Double,
-  lineProbeExpansionFactor: Double
+  lineProbeExpansionFactor: Double,
+  minimumNumberOfIterations: Int
 )

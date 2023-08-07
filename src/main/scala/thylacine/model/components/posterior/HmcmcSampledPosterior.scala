@@ -22,38 +22,42 @@ import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
-import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.sampling.hmcmc.HmcmcEngine
 
 import cats.effect.kernel.Async
+import cats.syntax.all._
 
 import scala.annotation.unused
 
 case class HmcmcSampledPosterior[F[_]: Async](
   private[thylacine] val hmcmcConfig: HmcmcConfig,
-  protected override val telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit],
+  override protected val telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit],
   private[thylacine] val seed: Map[String, Vector[Double]],
-  private[thylacine] override val priors: Set[Prior[F, _]],
-  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
+  override private[thylacine] val priors: Set[Prior[F, _]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]]
 ) extends AsyncImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with HmcmcEngine[F] {
 
-  override protected final val simulationsBetweenSamples: Int =
+  final override protected val simulationsBetweenSamples: Int =
     hmcmcConfig.stepsBetweenSamples
 
-  override protected final val stepsInSimulation: Int =
+  final override protected val stepsInSimulation: Int =
     hmcmcConfig.stepsInDynamicsSimulation
 
-  override protected final val simulationEpsilon: Double =
+  final override protected val simulationEpsilon: Double =
     hmcmcConfig.dynamicsSimulationStepSize
 
-  override protected final val warmUpSimulationCount: Int =
+  final override protected val warmUpSimulationCount: Int =
     hmcmcConfig.warmupStepCount
 
-  override protected final val startingPoint: F[ModelParameterCollection] =
+  final override protected val startingPoint: F[ModelParameterCollection] =
     Async[F].delay(IndexedVectorCollection(seed))
+
+  final override protected def rawSampleModelParameters: F[VectorContainer] =
+    sampleModelParameters(1).map(s => VectorContainer(modelParameterCollectionToRawVector(s.head)))
 }
 
 @unused

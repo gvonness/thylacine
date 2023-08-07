@@ -25,7 +25,6 @@ import thylacine.model.components.prior._
 import thylacine.model.core._
 import thylacine.model.core.telemetry.SlqTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.VectorContainer
 import thylacine.model.integration.ModelParameterIntegrator
 import thylacine.model.integration.slq.SamplingSimulation._
 import thylacine.model.sampling.ModelParameterSampler
@@ -468,12 +467,6 @@ private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] wit
 
   override protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]] =
     (1 to numberOfSamples).toList.traverse(_ => getSimulatedSample).map(_.toSet)
-
-  override protected val rawSampleModelParameters: F[VectorContainer] =
-    for {
-      sample <- sampleModelParameters(1).map(_.head)
-      result <- Async[F].delay(modelParameterCollectionToRawVector(sample))
-    } yield VectorContainer(result)
 
 }
 

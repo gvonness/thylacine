@@ -27,20 +27,20 @@ import cats.effect.kernel.Async
 import scala.annotation.unused
 
 case class CauchyPrior[F[_]: Async](
-  private[thylacine] override val identifier: ModelParameterIdentifier,
+  override private[thylacine] val identifier: ModelParameterIdentifier,
   private[thylacine] val priorData: RecordedData,
-  private[thylacine] override val validated: Boolean = false
+  override private[thylacine] val validated: Boolean = false
 ) extends AsyncImplicits[F]
     with Prior[F, CauchyDistribution] {
 
-  protected override lazy val priorDistribution: CauchyDistribution =
+  override protected lazy val priorDistribution: CauchyDistribution =
     CauchyDistribution(priorData)
 
-  private[thylacine] override lazy val getValidated: CauchyPrior[F] =
+  override private[thylacine] lazy val getValidated: CauchyPrior[F] =
     if (validated) this
     else this.copy(priorData = priorData.getValidated, validated = true)
 
-  protected override def rawSampleModelParameters: F[VectorContainer] =
+  override protected def rawSampleModelParameters: F[VectorContainer] =
     Async[F].delay(priorDistribution.getRawSample)
 }
 

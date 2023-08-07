@@ -38,7 +38,7 @@ private[thylacine] case class UniformDistribution(
     assert(!zippedBounds.exists(i => i._2 <= i._1))
   }
 
-  private[thylacine] override lazy val getValidated: UniformDistribution =
+  override private[thylacine] lazy val getValidated: UniformDistribution =
     if (validated) {
       this
     } else {
@@ -66,7 +66,7 @@ private[thylacine] case class UniformDistribution(
         false
     }
 
-  private[thylacine] override def logPdfAt(
+  override private[thylacine] def logPdfAt(
     input: VectorContainer
   ): Double =
     if (insideBounds(input)) {
@@ -75,7 +75,7 @@ private[thylacine] case class UniformDistribution(
       negInfinity
     }
 
-  private[thylacine] override def logPdfGradientAt(
+  override private[thylacine] def logPdfGradientAt(
     input: VectorContainer
   ): VectorContainer =
     zeroVector

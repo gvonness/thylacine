@@ -42,7 +42,7 @@ private[thylacine] case class PointInCubeCollection(
   private[thylacine] lazy val pointsOnly: Vector[VectorContainer] =
     pointsInCube.map(_.point)
 
-  private[thylacine] override lazy val getValidated: PointInCubeCollection =
+  override private[thylacine] lazy val getValidated: PointInCubeCollection =
     if (validated) {
       this
     } else {

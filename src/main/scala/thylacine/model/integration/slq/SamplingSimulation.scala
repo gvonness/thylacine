@@ -24,7 +24,7 @@ import ch.obermuhlner.math.big.DefaultBigDecimalMath
 
 import scala.util.Random
 
-private[thylacine] sealed trait SamplingSimulation {
+sealed private[thylacine] trait SamplingSimulation {
   private[thylacine] def getSample: ModelParameterCollection
   private[thylacine] def isConstructed: Boolean
 }
@@ -32,9 +32,9 @@ private[thylacine] sealed trait SamplingSimulation {
 private[thylacine] object SamplingSimulation {
 
   private[thylacine] case object SamplingSimulationDeconstructed extends SamplingSimulation {
-    private[thylacine] override final val isConstructed: Boolean = false
+    final override private[thylacine] val isConstructed: Boolean = false
 
-    private[thylacine] override final def getSample: ModelParameterCollection =
+    final override private[thylacine] def getSample: ModelParameterCollection =
       throw new RuntimeException("Sampling simulation not constructed yet!")
   }
 
@@ -81,9 +81,9 @@ private[thylacine] object SamplingSimulation {
 
     private val random = Random
 
-    private[thylacine] override final val isConstructed: Boolean = true
+    final override private[thylacine] val isConstructed: Boolean = true
 
-    private[thylacine] override def getSample: ModelParameterCollection = {
+    override private[thylacine] def getSample: ModelParameterCollection = {
       lazy val continuousRandom = BigDecimal(Math.random().toString)
 
       indexedStaircase(random.nextInt(numberOfAbscissas) + 1)

@@ -132,7 +132,7 @@ case class CachedComputation[F[_]: STM: Async, T](
       _    <- cleanComputationStore
     } yield ()
 
-  private[thylacine] override def performComputation(
+  override private[thylacine] def performComputation(
     input: ModelParameterCollection
   ): F[T] =
     if (cacheDepth.exists(_ > 0)) {

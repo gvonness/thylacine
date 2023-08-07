@@ -36,9 +36,9 @@ import scala.{ Vector => ScalaVector }
 private[thylacine] trait CoordinateSlideEngine[F[_]] extends HookeAndJeevesEngine[F] with GoldenSectionSearch[F] {
   this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
 
-  protected override val telemetryPrefix: String = "Coordinate Slide"
+  override protected val telemetryPrefix: String = "Coordinate Slide"
 
-  protected override def dimensionScan(
+  override protected def dimensionScan(
     nudgeAmount: Double,
     startingPoint: ScalaVector[Double],
     startingLogPdf: Double

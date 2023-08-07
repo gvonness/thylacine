@@ -30,10 +30,10 @@ import scala.annotation.unused
 
 case class MdsOptimisedPosterior[F[_]: Async](
   private[thylacine] val mdsConfig: MdsConfig,
-  protected override val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
-  protected override val isConvergedCallback: Unit => F[Unit],
-  private[thylacine] override val priors: Set[Prior[F, _]],
-  private[thylacine] override val likelihoods: Set[Likelihood[F, _, _]]
+  override protected val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
+  override protected val isConvergedCallback: Unit => F[Unit],
+  override private[thylacine] val priors: Set[Prior[F, _]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]]
 ) extends AsyncImplicits[F]
     with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
     with MdsEngine[F] {
