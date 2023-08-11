@@ -28,7 +28,7 @@ import thylacine.model.distributions.Distribution
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-private[thylacine] trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribution]
+trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribution]
     extends ModelParameterPdf[F]
     with PosteriorTerm
     with CanValidate[Likelihood[F, _, _]] {

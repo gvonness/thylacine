@@ -22,7 +22,7 @@ import thylacine.model.core.values._
 
 import cats.syntax.all._
 
-private[thylacine] trait ForwardModel[F[_]] extends GenericMapping with CanValidate[ForwardModel[F]] {
+trait ForwardModel[F[_]] extends GenericMapping with CanValidate[ForwardModel[F]] {
   this: AsyncImplicits[F] =>
 
   // Note that input validation should be done within
