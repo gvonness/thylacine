@@ -51,7 +51,7 @@ case class ConjugateGradientOptimisedPosterior[F[_]: Async](
 
 object ConjugateGradientOptimisedPosterior {
 
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     conjugateGradientConfig: ConjugateGradientConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],

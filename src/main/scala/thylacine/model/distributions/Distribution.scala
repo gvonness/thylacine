@@ -20,7 +20,7 @@ package thylacine.model.distributions
 import thylacine.model.core.GenericScalarValuedMapping
 import thylacine.model.core.values.VectorContainer
 
-private[thylacine] trait Distribution extends GenericScalarValuedMapping {
+trait Distribution extends GenericScalarValuedMapping {
   private[thylacine] def logPdfAt(input: VectorContainer): Double
 
   private[thylacine] def logPdfGradientAt(

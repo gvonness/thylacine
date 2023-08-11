@@ -24,7 +24,7 @@ import thylacine.model.core.values.modelparameters.ModelParameterContext
 
 import cats.syntax.all._
 
-private[thylacine] trait ModelParameterSampler[F[_]] {
+trait ModelParameterSampler[F[_]] {
   this: AsyncImplicits[F] with ModelParameterContext =>
 
   protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]]

@@ -51,7 +51,7 @@ case class CoordinateSlideOptimisedPosterior[F[_]: Async](
 
 object CoordinateSlideOptimisedPosterior {
 
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     coordinateSlideConfig: CoordinateSlideConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],

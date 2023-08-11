@@ -17,6 +17,7 @@
 package ai.entrolution
 package thylacine.model.components.likelihood
 
+import bengal.stm.STM
 import thylacine.model.components.forwardmodel._
 import thylacine.model.core.GenericIdentifier._
 import thylacine.model.core._
@@ -24,6 +25,7 @@ import thylacine.model.core.values.VectorContainer
 import thylacine.model.distributions.CauchyDistribution
 
 import cats.effect.kernel.Async
+import cats.syntax.all._
 
 import java.util.UUID
 import scala.annotation.unused
@@ -66,5 +68,26 @@ object CauchyLikelihood {
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
       forwardModel = forwardModel
+    )
+
+  @unused
+  def of[F[_]: STM: Async](
+    coefficients: Vector[Vector[Double]],
+    measurements: Vector[Double],
+    uncertainties: Vector[Double],
+    priorLabel: String,
+    evalCacheDepth: Option[Int]
+  ): F[CauchyLikelihood[F]] =
+    for {
+      linearForwardModel <- LinearForwardModel
+                              .of[F](
+                                label          = priorLabel,
+                                values         = coefficients,
+                                evalCacheDepth = evalCacheDepth
+                              )
+    } yield CauchyLikelihood(
+      measurements  = measurements,
+      uncertainties = uncertainties,
+      forwardModel  = linearForwardModel
     )
 }

@@ -60,7 +60,7 @@ case class HmcmcSampledPosterior[F[_]: Async](
 object HmcmcSampledPosterior {
 
   @unused
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     hmcmcConfig: HmcmcConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
     telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit],

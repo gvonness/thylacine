@@ -46,7 +46,7 @@ case class HookeAndJeevesOptimisedPosterior[F[_]: Async](
 
 object HookeAndJeevesOptimisedPosterior {
 
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     hookeAndJeevesConfig: HookeAndJeevesConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],

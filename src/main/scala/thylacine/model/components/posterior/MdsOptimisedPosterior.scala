@@ -54,7 +54,7 @@ case class MdsOptimisedPosterior[F[_]: Async](
 object MdsOptimisedPosterior {
 
   @unused
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     mdsConfig: MdsConfig,
     posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],

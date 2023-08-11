@@ -29,7 +29,7 @@ import thylacine.model.sampling.ModelParameterSampler
 import cats.effect.kernel.Async
 import cats.syntax.all._
 
-private[thylacine] trait Prior[F[_], +D <: Distribution]
+trait Prior[F[_], +D <: Distribution]
     extends ModelParameterPdf[F]
     with PosteriorTerm
     with ModelParameterContext

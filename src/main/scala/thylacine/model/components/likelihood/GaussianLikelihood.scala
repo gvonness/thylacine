@@ -52,7 +52,7 @@ case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
 
 object GaussianLikelihood {
 
-  def from[F[_]: Async, T <: ForwardModel[F]](
+  def apply[F[_]: Async, T <: ForwardModel[F]](
     forwardModel: T,
     measurements: Vector[Double],
     uncertainties: Vector[Double]
