@@ -25,7 +25,7 @@ import cats.syntax.all._
 
 import scala.annotation.unused
 
-private[thylacine] trait ModelParameterOptimizer[F[_]] {
+trait ModelParameterOptimizer[F[_]] {
   this: AsyncImplicits[F] =>
 
   protected def calculateMaximumLogPdf(
