@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,22 +17,22 @@
 package ai.entrolution
 package thylacine.model.sampling.leapfrog
 
-import bengal.stm._
-import bengal.stm.model._
-import bengal.stm.syntax.all._
-import thylacine.model.components.posterior._
+import bengal.stm.*
+import bengal.stm.model.*
+import bengal.stm.syntax.all.*
+import thylacine.model.components.posterior.*
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.StmImplicits
 import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.sampling.{ModelParameterSampler, SampleRequest}
+import thylacine.model.sampling.{ ModelParameterSampler, SampleRequest }
 import thylacine.util.MathOps
-import thylacine.util.ScalaVectorOps.Implicits._
+import thylacine.util.ScalaVectorOps.Implicits.*
 
 import cats.effect.Deferred
-import cats.effect.implicits._
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.collection.immutable.Queue
 import scala.util.Random

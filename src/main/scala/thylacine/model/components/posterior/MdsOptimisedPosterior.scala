@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,10 +32,10 @@ case class MdsOptimisedPosterior[F[_]: Async](
   private[thylacine] val mdsConfig: MdsConfig,
   override protected val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
   override protected val isConvergedCallback: Unit => F[Unit],
-  override private[thylacine] val priors: Set[Prior[F, _]],
-  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]]
+  override private[thylacine] val priors: Set[Prior[F, ?]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, ?, ?]]
 ) extends AsyncImplicits[F]
-    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
+    with Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]]
     with MdsEngine[F] {
 
   override protected val expansionMultiplier: Double =
@@ -56,7 +56,7 @@ object MdsOptimisedPosterior {
   @unused
   def apply[F[_]: Async](
     mdsConfig: MdsConfig,
-    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    posterior: Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
     isConvergedCallback: Unit => F[Unit]
   ): MdsOptimisedPosterior[F] =

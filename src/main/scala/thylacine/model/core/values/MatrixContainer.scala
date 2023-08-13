@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ package thylacine.model.core.values
 
 import thylacine.model.core.CanValidate
 
-import breeze.linalg._
-import cats.implicits._
+import breeze.linalg.*
+import cats.implicits.*
 
-import scala.{ Vector => ScalaVector }
+import scala.Vector as ScalaVector
 
 private[thylacine] case class MatrixContainer(
   values: Map[(Int, Int), Double],

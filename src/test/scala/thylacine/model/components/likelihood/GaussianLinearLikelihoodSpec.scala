@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class GaussianLinearLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with M
 
     "generate the a zero gradient at the likelihood maximum" in {
       (for {
-        implicit0(stm: STM[IO]) <- STM.runtime[IO]
+        case implicit0(stm: STM[IO]) <- STM.runtime[IO]
         likelihood              <- fooLikelihoodF
         result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(1d, 2d))))
       } yield result.genericScalaRepresentation)
@@ -40,7 +40,7 @@ class GaussianLinearLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with M
 
     "generate the correct gradient of the logPdf for a given point" in {
       (for {
-        implicit0(stm: STM[IO]) <- STM.runtime[IO]
+        case implicit0(stm: STM[IO]) <- STM.runtime[IO]
         likelihood              <- fooLikelihoodF
         result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(3d, 2d))))
       } yield result.genericScalaRepresentation)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,15 +25,15 @@ import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollect
 import thylacine.model.optimization.ModelParameterOptimizer
 import thylacine.util.MathOps
 
-import cats.effect.implicits._
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.util.Random
-import scala.{ Vector => ScalaVector }
+import scala.Vector as ScalaVector
 
 private[thylacine] trait HookeAndJeevesEngine[F[_]] extends ModelParameterOptimizer[F] {
-  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
   protected val telemetryPrefix: String = "Hooke and Jeeves"
   protected def convergenceThreshold: Double

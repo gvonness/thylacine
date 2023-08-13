@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import thylacine.TestUtils._
-import thylacine.model.components.ComponentFixture._
+import thylacine.TestUtils.*
+import thylacine.model.components.ComponentFixture.*
 
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
@@ -33,7 +33,7 @@ class GaussianAnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with 
     // that chip away at the numerical accuracy of the result
     "generate the correct mean for the inference" in {
       (for {
-        implicit0(stm: STM[IO]) <- STM.runtime[IO]
+        case implicit0(stm: STM[IO]) <- STM.runtime[IO]
         posterior               <- analyticPosteriorF
       } yield maxIndexVectorDiff(posterior.mean, Map("foo" -> Vector(1, 2), "bar" -> Vector(5))))
         .asserting(_ shouldBe (0d +- .1))
@@ -44,7 +44,7 @@ class GaussianAnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with 
     // be very small)
     "generate the correct covariance" in {
       (for {
-        implicit0(stm: STM[IO]) <- STM.runtime[IO]
+        case implicit0(stm: STM[IO]) <- STM.runtime[IO]
         posterior               <- analyticPosteriorF
       } yield maxVectorDiff(posterior.covarianceStridedVector, Vector.fill(9)(0d))).asserting(_ shouldBe (0.0 +- .01))
     }

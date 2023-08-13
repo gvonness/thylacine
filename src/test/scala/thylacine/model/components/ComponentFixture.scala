@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import bengal.stm.STM
 import thylacine.config.{ ConjugateGradientConfig, CoordinateSlideConfig, HookeAndJeevesConfig, MdsConfig }
 import thylacine.model.components.forwardmodel.NonLinearForwardModel
 import thylacine.model.components.likelihood.{ GaussianLikelihood, GaussianLinearLikelihood }
-import thylacine.model.components.posterior._
+import thylacine.model.components.posterior.*
 import thylacine.model.components.prior.{ GaussianPrior, UniformPrior }
 
 import cats.effect.IO
@@ -73,7 +73,7 @@ object ComponentFixture {
       nonAnalyticForwardModel <- fooNonAnalyticForwardModelF
     } yield GaussianLikelihood[IO, NonLinearForwardModel[IO]](
       forwardModel  = nonAnalyticForwardModel,
-      measurements  = Vector(7, 10),
+      measurements  = Vector(7d, 10d),
       uncertainties = Vector(0.01, 0.01)
     )
 
@@ -179,7 +179,7 @@ object ComponentFixture {
     convergenceThreshold      = 1e-20,
     goldenSectionTolerance    = 1e-10,
     lineProbeExpansionFactor  = 2.0,
-    minimumNumberOfIterations = 1000
+    minimumNumberOfIterations = 10000
   )
 
   def conjugateGradientOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ package thylacine.model.core
   * Instead we create a flexible validation framework that will be enacted at the creation of any Bayesian graphical
   * network. Obviously, this won't get us compile time guarantees, but violations will fail the model quickly at runtime
   */
-private[thylacine] trait CanValidate[+T <: CanValidate[_]] {
+private[thylacine] trait CanValidate[+T <: CanValidate[?]] {
   private[thylacine] def validated: Boolean
   private[thylacine] def getValidated: T
 }

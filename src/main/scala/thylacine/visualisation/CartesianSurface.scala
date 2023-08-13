@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,15 @@
 package ai.entrolution
 package thylacine.visualisation
 
-import bengal.stm._
-import bengal.stm.model._
-import bengal.stm.syntax.all._
+import bengal.stm.*
+import bengal.stm.model.*
+import bengal.stm.syntax.all.*
 import thylacine.util.MathOps.trapezoidalQuadrature
 
 import cats.data.NonEmptyVector
-import cats.effect.implicits._
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.annotation.unused
 

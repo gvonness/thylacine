@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,15 +20,15 @@ package thylacine.model.optimization.line
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.values.modelparameters.{ ModelParameterContext, ModelParameterPdf }
 import thylacine.model.optimization.line.GoldenSectionSearch.{ inversePhi, inversePhiSquared }
-import thylacine.util.ScalaVectorOps.Implicits._
+import thylacine.util.ScalaVectorOps.Implicits.*
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.util.Random
 
 private[thylacine] trait GoldenSectionSearch[F[_]] extends LineProbe[F] with LineSearch[F] {
-  this: AsyncImplicits[F] with ModelParameterPdf[F] with ModelParameterContext =>
+  this: AsyncImplicits[F] & ModelParameterPdf[F] & ModelParameterContext =>
 
   protected def goldenSectionTolerance: Double
 

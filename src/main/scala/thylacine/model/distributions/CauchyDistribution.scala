@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ package thylacine.model.distributions
 import thylacine.model.core.values.{ MatrixContainer, VectorContainer }
 import thylacine.model.core.{ CanValidate, RecordedData }
 
-import breeze.linalg._
-import breeze.stats.distributions._
+import breeze.linalg.*
+import breeze.stats.distributions.*
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.commons.math3.special.Gamma.gamma
 import org.apache.commons.math3.util.FastMath

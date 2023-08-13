@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ import thylacine.model.core.AsyncImplicits
 import thylacine.model.optimization.line.GoldenSectionSearch
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.util.Random
-import scala.{ Vector => ScalaVector }
+import scala.Vector as ScalaVector
 
 // Modification of standard Hooke and Jeeves to leverage
 // line searches along each coordinate direction.
@@ -34,7 +34,7 @@ import scala.{ Vector => ScalaVector }
 // initial triad between the endpoints or explores in the direction
 // of greatest increase
 private[thylacine] trait CoordinateSlideEngine[F[_]] extends HookeAndJeevesEngine[F] with GoldenSectionSearch[F] {
-  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
   override protected val telemetryPrefix: String = "Coordinate Slide"
 

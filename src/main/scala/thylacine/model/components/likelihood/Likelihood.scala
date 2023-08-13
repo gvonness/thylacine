@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,21 @@
 package ai.entrolution
 package thylacine.model.components.likelihood
 
-import thylacine.model.components.forwardmodel._
+import thylacine.model.components.forwardmodel.*
 import thylacine.model.components.posterior.PosteriorTerm
-import thylacine.model.core._
+import thylacine.model.core.*
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.modelparameters.ModelParameterPdf
 import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.distributions.Distribution
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 trait Likelihood[F[_], +FM <: ForwardModel[F], +D <: Distribution]
     extends ModelParameterPdf[F]
     with PosteriorTerm
-    with CanValidate[Likelihood[F, _, _]] {
+    with CanValidate[Likelihood[F, ?, ?]] {
   this: AsyncImplicits[F] =>
 
   private[thylacine] def observationDistribution: D

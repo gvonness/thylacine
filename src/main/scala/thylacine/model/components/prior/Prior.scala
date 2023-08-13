@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package ai.entrolution
 package thylacine.model.components.prior
 
 import thylacine.model.components.posterior.PosteriorTerm
-import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core._
+import thylacine.model.core.GenericIdentifier.*
+import thylacine.model.core.*
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.core.values.modelparameters.{ ModelParameterContext, ModelParameterGenerator, ModelParameterPdf }
 import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
@@ -27,7 +27,7 @@ import thylacine.model.distributions.Distribution
 import thylacine.model.sampling.ModelParameterSampler
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 trait Prior[F[_], +D <: Distribution]
     extends ModelParameterPdf[F]
@@ -35,7 +35,7 @@ trait Prior[F[_], +D <: Distribution]
     with ModelParameterContext
     with ModelParameterSampler[F]
     with ModelParameterGenerator
-    with CanValidate[Prior[F, _]] {
+    with CanValidate[Prior[F, ?]] {
   this: AsyncImplicits[F] =>
 
   protected def priorDistribution: D

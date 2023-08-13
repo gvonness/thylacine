@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ package thylacine.model.distributions
 import thylacine.model.core.CanValidate
 import thylacine.model.core.values.VectorContainer
 
-import scala.collection.immutable.{ Vector => ScalaVector }
-import scala.collection.parallel.CollectionConverters._
+import scala.collection.immutable.Vector as ScalaVector
+import scala.collection.parallel.CollectionConverters.*
 
 private[thylacine] case class UniformDistribution(
   upperBounds: VectorContainer,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ import thylacine.model.core.telemetry.OptimisationTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.optimization.ModelParameterOptimizer
 
-import cats.effect.implicits._
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 trait MdsEngine[F[_]] extends ModelParameterOptimizer[F] {
-  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
   protected def expansionMultiplier: Double
 
