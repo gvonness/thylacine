@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ package thylacine.model.distributions
 import thylacine.model.core.GenericScalarValuedMapping
 import thylacine.model.core.values.VectorContainer
 
-private[thylacine] trait Distribution extends GenericScalarValuedMapping {
+trait Distribution extends GenericScalarValuedMapping {
   private[thylacine] def logPdfAt(input: VectorContainer): Double
 
   private[thylacine] def logPdfGradientAt(

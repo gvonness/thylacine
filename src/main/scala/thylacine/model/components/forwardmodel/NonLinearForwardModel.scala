@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import thylacine.model.core.computation.{ CachedComputation, FiniteDifferenceJac
 import thylacine.model.core.values.{ IndexedMatrixCollection, IndexedVectorCollection, VectorContainer }
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 case class NonLinearForwardModel[F[_]: STM: Async](
   override protected val evalCache: CachedComputation[F, VectorContainer],

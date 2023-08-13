@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package ai.entrolution
 package thylacine.model.sampling.hmcmc
 
-import thylacine.model.components.posterior._
+import thylacine.model.components.posterior.*
 import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
@@ -25,14 +25,14 @@ import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollect
 import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.sampling.ModelParameterSampler
 
-import cats.effect.implicits._
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 /** Implementation of the Hamiltonian MCMC sampling algorithm
   */
 private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
-  this: AsyncImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: AsyncImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
   /*
    * - - -- --- ----- -------- -------------

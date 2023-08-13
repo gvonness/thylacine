@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,15 @@ package ai.entrolution
 package thylacine.model.components.forwardmodel
 
 import bengal.stm.STM
-import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core._
+import thylacine.model.core.GenericIdentifier.*
+import thylacine.model.core.*
 import thylacine.model.core.computation.CachedComputation
-import thylacine.model.core.values._
+import thylacine.model.core.values.*
 import thylacine.model.core.values.modelparameters.ModelParameterContext
 
 import breeze.linalg.{ DenseMatrix, DenseVector }
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.annotation.unused
 

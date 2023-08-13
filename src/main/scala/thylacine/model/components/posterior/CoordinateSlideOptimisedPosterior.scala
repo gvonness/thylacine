@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,10 +30,10 @@ case class CoordinateSlideOptimisedPosterior[F[_]: Async](
   private[thylacine] val coordinateSlideConfig: CoordinateSlideConfig,
   override protected val iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
   override protected val isConvergedCallback: Unit => F[Unit],
-  override private[thylacine] val priors: Set[Prior[F, _]],
-  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]]
+  override private[thylacine] val priors: Set[Prior[F, ?]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, ?, ?]]
 ) extends AsyncImplicits[F]
-    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
+    with Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]]
     with CoordinateSlideEngine[F] {
 
   override protected val convergenceThreshold: Double =
@@ -51,9 +51,9 @@ case class CoordinateSlideOptimisedPosterior[F[_]: Async](
 
 object CoordinateSlideOptimisedPosterior {
 
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     coordinateSlideConfig: CoordinateSlideConfig,
-    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    posterior: Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]],
     iterationUpdateCallback: OptimisationTelemetryUpdate => F[Unit],
     isConvergedCallback: Unit => F[Unit]
   ): CoordinateSlideOptimisedPosterior[F] =

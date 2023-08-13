@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@ case class HmcmcSampledPosterior[F[_]: Async](
   private[thylacine] val hmcmcConfig: HmcmcConfig,
   override protected val telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit],
   private[thylacine] val seed: Map[String, Vector[Double]],
-  override private[thylacine] val priors: Set[Prior[F, _]],
-  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]]
+  override private[thylacine] val priors: Set[Prior[F, ?]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, ?, ?]]
 ) extends AsyncImplicits[F]
-    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
+    with Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]]
     with HmcmcEngine[F] {
 
   final override protected val simulationsBetweenSamples: Int =
@@ -60,9 +60,9 @@ case class HmcmcSampledPosterior[F[_]: Async](
 object HmcmcSampledPosterior {
 
   @unused
-  def from[F[_]: Async](
+  def apply[F[_]: Async](
     hmcmcConfig: HmcmcConfig,
-    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    posterior: Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]],
     telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit],
     seed: Map[String, Vector[Double]]
   ): HmcmcSampledPosterior[F] =

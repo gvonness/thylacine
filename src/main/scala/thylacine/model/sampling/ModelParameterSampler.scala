@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollect
 import thylacine.model.core.values.VectorContainer
 import thylacine.model.core.values.modelparameters.ModelParameterContext
 
-import cats.syntax.all._
+import cats.syntax.all.*
 
-private[thylacine] trait ModelParameterSampler[F[_]] {
-  this: AsyncImplicits[F] with ModelParameterContext =>
+trait ModelParameterSampler[F[_]] {
+  this: AsyncImplicits[F] & ModelParameterContext =>
 
   protected def sampleModelParameters(numberOfSamples: Int): F[Set[ModelParameterCollection]]
 

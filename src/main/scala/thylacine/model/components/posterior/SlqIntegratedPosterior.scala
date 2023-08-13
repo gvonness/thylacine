@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package ai.entrolution
 package thylacine.model.components.posterior
 
 import bengal.stm.STM
-import bengal.stm.model.{TxnVar, TxnVarMap}
+import bengal.stm.model.{ TxnVar, TxnVarMap }
 import thylacine.config.SlqConfig
 import thylacine.model.components.likelihood.Likelihood
 import thylacine.model.components.prior.Prior
@@ -26,10 +26,10 @@ import thylacine.model.core.StmImplicits
 import thylacine.model.core.telemetry.SlqTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.integration.slq._
+import thylacine.model.integration.slq.*
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.annotation.unused
 
@@ -39,8 +39,8 @@ case class SlqIntegratedPosterior[F[_]: STM: Async](
   override protected val domainRebuildStartCallback: Unit => F[Unit],
   override protected val domainRebuildFinishCallback: Unit => F[Unit],
   override protected val seeds: Set[ModelParameterCollection],
-  override private[thylacine] val priors: Set[Prior[F, _]],
-  override private[thylacine] val likelihoods: Set[Likelihood[F, _, _]],
+  override private[thylacine] val priors: Set[Prior[F, ?]],
+  override private[thylacine] val likelihoods: Set[Likelihood[F, ?, ?]],
   override protected val sampleDomain: TxnVar[F, PointInCubeCollection],
   override protected val samplePool: TxnVarMap[F, Double, ModelParameterCollection],
   override protected val samplePoolMinimumLogPdf: TxnVar[F, Double],
@@ -52,7 +52,7 @@ case class SlqIntegratedPosterior[F[_]: STM: Async](
   override protected val samplingSimulation: TxnVar[F, SamplingSimulation],
   override protected val isConverged: TxnVar[F, Boolean]
 ) extends StmImplicits[F]
-    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
+    with Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]]
     with SlqEngine[F] {
   final override protected val slqSamplePoolSize: Int = slqConfig.poolSize
 
@@ -86,7 +86,7 @@ object SlqIntegratedPosterior {
   @unused
   def of[F[_]: STM: Async](
     slqConfig: SlqConfig,
-    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    posterior: Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]],
     slqTelemetryUpdateCallback: SlqTelemetryUpdate => F[Unit],
     domainRebuildStartCallback: Unit => F[Unit],
     domainRebuildFinishCallback: Unit => F[Unit],

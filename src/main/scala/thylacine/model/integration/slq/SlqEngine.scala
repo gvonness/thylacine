@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,20 @@ package ai.entrolution
 package thylacine.model.integration.slq
 
 import bengal.stm.STM
-import bengal.stm.model._
-import bengal.stm.syntax.all._
-import thylacine.model.components.posterior._
-import thylacine.model.components.prior._
-import thylacine.model.core._
+import bengal.stm.model.*
+import bengal.stm.syntax.all.*
+import thylacine.model.components.posterior.*
+import thylacine.model.components.prior.*
+import thylacine.model.core.*
 import thylacine.model.core.telemetry.SlqTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 import thylacine.model.integration.ModelParameterIntegrator
-import thylacine.model.integration.slq.SamplingSimulation._
+import thylacine.model.integration.slq.SamplingSimulation.*
 import thylacine.model.sampling.ModelParameterSampler
 
-import cats.effect.implicits._
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 /** Implementation of the SLQ (pronounced like "slick") algorithm introduced in Appendix B of [3].
   *
@@ -49,9 +49,9 @@ import cats.syntax.all._
   * stochastic quadratures Plasma Phys. Control Fusion 56 (2014) 114011
   */
 private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] with ModelParameterSampler[F] {
-  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: StmImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
-  import SlqEngine._
+  import SlqEngine.*
 
   /*
    * - - -- --- ----- -------- -------------

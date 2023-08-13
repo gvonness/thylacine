@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import thylacine.model.sampling.SampleRequest
 import thylacine.model.sampling.leapfrog.LeapfrogMcmcEngine
 
 import cats.effect.kernel.Async
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.annotation.unused
 import scala.collection.immutable.Queue
@@ -40,8 +40,8 @@ case class LeapfrogMcmcSampledPosterior[F[_]: STM: Async](
   protected val sampleRequestSetCallback: Int => F[Unit],
   protected val sampleRequestUpdateCallback: Int => F[Unit],
   private[thylacine] val seed: Map[String, Vector[Double]],
-  private[thylacine] val priors: Set[Prior[F, _]],
-  private[thylacine] val likelihoods: Set[Likelihood[F, _, _]],
+  private[thylacine] val priors: Set[Prior[F, ?]],
+  private[thylacine] val likelihoods: Set[Likelihood[F, ?, ?]],
   protected val sampleRequests: TxnVar[F, Queue[SampleRequest[F]]],
   protected val burnInComplete: TxnVar[F, Boolean],
   protected val interSampleDistanceCalculationResults: TxnVar[F, Vector[Vector[Double]]],
@@ -49,7 +49,7 @@ case class LeapfrogMcmcSampledPosterior[F[_]: STM: Async](
   protected val samplePool: TxnVar[F, Vector[Vector[Double]]],
   protected val currentChainTallies: TxnVar[F, Vector[Int]]
 ) extends StmImplicits[F]
-    with Posterior[F, Prior[F, _], Likelihood[F, _, _]]
+    with Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]]
     with LeapfrogMcmcEngine[F] {
 
   final override protected val stepsBetweenSamples: Int =
@@ -72,7 +72,7 @@ object LeapfrogMcmcSampledPosterior {
   def of[F[_]: STM: Async](
     leapfrogMcmcConfig: LeapfrogMcmcConfig,
     distanceCalculation: (Vector[Double], Vector[Double]) => Double,
-    posterior: Posterior[F, Prior[F, _], Likelihood[F, _, _]],
+    posterior: Posterior[F, Prior[F, ?], Likelihood[F, ?, ?]],
     sampleRequestSetCallback: Int => F[Unit],
     sampleRequestUpdateCallback: Int => F[Unit],
     seed: Map[String, Vector[Double]]

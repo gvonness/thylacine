@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.values.IndexedVectorCollection
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
 
-import cats.syntax.all._
+import cats.syntax.all.*
 
 import scala.annotation.unused
 
-private[thylacine] trait ModelParameterOptimizer[F[_]] {
+trait ModelParameterOptimizer[F[_]] {
   this: AsyncImplicits[F] =>
 
   protected def calculateMaximumLogPdf(

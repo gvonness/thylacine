@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,15 @@
 package ai.entrolution
 package thylacine.model.components.likelihood
 
-import thylacine.model.components.forwardmodel._
-import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core._
+import bengal.stm.STM
+import thylacine.model.components.forwardmodel.*
+import thylacine.model.core.GenericIdentifier.*
+import thylacine.model.core.*
 import thylacine.model.core.values.VectorContainer
 import thylacine.model.distributions.CauchyDistribution
 
 import cats.effect.kernel.Async
+import cats.syntax.all.*
 
 import java.util.UUID
 import scala.annotation.unused
@@ -66,5 +68,26 @@ object CauchyLikelihood {
         symmetricConfidenceIntervals = VectorContainer(uncertainties)
       ),
       forwardModel = forwardModel
+    )
+
+  @unused
+  def of[F[_]: STM: Async](
+    coefficients: Vector[Vector[Double]],
+    measurements: Vector[Double],
+    uncertainties: Vector[Double],
+    priorLabel: String,
+    evalCacheDepth: Option[Int]
+  ): F[CauchyLikelihood[F]] =
+    for {
+      linearForwardModel <- LinearForwardModel
+                              .of[F](
+                                label          = priorLabel,
+                                values         = coefficients,
+                                evalCacheDepth = evalCacheDepth
+                              )
+    } yield CauchyLikelihood(
+      measurements  = measurements,
+      uncertainties = uncertainties,
+      forwardModel  = linearForwardModel
     )
 }

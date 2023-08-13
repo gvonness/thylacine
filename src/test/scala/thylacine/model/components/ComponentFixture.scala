@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import bengal.stm.STM
 import thylacine.config.{ ConjugateGradientConfig, CoordinateSlideConfig, HookeAndJeevesConfig, MdsConfig }
 import thylacine.model.components.forwardmodel.NonLinearForwardModel
 import thylacine.model.components.likelihood.{ GaussianLikelihood, GaussianLinearLikelihood }
-import thylacine.model.components.posterior._
+import thylacine.model.components.posterior.*
 import thylacine.model.components.prior.{ GaussianPrior, UniformPrior }
 
 import cats.effect.IO
@@ -71,9 +71,9 @@ object ComponentFixture {
   def fooNonAnalyticLikelihoodF(implicit stm: STM[IO]): IO[GaussianLikelihood[IO, NonLinearForwardModel[IO]]] =
     for {
       nonAnalyticForwardModel <- fooNonAnalyticForwardModelF
-    } yield GaussianLikelihood.from[IO, NonLinearForwardModel[IO]](
+    } yield GaussianLikelihood[IO, NonLinearForwardModel[IO]](
       forwardModel  = nonAnalyticForwardModel,
-      measurements  = Vector(7, 10),
+      measurements  = Vector(7d, 10d),
       uncertainties = Vector(0.01, 0.01)
     )
 
@@ -151,7 +151,7 @@ object ComponentFixture {
   def hookeAndJeevesOptimisedPosteriorF(implicit stm: STM[IO]): IO[HookeAndJeevesOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-    } yield HookeAndJeevesOptimisedPosterior.from[IO](
+    } yield HookeAndJeevesOptimisedPosterior[IO](
       hookeAndJeevesConfig    = hookeAndJeevesConfig,
       posterior               = unnormalisedPosterior,
       iterationUpdateCallback = _ => IO.unit,
@@ -168,7 +168,7 @@ object ComponentFixture {
   def coordinateSlideOptimisedPosteriorF(implicit stm: STM[IO]): IO[CoordinateSlideOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-    } yield CoordinateSlideOptimisedPosterior.from[IO](
+    } yield CoordinateSlideOptimisedPosterior[IO](
       coordinateSlideConfig   = coordinateSlideConfig,
       posterior               = unnormalisedPosterior,
       iterationUpdateCallback = _ => IO.unit,
@@ -179,13 +179,13 @@ object ComponentFixture {
     convergenceThreshold      = 1e-20,
     goldenSectionTolerance    = 1e-10,
     lineProbeExpansionFactor  = 2.0,
-    minimumNumberOfIterations = 1000
+    minimumNumberOfIterations = 10000
   )
 
   def conjugateGradientOptimisedPosteriorF(implicit stm: STM[IO]): IO[ConjugateGradientOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-    } yield ConjugateGradientOptimisedPosterior.from[IO](
+    } yield ConjugateGradientOptimisedPosterior[IO](
       conjugateGradientConfig = conjugateGradientConfig,
       posterior               = unnormalisedPosterior,
       iterationUpdateCallback = _ => IO.unit,
@@ -202,7 +202,7 @@ object ComponentFixture {
   def mdsOptimisedPosteriorF(implicit stm: STM[IO]): IO[MdsOptimisedPosterior[IO]] =
     for {
       unnormalisedPosterior <- unnormalisedPosteriorF
-    } yield MdsOptimisedPosterior.from[IO](
+    } yield MdsOptimisedPosterior[IO](
       mdsConfig               = mdsConfig,
       posterior               = unnormalisedPosterior,
       iterationUpdateCallback = _ => IO.unit,

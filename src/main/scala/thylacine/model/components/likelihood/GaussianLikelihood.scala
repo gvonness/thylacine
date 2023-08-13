@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Greg von Nessi
+ * Copyright 2023 Greg von Nessi
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 package ai.entrolution
 package thylacine.model.components.likelihood
 
-import thylacine.model.components.forwardmodel._
-import thylacine.model.core.GenericIdentifier._
-import thylacine.model.core._
+import thylacine.model.components.forwardmodel.*
+import thylacine.model.core.GenericIdentifier.*
+import thylacine.model.core.*
 import thylacine.model.core.values.VectorContainer
 import thylacine.model.distributions.GaussianDistribution
 
@@ -52,7 +52,7 @@ case class GaussianLikelihood[F[_]: Async, T <: ForwardModel[F]](
 
 object GaussianLikelihood {
 
-  def from[F[_]: Async, T <: ForwardModel[F]](
+  def apply[F[_]: Async, T <: ForwardModel[F]](
     forwardModel: T,
     measurements: Vector[Double],
     uncertainties: Vector[Double]
