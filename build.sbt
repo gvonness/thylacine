@@ -1,4 +1,4 @@
-ThisBuild / tlBaseVersion := "0.9"
+ThisBuild / tlBaseVersion := "0.10"
 
 ThisBuild / organization     := "ai.entrolution"
 ThisBuild / organizationName := "Greg von Nessi"
