@@ -31,7 +31,7 @@ class ConjugateGradientOptimisedPosteriorSpec extends AsyncFreeSpec with AsyncIO
     "find the parameters that correspond to the posterior maximum" in {
       (for {
         case implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        posterior               <- conjugateGradientOptimisedPosteriorF
+        posterior <- conjugateGradientOptimisedPosteriorF
         optimisationResult <-
           posterior.findMaximumLogPdf(Map("fooniform" -> Vector(.5d, .5d), "barniform" -> Vector(3d)))
       } yield maxIndexVectorDiff(optimisationResult._2, Map("fooniform" -> Vector(1, 2), "barniform" -> Vector(5))))

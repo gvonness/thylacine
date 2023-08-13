@@ -32,7 +32,7 @@ import cats.syntax.all.*
 /** Implementation of the Hamiltonian MCMC sampling algorithm
   */
 private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
-  this: AsyncImplicits[F] with Posterior[F, Prior[F, ?], ?] =>
+  this: AsyncImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
   /*
    * - - -- --- ----- -------- -------------

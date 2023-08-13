@@ -34,7 +34,7 @@ class GaussianAnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with 
     "generate the correct mean for the inference" in {
       (for {
         case implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        posterior               <- analyticPosteriorF
+        posterior <- analyticPosteriorF
       } yield maxIndexVectorDiff(posterior.mean, Map("foo" -> Vector(1, 2), "bar" -> Vector(5))))
         .asserting(_ shouldBe (0d +- .1))
     }
@@ -45,7 +45,7 @@ class GaussianAnalyticPosteriorSpec extends AsyncFreeSpec with AsyncIOSpec with 
     "generate the correct covariance" in {
       (for {
         case implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        posterior               <- analyticPosteriorF
+        posterior <- analyticPosteriorF
       } yield maxVectorDiff(posterior.covarianceStridedVector, Vector.fill(9)(0d))).asserting(_ shouldBe (0.0 +- .01))
     }
   }

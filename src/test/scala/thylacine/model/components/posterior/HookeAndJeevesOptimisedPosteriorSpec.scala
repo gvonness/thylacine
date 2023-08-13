@@ -31,8 +31,8 @@ class HookeAndJeevesOptimisedPosteriorSpec extends AsyncFreeSpec with AsyncIOSpe
     "find the parameters that correspond to the posterior maximum" in {
       (for {
         case implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        posterior               <- hookeAndJeevesOptimisedPosteriorF
-        optimisationResult      <- posterior.findMaximumLogPdf(Map())
+        posterior          <- hookeAndJeevesOptimisedPosteriorF
+        optimisationResult <- posterior.findMaximumLogPdf(Map())
       } yield maxIndexVectorDiff(optimisationResult._2, Map("fooniform" -> Vector(1, 2), "barniform" -> Vector(5))))
         .asserting(_ shouldBe (0.0 +- 1e-5))
     }

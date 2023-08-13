@@ -40,7 +40,7 @@ import scala.util.Random
 /** Leapfrog MCMC algorithm.
   */
 private[thylacine] trait LeapfrogMcmcEngine[F[_]] extends ModelParameterSampler[F] {
-  this: StmImplicits[F] with Posterior[F, Prior[F, _], _] =>
+  this: StmImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
   /*
    * - - -- --- ----- -------- -------------

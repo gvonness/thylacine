@@ -33,8 +33,8 @@ class GaussianLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with Matcher
     "generate the a zero gradient at the likelihood maximum" in {
       (for {
         case implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        likelihood              <- fooNonAnalyticLikelihoodF
-        result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(1d, 2d))))
+        likelihood <- fooNonAnalyticLikelihoodF
+        result     <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(1d, 2d))))
       } yield result.genericScalaRepresentation)
         .asserting(_ shouldBe Map("foo" -> Vector(0d, 0d)))
     }
@@ -42,8 +42,8 @@ class GaussianLikelihoodSpec extends AsyncFreeSpec with AsyncIOSpec with Matcher
     "generate the correct gradient of the logPdf for a given point" in {
       (for {
         case implicit0(stm: STM[IO]) <- STM.runtime[IO]
-        likelihood              <- fooNonAnalyticLikelihoodF
-        result                  <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(3d, 2d))))
+        likelihood <- fooNonAnalyticLikelihoodF
+        result     <- likelihood.logPdfGradientAt(IndexedVectorCollection(Map("foo" -> Vector(3d, 2d))))
       } yield result.genericScalaRepresentation)
         .asserting(result => maxIndexVectorDiff(result, Map("foo" -> Vector(-4e5, -88e4))) shouldBe (0d +- 1e-4))
     }

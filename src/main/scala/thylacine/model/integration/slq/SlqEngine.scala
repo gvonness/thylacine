@@ -49,9 +49,9 @@ import cats.syntax.all.*
   * stochastic quadratures Plasma Phys. Control Fusion 56 (2014) 114011
   */
 private[thylacine] trait SlqEngine[F[_]] extends ModelParameterIntegrator[F] with ModelParameterSampler[F] {
-  this: StmImplicits[F] with Posterior[F, Prior[F, ?], ?] =>
+  this: StmImplicits[F] & Posterior[F, Prior[F, ?], ?] =>
 
-  import SlqEngine._
+  import SlqEngine.*
 
   /*
    * - - -- --- ----- -------- -------------

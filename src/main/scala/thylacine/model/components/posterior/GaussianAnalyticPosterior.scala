@@ -33,7 +33,7 @@ import cats.syntax.all.*
 import org.apache.commons.math3.random.MersenneTwister
 
 import scala.annotation.unused
-import scala.{ Vector => ScalaVector }
+import scala.Vector as ScalaVector
 
 case class GaussianAnalyticPosterior[F[_]: Async](
   override private[thylacine] val priors: Set[GaussianPrior[F]],
