@@ -46,8 +46,8 @@ case class HmcmcSampledPosterior[F[_]: Async](
   final override protected val stepsInSimulation: Int =
     hmcmcConfig.stepsInDynamicsSimulation
 
-  final override protected val simulationEpsilon: Double =
-    hmcmcConfig.dynamicsSimulationStepSize
+  final override protected val targetAcceptanceRatio: Double =
+    hmcmcConfig.targetAcceptanceRatio
 
   final override protected val warmUpSimulationCount: Int =
     hmcmcConfig.warmupStepCount

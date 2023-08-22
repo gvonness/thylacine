@@ -22,8 +22,9 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
+import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
 import thylacine.model.sampling.ModelParameterSampler
+import thylacine.model.sampling.hmcmc.HmcmcEngine.*
 
 import cats.effect.implicits.*
 import cats.effect.kernel.Async
@@ -41,8 +42,8 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
    */
   protected def simulationsBetweenSamples: Int
   protected def stepsInSimulation: Int
-  protected def simulationEpsilon: Double
   protected def warmUpSimulationCount: Int
+  protected def targetAcceptanceRatio: Double
   protected def startingPoint: F[ModelParameterCollection]
   protected def telemetryUpdateCallback: HmcmcTelemetryUpdate => F[Unit]
 
@@ -56,6 +57,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     input: ModelParameterCollection,
     rawP: VectorContainer,
     gradNegLogPdf: ModelParameterCollection,
+    simulationEpsilon: Double,
     iterationCount: Int = 1
   ): F[(ModelParameterCollection, VectorContainer)] =
     if (iterationCount > stepsInSimulation) {
@@ -90,11 +92,14 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     burnIn: Boolean                                 = false,
     iterationCount: Int,
     numberOfRequestedSamples: Int,
+    maxSimulationEpsilon: Double,
+    minSimulationEpsilon: Double,
+    simulationEpsilon: Double,
     jumpAcceptances: Int                   = 0,
     jumpAttempts: Int                      = 0,
     samples: Set[ModelParameterCollection] = Set()
   ): F[Set[ModelParameterCollection]] = {
-    val simulationSpec: F[Set[ModelParameterCollection]] = (for {
+    lazy val simulationSpec: F[Set[ModelParameterCollection]] = (for {
       _ <- Async[F].ifM(Async[F].pure(burnIn))(
              Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount")),
              Async[F].unit
@@ -109,7 +114,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                        }
       p           <- Async[F].delay(VectorContainer.random(domainDimension))
       hamiltonian <- Async[F].delay(getHamiltonianValue(p, negLogPdf))
-      xAndPNew    <- runLeapfrogAt(input, p, gradNegLogPdf)
+      xAndPNew    <- runLeapfrogAt(input, p, gradNegLogPdf, simulationEpsilon)
       (xNew, pNew) = xAndPNew
       eNew <- logPdfAt(xNew).map(_ * -1)
       hNew <- Async[F].delay(getHamiltonianValue(pNew, eNew))
@@ -121,6 +126,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                  samplesRemaining        = numberOfRequestedSamples - samples.size,
                  jumpAttempts            = jumpAttempts,
                  jumpAcceptances         = jumpAcceptances,
+                 simulationDifferential  = simulationEpsilon,
                  hamiltonianDifferential = Option(dH)
                )
              ).start.void
@@ -142,26 +148,65 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
         numberOfRequestedSamples = numberOfRequestedSamples,
         jumpAcceptances          = acceptances,
         jumpAttempts             = attempts,
-        samples                  = samples
+        samples                  = samples,
+        maxSimulationEpsilon     = maxSimulationEpsilon,
+        minSimulationEpsilon     = minSimulationEpsilon,
+        simulationEpsilon        = simulationEpsilon
       )
     }
 
-    val sampleAppendSpec: F[Set[ModelParameterCollection]] =
+    lazy val testAcceptance = {
+      val isOverRatio         = jumpAcceptances.toDouble / jumpAttempts > targetAcceptanceRatio
+      val isLargerThanMinimum = simulationEpsilon > minSimulationEpsilon
+      val isLargerThanMaximum = simulationEpsilon > maxSimulationEpsilon
+
+      val newMinimumEpsilon =
+        if (!(isOverRatio ^ isLargerThanMinimum)) {
+          simulationEpsilon
+        } else {
+          minSimulationEpsilon
+        }
+
+      val newMaximumEpsilon =
+        if (!(isOverRatio ^ isLargerThanMaximum)) {
+          simulationEpsilon
+        } else {
+          minSimulationEpsilon
+        }
+
+      val newEpsilon =
+        if (isOverRatio && isLargerThanMinimum) {
+          2 * simulationEpsilon - minSimulationEpsilon
+        } else if (isOverRatio) {
+          (simulationEpsilon + maxSimulationEpsilon) / 2.0
+        } else if (isLargerThanMinimum) {
+          minSimulationEpsilon / 2.0
+        } else {
+          simulationEpsilon / 2.0
+        }
+
+      (newMaximumEpsilon, newEpsilon, newMinimumEpsilon)
+    }
+
+    lazy val sampleAppendSpec: F[Set[ModelParameterCollection]] =
       Async[F].delay(samples + input).flatMap { newSamples =>
         Async[F].ifM(Async[F].pure(newSamples.size >= numberOfRequestedSamples || burnIn))(
           Async[F].pure(newSamples),
-          runDynamicSimulationFrom(
-            input                    = input,
-            maxIterations            = maxIterations,
-            logPdfOpt                = logPdfOpt,
-            gradLogPdfOpt            = gradLogPdfOpt,
-            burnIn                   = burnIn,
-            iterationCount           = 0,
-            numberOfRequestedSamples = numberOfRequestedSamples,
-            jumpAcceptances          = jumpAcceptances,
-            jumpAttempts             = jumpAttempts,
-            samples                  = newSamples
-          )
+          Async[F].delay(testAcceptance).flatMap { case (newMaxEpsilon, newEpsilon, newMinEpsilon) =>
+            runDynamicSimulationFrom(
+              input                    = input,
+              maxIterations            = maxIterations,
+              logPdfOpt                = logPdfOpt,
+              gradLogPdfOpt            = gradLogPdfOpt,
+              burnIn                   = burnIn,
+              iterationCount           = 0,
+              numberOfRequestedSamples = numberOfRequestedSamples,
+              maxSimulationEpsilon     = newMaxEpsilon,
+              minSimulationEpsilon     = newMinEpsilon,
+              simulationEpsilon        = newEpsilon,
+              samples                  = newSamples
+            )
+          }
         )
       }
 
@@ -191,7 +236,10 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                    maxIterations            = warmUpSimulationCount,
                    burnIn                   = true,
                    numberOfRequestedSamples = 1,
-                   iterationCount           = 0
+                   iterationCount           = 0,
+                   maxSimulationEpsilon     = defaultMaxSimulationEpsilon,
+                   minSimulationEpsilon     = defaultMinSimulationEpsilon,
+                   simulationEpsilon        = defaultMaxSimulationEpsilon
                  )
       _ <- Async[F].delay(print(s"\nHMCMC Sampling :: Burn-in complete!\n"))
     } yield results.head
@@ -209,8 +257,16 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                    input                    = startPt,
                    maxIterations            = simulationsBetweenSamples,
                    numberOfRequestedSamples = numberOfSamples,
-                   iterationCount           = 0
+                   iterationCount           = 0,
+                   maxSimulationEpsilon     = defaultMaxSimulationEpsilon,
+                   minSimulationEpsilon     = defaultMinSimulationEpsilon,
+                   simulationEpsilon        = defaultMaxSimulationEpsilon
                  )
     } yield results
 
+}
+
+object HmcmcEngine {
+  private val defaultMinSimulationEpsilon = 1e-20
+  private val defaultMaxSimulationEpsilon = 1e-3
 }

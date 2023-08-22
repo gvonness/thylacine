@@ -21,6 +21,7 @@ case class HmcmcTelemetryUpdate(
   samplesRemaining: Int,
   jumpAttempts: Int,
   jumpAcceptances: Int,
+  simulationDifferential: Double,
   hamiltonianDifferential: Option[Double]
 ) extends TelemetryReport {
 
@@ -36,6 +37,9 @@ case class HmcmcTelemetryUpdate(
     val hamiltonianDifferentialString =
       hamiltonianDifferential.map(v => s" // exp(-dH) = ${Math.exp(-v)}").getOrElse("")
 
-    baseString + acceptanceString + hamiltonianDifferentialString
+    val simulationDifferentialString =
+      s" // epsilon = $simulationDifferential"
+
+    baseString + acceptanceString + hamiltonianDifferentialString + simulationDifferentialString
   }
 }
