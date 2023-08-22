@@ -22,7 +22,7 @@ import thylacine.model.components.prior.Prior
 import thylacine.model.core.AsyncImplicits
 import thylacine.model.core.telemetry.HmcmcTelemetryUpdate
 import thylacine.model.core.values.IndexedVectorCollection.ModelParameterCollection
-import thylacine.model.core.values.{IndexedVectorCollection, VectorContainer}
+import thylacine.model.core.values.{ IndexedVectorCollection, VectorContainer }
 import thylacine.model.sampling.ModelParameterSampler
 import thylacine.model.sampling.hmcmc.HmcmcEngine.*
 
@@ -77,7 +77,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
                      )
                    }
       } yield (xNew, VectorContainer(pNewNew.toArray.toVector), gNew)).flatMap { case (xNew, pNewNew, gNew) =>
-        runLeapfrogAt(xNew, pNewNew, gNew, iterationCount + 1)
+        runLeapfrogAt(xNew, pNewNew, gNew, simulationEpsilon, iterationCount + 1)
       }
     }
 
