@@ -99,7 +99,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
     jumpAttempts: Int                      = 0,
     samples: Set[ModelParameterCollection] = Set()
   ): F[Set[ModelParameterCollection]] = {
-    lazy val simulationSpec: F[Set[ModelParameterCollection]] = (for {
+    def simulationSpec: F[Set[ModelParameterCollection]] = (for {
       _ <- Async[F].ifM(Async[F].pure(burnIn))(
              Async[F].delay(print(s"\rHMCMC Sampling :: Burn-in Iteration - $iterationCount/$warmUpSimulationCount")),
              Async[F].unit
@@ -155,40 +155,32 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       )
     }
 
-    lazy val testAcceptance = {
+    def testAcceptance = {
       val isOverRatio         = jumpAcceptances.toDouble / jumpAttempts > targetAcceptanceRatio
       val isLargerThanMinimum = simulationEpsilon > minSimulationEpsilon
       val isLargerThanMaximum = simulationEpsilon > maxSimulationEpsilon
 
-      val newMinimumEpsilon =
-        if (!(isOverRatio ^ isLargerThanMinimum)) {
-          simulationEpsilon
-        } else {
-          minSimulationEpsilon
-        }
-
       val newMaximumEpsilon =
-        if (!(isOverRatio ^ isLargerThanMaximum)) {
+        if (isLargerThanMaximum || !isOverRatio) {
           simulationEpsilon
         } else {
           maxSimulationEpsilon
         }
 
+      val newMinimumEpsilon =
+        if (!isLargerThanMinimum || isOverRatio) {
+          simulationEpsilon
+        } else {
+          minSimulationEpsilon
+        }
+
       val newEpsilon =
         if (isOverRatio && isLargerThanMaximum) {
-          if (simulationEpsilon > minSimulationEpsilon) {
-            2 * simulationEpsilon - minSimulationEpsilon
-          } else {
-            2 * minSimulationEpsilon
-          }
+          2 * simulationEpsilon
         } else if (isOverRatio) {
-          if (maxSimulationEpsilon > simulationEpsilon) {
-            (simulationEpsilon + maxSimulationEpsilon) / 2.0
-          } else {
-            2 * simulationEpsilon
-          }
+          (simulationEpsilon + maxSimulationEpsilon) / 2.0
         } else if (isLargerThanMinimum) {
-          minSimulationEpsilon / 2.0
+          (simulationEpsilon + minSimulationEpsilon) / 2.0
         } else {
           simulationEpsilon / 2.0
         }
@@ -196,7 +188,7 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
       (newMaximumEpsilon, newEpsilon, newMinimumEpsilon)
     }
 
-    lazy val sampleAppendSpec: F[Set[ModelParameterCollection]] =
+    def sampleAppendSpec: F[Set[ModelParameterCollection]] =
       Async[F].delay(samples + input).flatMap { newSamples =>
         Async[F].ifM(Async[F].pure(newSamples.size >= numberOfRequestedSamples || burnIn))(
           Async[F].pure(newSamples),
