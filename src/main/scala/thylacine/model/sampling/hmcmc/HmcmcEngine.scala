@@ -176,9 +176,17 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
       val newEpsilon =
         if (isOverRatio && isLargerThanMaximum) {
-          2 * simulationEpsilon - minSimulationEpsilon
+          if (simulationEpsilon > minSimulationEpsilon) {
+            2 * simulationEpsilon - minSimulationEpsilon
+          } else {
+            2 * minSimulationEpsilon
+          }
         } else if (isOverRatio) {
-          (simulationEpsilon + maxSimulationEpsilon) / 2.0
+          if (maxSimulationEpsilon > simulationEpsilon) {
+            (simulationEpsilon + maxSimulationEpsilon) / 2.0
+          } else {
+            2 * simulationEpsilon
+          }
         } else if (isLargerThanMinimum) {
           minSimulationEpsilon / 2.0
         } else {
