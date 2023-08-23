@@ -157,29 +157,28 @@ private[thylacine] trait HmcmcEngine[F[_]] extends ModelParameterSampler[F] {
 
     def testAcceptance = {
       val isOverRatio         = jumpAcceptances.toDouble / jumpAttempts > targetAcceptanceRatio
-      val isLargerThanMinimum = simulationEpsilon > minSimulationEpsilon
-      val isLargerThanMaximum = simulationEpsilon > maxSimulationEpsilon
+      val isLargerThanMinimum = simulationEpsilon >= minSimulationEpsilon
 
       val newMaximumEpsilon =
-        if (isLargerThanMaximum || !isOverRatio) {
+        if ((simulationEpsilon > maxSimulationEpsilon) || !isOverRatio) {
           simulationEpsilon
         } else {
           maxSimulationEpsilon
         }
 
       val newMinimumEpsilon =
-        if (!isLargerThanMinimum || isOverRatio) {
+        if ((simulationEpsilon < minSimulationEpsilon) || isOverRatio) {
           simulationEpsilon
         } else {
           minSimulationEpsilon
         }
 
       val newEpsilon =
-        if (isOverRatio && isLargerThanMaximum) {
+        if (isOverRatio && (simulationEpsilon >= maxSimulationEpsilon)) {
           2 * simulationEpsilon
         } else if (isOverRatio) {
           (simulationEpsilon + maxSimulationEpsilon) / 2.0
-        } else if (isLargerThanMinimum) {
+        } else if (simulationEpsilon > minSimulationEpsilon) {
           (simulationEpsilon + minSimulationEpsilon) / 2.0
         } else {
           simulationEpsilon / 2.0
