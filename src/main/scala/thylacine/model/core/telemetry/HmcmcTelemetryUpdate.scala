@@ -30,15 +30,15 @@ case class HmcmcTelemetryUpdate(
       s"HMCMC Sampling :: Samples remaining - $samplesRemaining"
     val acceptanceString =
       if (jumpAttempts != 0) {
-        s" // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}"
+        f" // Acceptance Ratio - ${jumpAcceptances.toDouble / jumpAttempts}%1.2"
       } else {
         ""
       }
     val hamiltonianDifferentialString =
-      hamiltonianDifferential.map(v => s" // exp(-dH) = ${Math.exp(-v)}").getOrElse("")
+      hamiltonianDifferential.map(v => f" // exp(-dH) = ${Math.exp(-v)}%1.2").getOrElse("")
 
     val simulationDifferentialString =
-      s" // epsilon = $simulationDifferential"
+      f" // epsilon = $simulationDifferential%1.5"
 
     baseString + acceptanceString + hamiltonianDifferentialString + simulationDifferentialString
   }
